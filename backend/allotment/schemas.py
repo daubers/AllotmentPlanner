@@ -153,3 +153,28 @@ class TaskSchema(Schema):
     spawned_task_id = fields.Integer(
         allow_none=True, metadata={"description": "Set when completing a recurring task"}
     )
+
+
+class TodoQuerySchema(Schema):
+    date = fields.Date(metadata={"description": "Day to plan for; defaults to today (server date)"})
+    include_undated = fields.Boolean(load_default=False)
+
+
+class TodoAllotmentSchema(Schema):
+    id = fields.Integer()
+    name = fields.String()
+
+
+class TodoMemberSchema(Schema):
+    user_id = fields.Integer()
+    display_name = fields.String()
+
+
+class TodoSchema(Schema):
+    date = fields.Date()
+    allotment = fields.Nested(TodoAllotmentSchema)
+    tasks = fields.List(fields.Nested(TaskSchema))
+    features = fields.List(
+        fields.Nested(FeatureSchema), metadata={"description": "The whole map, for the sketch"}
+    )
+    members = fields.List(fields.Nested(TodoMemberSchema))

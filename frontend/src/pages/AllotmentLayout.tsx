@@ -25,13 +25,14 @@ export default function AllotmentLayout() {
   const context: AllotmentContext = { id, allotment: allotment.data, canEdit };
   return (
     <div className="shell">
-      <header className="subbar">
+      <header className="subbar no-print">
         <Link to="/">← Allotments</Link>
         <strong>{allotment.data.name}</strong>
         <span className="badge">{allotment.data.role}</span>
         <nav className="tabs">
           <NavLink to="" end>Map</NavLink>
           <NavLink to="tasks">Tasks</NavLink>
+          <NavLink to="today">Today</NavLink>
         </nav>
       </header>
       <div className="shell-body">

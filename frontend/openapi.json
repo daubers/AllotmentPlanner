@@ -880,6 +880,64 @@
           }
         }
       ]
+    },
+    "/api/v1/allotments/{allotment_id}/todo": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date",
+            "description": "Day to plan for; defaults to today (server date)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "include_undated",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Everything open that is due on or before ``date`` (so overdue jobs are included).",
+        "tags": [
+          "todo"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
     }
   },
   "info": {
@@ -902,6 +960,10 @@
     {
       "name": "tasks",
       "description": "Tasks, optionally pinned to the map"
+    },
+    {
+      "name": "todo",
+      "description": "The printable day plan"
     }
   ],
   "openapi": "3.0.3",
@@ -1451,6 +1513,62 @@
             "type": "object",
             "additionalProperties": {},
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TodoAllotment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TodoMember": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer"
+          },
+          "display_name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Todo": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "allotment": {
+            "$ref": "#/components/schemas/TodoAllotment"
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "features": {
+            "type": "array",
+            "description": "The whole map, for the sketch",
+            "items": {
+              "$ref": "#/components/schemas/Feature"
+            }
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TodoMember"
+            }
           }
         },
         "additionalProperties": false

@@ -3,7 +3,7 @@ from flask_jwt_extended import JWTManager
 from flask_smorest import Api
 
 from . import events, health, models  # noqa: F401 - models register with SQLAlchemy metadata
-from .api import allotments, auth, features, tasks
+from .api import allotments, auth, features, tasks, todo
 from .config import Config
 from .extensions import db, migrate
 from .logging import configure_logging, init_request_logging
@@ -24,6 +24,7 @@ def create_app(config: type = Config) -> Flask:
     api.register_blueprint(allotments.blp)
     api.register_blueprint(features.blp)
     api.register_blueprint(tasks.blp)
+    api.register_blueprint(todo.blp)
 
     init_request_logging(app)
     init_metrics(app)

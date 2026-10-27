@@ -68,3 +68,15 @@ export function useTaskActions(allotmentId: number) {
     }),
   };
 }
+
+export function useTodo(allotmentId: number, date: string, includeUndated: boolean) {
+  return useQuery({
+    queryKey: ["todo", allotmentId, date, includeUndated],
+    queryFn: async () =>
+      (
+        await api.GET("/api/v1/allotments/{allotment_id}/todo", {
+          params: { path: { allotment_id: allotmentId }, query: { date, include_undated: includeUndated } },
+        })
+      ).data,
+  });
+}
