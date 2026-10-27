@@ -12,9 +12,9 @@ Tickets live in YouTrack project **AM** (Allotment Manager) at pm.daubney.dev. W
 |---|---|---|
 | 1 Scaffold, Docker, observability | AM-1 | Merged |
 | 2 Auth, allotments, roles | AM-2 | Merged (in Review) |
-| 3 Map features CRUD + editor | AM-3 | Backlog |
-| 4 Tasks pinned to features | AM-4 | Backlog |
-| 5 Printable daily todo | AM-5 | Backlog |
+| 3 Map features CRUD + editor | AM-3 | Merged (in Review) |
+| 4 Tasks pinned to features | AM-4 | Merged (in Review) |
+| 5 Printable daily todo | AM-5 | Merged (in Review) |
 | 6 Media upload, EXIF, timeline | AM-6 | Backlog |
 | 7 Progress overview | AM-7 | Backlog |
 | 8 Mastodon posting | AM-8 | Backlog |
@@ -73,9 +73,9 @@ Vite + React + TS, React Router, TanStack Query, `openapi-typescript` + `openapi
 ## Phases
 1. **Scaffold & Docker**: repo, backend skeleton, event bus, logging, metrics, health, tracing, compose stack. ✅
 2. **Auth, allotments, roles**: models, JWT, membership permissions, OpenAPI. ✅
-3. **Map features CRUD**: PostGIS models + API; frontend map editor with Geoman draw/edit/delete. Adds the `frontend` image to CI and PostGIS to the CI test job.
-4. **Tasks**: CRUD, pin to feature, Tasks page, map pins.
-5. **Today / print todo**: endpoint + print stylesheet.
+3. **Map features CRUD**: PostGIS models + API; frontend map editor with Geoman draw/edit/delete. Adds the `frontend` image to CI and PostGIS to the CI test job. ✅
+4. **Tasks**: CRUD, pin to feature, recurrence, Tasks page, map pins. ✅
+5. **Today / print todo**: endpoint + print stylesheet. Done as a client-rendered sheet (SVG plot sketch with numbered pins) printed via the browser; a server-side PDF was dropped as unnecessary. ✅
 6. **Media & timeline**: upload (MinIO), EXIF/thumbnail task, feature-linked photos, timeline/compare.
 7. **Progress overview**: `ActivityLog` writes everywhere, aggregation endpoint, dashboard.
 8. **Mastodon**: settings, posting task, event opt-ins, digest.
