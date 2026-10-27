@@ -1,8 +1,8 @@
 import enum
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from geoalchemy2 import Geometry
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .extensions import db
@@ -90,6 +90,47 @@ class MapFeature(db.Model):
     geometry = mapped_column(Geometry("GEOMETRY", srid=4326), nullable=False)
     radius_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     style: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
+
+
+class TaskStatus(enum.StrEnum):
+    TODO = "todo"
+    DOING = "doing"
+    DONE = "done"
+
+
+class Task(db.Model):
+    """A job to do. Optionally pinned to a map feature and/or a point on the map."""
+
+    __tablename__ = "tasks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(10), default=TaskStatus.TODO, index=True)
+    priority: Mapped[str] = mapped_column(String(10), default="normal")
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    recurrence: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    assignee_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    feature_id: Mapped[int | None] = mapped_column(
+        ForeignKey("map_features.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    location = mapped_column(Geometry("POINT", srid=4326), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     created_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

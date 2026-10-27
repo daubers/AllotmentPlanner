@@ -1,11 +1,13 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth";
+import AllotmentLayout from "./pages/AllotmentLayout";
 import Allotments from "./pages/Allotments";
 import Login from "./pages/Login";
+import TasksPage from "./pages/TasksPage";
 
 // The map editor pulls in Leaflet + Geoman, so load it only when needed.
-const AllotmentMap = lazy(() => import("./pages/AllotmentMap"));
+const MapView = lazy(() => import("./pages/MapView"));
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -28,7 +30,10 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Protected><Allotments /></Protected>} />
-        <Route path="/allotments/:id" element={<Protected><Suspense fallback={<p className="muted centre">Loading map…</p>}><AllotmentMap /></Suspense></Protected>} />
+        <Route path="/allotments/:id" element={<Protected><AllotmentLayout /></Protected>}>
+          <Route index element={<Suspense fallback={<p className="muted centre">Loading map…</p>}><MapView /></Suspense>} />
+          <Route path="tasks" element={<TasksPage />} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

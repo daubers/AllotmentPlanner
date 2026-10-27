@@ -6,7 +6,8 @@ const apiTarget = process.env.VITE_API_PROXY ?? "http://localhost:8000";
 
 export default defineConfig({
   plugins: [react()],
-  server: { port: 5173, proxy: { "/api": apiTarget } },
+  // "frontend" is the compose service name (used by the Playwright container).
+  server: { port: 5173, allowedHosts: ["frontend"], proxy: { "/api": apiTarget } },
   test: {
     environment: "jsdom",
     globals: true,

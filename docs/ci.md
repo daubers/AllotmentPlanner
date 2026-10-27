@@ -21,3 +21,10 @@ ruff check backend && ruff format --check backend
 (cd backend && pytest -q)
 docker build --target prod backend
 ```
+
+## End-to-end tests (local only for now)
+`make e2e` starts the compose stack and runs the Playwright suite in `e2e/` inside the official
+Playwright image, attached to the compose network (browser hits `http://frontend:5173`).
+It registers a user, draws a bed with the Geoman toolbar, pins a task to it and completes it.
+Running it in CI needs the job to reach a Docker daemon with bind-mountable paths; that is planned
+with the polish phase (AM-10). Test users are named `e2e-*@example.com`.

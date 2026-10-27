@@ -94,3 +94,62 @@ class FeatureCollectionInSchema(Schema):
 class FeatureCollectionSchema(Schema):
     type = fields.String()
     features = fields.List(fields.Nested(FeatureSchema))
+
+
+TASK_STATUSES = ["todo", "doing", "done"]
+TASK_PRIORITIES = ["low", "normal", "high"]
+RECURRENCES = ["daily", "weekly", "monthly"]
+
+
+class TaskInSchema(Schema):
+    title = fields.String(required=True, validate=validate.Length(min=1, max=200))
+    description = fields.String(load_default="")
+    priority = fields.String(load_default="normal", validate=validate.OneOf(TASK_PRIORITIES))
+    status = fields.String(load_default="todo", validate=validate.OneOf(["todo", "doing"]))
+    due_date = fields.Date(load_default=None, allow_none=True)
+    recurrence = fields.String(
+        load_default=None, allow_none=True, validate=validate.OneOf(RECURRENCES)
+    )
+    assignee_id = fields.Integer(load_default=None, allow_none=True)
+    feature_id = fields.Integer(load_default=None, allow_none=True)
+    location = fields.Dict(load_default=None, allow_none=True)
+
+
+class TaskPatchSchema(Schema):
+    title = fields.String(validate=validate.Length(min=1, max=200))
+    description = fields.String()
+    priority = fields.String(validate=validate.OneOf(TASK_PRIORITIES))
+    status = fields.String(validate=validate.OneOf(["todo", "doing"]))
+    due_date = fields.Date(allow_none=True)
+    recurrence = fields.String(allow_none=True, validate=validate.OneOf(RECURRENCES))
+    assignee_id = fields.Integer(allow_none=True)
+    feature_id = fields.Integer(allow_none=True)
+    location = fields.Dict(allow_none=True)
+
+
+class TaskQuerySchema(Schema):
+    status = fields.String(validate=validate.OneOf(TASK_STATUSES))
+    open = fields.Boolean(metadata={"description": "true: only todo/doing; false: only done"})
+    due_on = fields.Date()
+    due_by = fields.Date(metadata={"description": "Due on or before this date (includes overdue)"})
+    feature_id = fields.Integer()
+    assignee_id = fields.Integer()
+
+
+class TaskSchema(Schema):
+    id = fields.Integer()
+    title = fields.String()
+    description = fields.String()
+    status = fields.String()
+    priority = fields.String()
+    due_date = fields.Date(allow_none=True)
+    recurrence = fields.String(allow_none=True)
+    assignee_id = fields.Integer(allow_none=True)
+    feature_id = fields.Integer(allow_none=True)
+    location = fields.Dict(allow_none=True)
+    completed_at = fields.DateTime(allow_none=True)
+    completed_by = fields.Integer(allow_none=True)
+    created_at = fields.DateTime()
+    spawned_task_id = fields.Integer(
+        allow_none=True, metadata={"description": "Set when completing a recurring task"}
+    )

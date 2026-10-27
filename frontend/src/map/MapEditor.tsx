@@ -1,3 +1,4 @@
+import "./leaflet-global";
 import "@geoman-io/leaflet-geoman-free";
 import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
 import L from "leaflet";
@@ -5,6 +6,9 @@ import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
 import { LayersControl, MapContainer, TileLayer, useMap } from "react-leaflet";
 import { api } from "../api/client";
+import type { Task } from "../tasks/group";
+import { useTaskActions, useTasks } from "../tasks/hooks";
+import { pinGroups, pinPopup } from "./pins";
 import {
   featureToLayer,
   KINDS,
@@ -22,13 +26,31 @@ type LayerWithId = L.Layer & { featureId?: number };
 
 const DEFAULT_CENTRE: L.LatLngTuple = [51.5, -0.12];
 
-function Editor({ allotmentId, canEdit, onItems, onSelect, registerActions }: Props & {
+function TaskPins({ group, tasks, version }: { group: React.RefObject<L.FeatureGroup>; tasks: Task[]; version: unknown }) {
+  const map = useMap();
+  useEffect(() => {
+    const pins = L.layerGroup().addTo(map);
+    const find = (id: number) => group.current.getLayers().find((l) => (l as LayerWithId).featureId === id);
+    for (const { latlng, tasks: here } of pinGroups(tasks, find)) {
+      const icon = L.divIcon({ className: "", html: '<span class="task-pin">📌</span>', iconSize: [22, 22], iconAnchor: [4, 22] });
+      L.marker(latlng, { icon, keyboard: false, title: `${here.length} open task${here.length > 1 ? "s" : ""}` })
+        .bindPopup(pinPopup(here))
+        .addTo(pins);
+    }
+    return () => {
+      pins.remove();
+    };
+  }, [map, group, tasks, version]);
+  return null;
+}
+
+function Editor({ allotmentId, canEdit, group, onItems, onSelect, registerActions }: Props & {
+  group: React.RefObject<L.FeatureGroup>;
   onItems(items: Item[]): void;
   onSelect(id: number | null): void;
   registerActions(a: { update(id: number, props: Partial<FeatureProps>): void; remove(id: number): void; focus(id: number): void }): void;
 }) {
   const map = useMap();
-  const group = useRef(L.featureGroup());
   const meta = useRef(new Map<number, Item>());
 
   useEffect(() => {
@@ -155,6 +177,10 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
   const [selected, setSelected] = useState<number | null>(null);
   const actions = useRef<Parameters<Parameters<typeof Editor>[0]["registerActions"]>[0] | null>(null);
   const current = items.find((i) => i.id === selected);
+  const group = useRef(L.featureGroup());
+  const tasks = useTasks(allotmentId);
+  const taskActions = useTaskActions(allotmentId);
+  const featureTasks = (tasks.data ?? []).filter((t) => t.feature_id === selected && t.status !== "done");
 
   return (
     <div className="editor">
@@ -167,7 +193,9 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
             <TileLayer attribution="Tiles &copy; Esri" url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxNativeZoom={19} maxZoom={21} />
           </LayersControl.BaseLayer>
         </LayersControl>
+        <TaskPins group={group} tasks={tasks.data ?? []} version={items} />
         <Editor
+          group={group}
           allotmentId={allotmentId}
           canEdit={canEdit}
           onItems={setItems}
@@ -191,7 +219,7 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
           ))}
         </ul>
         {current && (
-          <form className="details" key={current.id} onSubmit={(e) => e.preventDefault()}>
+          <form className="details" key={current.id} onSubmit={(e) => { e.preventDefault(); (document.activeElement as HTMLElement | null)?.blur(); }}>
             <label>
               Name
               <input defaultValue={current.name} disabled={!canEdit} onBlur={(e) => e.target.value !== current.name && actions.current?.update(current.id, { name: e.target.value })} />
@@ -204,6 +232,34 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
             </label>
             {canEdit && <button type="button" className="danger" onClick={() => actions.current?.remove(current.id)}>Delete</button>}
           </form>
+        )}
+        {current && (
+          <section className="panel-tasks">
+            <h3>Tasks here</h3>
+            {featureTasks.length === 0 && <p className="muted">No open tasks.</p>}
+            <ul className="tasks">
+              {featureTasks.map((t) => (
+                <li key={t.id} className="task">
+                  <input type="checkbox" aria-label={`Complete ${t.title}`} disabled={!canEdit} checked={false} onChange={() => taskActions.complete.mutate(t.id!)} />
+                  <div className="task-main"><span className="task-title">{t.title}</span>{t.due_date && <span className="task-meta">📅 {t.due_date}</span>}</div>
+                </li>
+              ))}
+            </ul>
+            {canEdit && (
+              <form
+                className="inline"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const input = e.currentTarget.elements.namedItem("title") as HTMLInputElement;
+                  if (input.value.trim()) taskActions.create.mutate({ title: input.value.trim(), feature_id: current.id });
+                  input.value = "";
+                }}
+              >
+                <input name="title" placeholder="Add a task here" aria-label="New task for this feature" maxLength={200} />
+                <button type="submit">Add</button>
+              </form>
+            )}
+          </section>
         )}
       </aside>
     </div>
