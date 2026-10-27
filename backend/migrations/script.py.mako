@@ -6,6 +6,7 @@ Create Date: ${create_date}
 
 """
 from alembic import op
+import geoalchemy2  # noqa: F401
 import sqlalchemy as sa
 ${imports if imports else ""}
 

@@ -22,7 +22,15 @@ class Config:
     OPENAPI_SWAGGER_UI_URL = "https://cdn.jsdelivr.net/npm/swagger-ui-dist/"
 
 
+def _test_database_url() -> str:
+    """A separate database from dev so tests can create/drop tables freely."""
+    explicit = os.environ.get("TEST_DATABASE_URL")
+    if explicit:
+        return explicit
+    return Config.SQLALCHEMY_DATABASE_URI.rsplit("/", 1)[0] + "/allotment_test"
+
+
 class TestConfig(Config):
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = "sqlite://"
+    SQLALCHEMY_DATABASE_URI = _test_database_url()
     OTEL_EXPORTER_OTLP_ENDPOINT = None
