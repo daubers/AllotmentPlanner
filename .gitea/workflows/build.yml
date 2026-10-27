@@ -45,10 +45,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # Add `frontend` (AM-3) and `worker` (AM-9) here as they are created.
+        # Add `worker` (AM-9) here when it is created.
         include:
           - name: allotment-api
             context: backend
+            target: prod
+          - name: allotment-frontend
+            context: frontend
             target: prod
     steps:
       - uses: actions/checkout@v4

@@ -48,6 +48,17 @@ services:
       interval: 10s
       retries: 10
 
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    environment:
+      VITE_API_PROXY: http://api:8000
+    volumes:
+      - ./frontend/src:/app/src
+    ports: ["5173:5173"]
+    depends_on: [api]
+
   worker:
     <<: *backend
     command: celery -A allotment.celery_app:celery worker -l INFO -E

@@ -54,6 +54,24 @@ jobs:
       - run: pytest -q --cov=allotment
         working-directory: backend
 
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      # Uses the runner's own Node (setup-node would race on the shared tool cache).
+      - run: node --version && npm --version
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Generated API client is up to date
+        run: |
+          npm run gen:api
+          git diff --exit-code src/api/schema.d.ts
+
   compose:
     runs-on: ubuntu-latest
     steps:

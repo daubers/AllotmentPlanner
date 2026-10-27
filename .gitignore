@@ -12,3 +12,5 @@ coverage/
 *.log
 *.egg-info/
 .coverage
+node_modules/
+dist/
