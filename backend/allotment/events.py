@@ -5,9 +5,10 @@ Mastodon posting is added by registering a subscriber, not by editing call sites
 """
 
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable
+from datetime import UTC, datetime
+from typing import Any
 
 import structlog
 
@@ -23,7 +24,7 @@ class Event:
     allotment_id: int | None = None
     subject: dict[str, Any] = field(default_factory=dict)
     payload: dict[str, Any] = field(default_factory=dict)
-    occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    occurred_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 Subscriber = Callable[[Event], None]

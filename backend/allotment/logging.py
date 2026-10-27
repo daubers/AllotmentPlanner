@@ -36,5 +36,7 @@ def init_request_logging(app: Flask) -> None:
     def _log_response(response):
         response.headers[REQUEST_ID_HEADER] = g.get("request_id", "")
         if request.path not in ("/healthz", "/readyz", "/metrics"):
-            log.info("request", method=request.method, path=request.path, status=response.status_code)
+            log.info(
+                "request", method=request.method, path=request.path, status=response.status_code
+            )
         return response
