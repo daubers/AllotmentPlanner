@@ -5,6 +5,7 @@ x-backend: &backend
   env_file: .env
   volumes:
     - ./backend/allotment:/app/allotment
+    - ./backend/migrations:/app/migrations
   depends_on:
     db: {condition: service_healthy}
     redis: {condition: service_healthy}
