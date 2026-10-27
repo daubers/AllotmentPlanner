@@ -13,12 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: pip
-          cache-dependency-path: backend/pyproject.toml
-      - run: pip install -e "backend[dev]"
+      # No setup-python: parallel jobs race on the runner's shared /opt/hostedtoolcache,
+      # and pip would otherwise see Debian's system packages. Use an isolated venv.
+      - name: Install backend
+        run: |
+          python3 --version
+          python3 -m venv "$RUNNER_TEMP/venv"
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/venv/bin/pip" install -q -e "backend[dev]"
       - run: ruff check backend
       - run: ruff format --check backend
 
@@ -26,12 +28,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: pip
-          cache-dependency-path: backend/pyproject.toml
-      - run: pip install -e "backend[dev]"
+      # No setup-python: parallel jobs race on the runner's shared /opt/hostedtoolcache,
+      # and pip would otherwise see Debian's system packages. Use an isolated venv.
+      - name: Install backend
+        run: |
+          python3 --version
+          python3 -m venv "$RUNNER_TEMP/venv"
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/venv/bin/pip" install -q -e "backend[dev]"
       # Unit tests run on SQLite. When the PostGIS models land (AM-3) add a
       # postgis/postgis:16-3.4 service container and set DATABASE_URL here.
       - run: pytest -q --cov=allotment
