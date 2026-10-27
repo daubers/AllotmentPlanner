@@ -1,0 +1,85 @@
+x-backend: &backend
+  build: ./backend
+  env_file: .env
+  volumes:
+    - ./backend/allotment:/app/allotment
+  depends_on:
+    db: {condition: service_healthy}
+    redis: {condition: service_healthy}
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: allotment
+      POSTGRES_PASSWORD: allotment
+      POSTGRES_DB: allotment
+    volumes: [pgdata:/var/lib/postgresql/data]
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U allotment"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: allotment
+      MINIO_ROOT_PASSWORD: allotment-secret
+    volumes: [miniodata:/data]
+    ports: ["9000:9000", "9001:9001"]
+
+  api:
+    <<: *backend
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8000/readyz"]
+      interval: 10s
+      retries: 10
+
+  worker:
+    <<: *backend
+    command: celery -A allotment.celery_app:celery worker -l INFO -E
+
+  beat:
+    <<: *backend
+    command: celery -A allotment.celery_app:celery beat -l INFO
+
+  flower:
+    <<: *backend
+    command: celery -A allotment.celery_app:celery flower --port=5555
+    ports: ["5555:5555"]
+
+  # --- observability profile: docker compose --profile observability up ---
+  prometheus:
+    profiles: [observability]
+    image: prom/prometheus:v2.53.0
+    volumes: [./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro]
+    ports: ["9090:9090"]
+
+  grafana:
+    profiles: [observability]
+    image: grafana/grafana:11.1.0
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    ports: ["3000:3000"]
+
+  jaeger:
+    profiles: [observability]
+    image: jaegertracing/all-in-one:1.58
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports: ["16686:16686", "4318:4318"]
+
+volumes:
+  pgdata:
+  miniodata:

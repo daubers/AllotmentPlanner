@@ -10,3 +10,4 @@ dist/
 .ruff_cache/
 coverage/
 *.log
+*.egg-info/
