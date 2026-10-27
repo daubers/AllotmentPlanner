@@ -884,6 +884,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/allotments/{allotment_id}/todo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        /** Everything open that is due on or before ``date`` (so overdue jobs are included). */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Day to plan for; defaults to today (server date) */
+                    date?: string;
+                    include_undated?: boolean;
+                };
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Todo"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1087,6 +1133,23 @@ export interface components {
             location?: {
                 [key: string]: unknown;
             } | null;
+        };
+        TodoAllotment: {
+            id?: number;
+            name?: string;
+        };
+        TodoMember: {
+            user_id?: number;
+            display_name?: string;
+        };
+        Todo: {
+            /** Format: date */
+            date?: string;
+            allotment?: components["schemas"]["TodoAllotment"];
+            tasks?: components["schemas"]["Task"][];
+            /** @description The whole map, for the sketch */
+            features?: components["schemas"]["Feature"][];
+            members?: components["schemas"]["TodoMember"][];
         };
     };
     responses: {

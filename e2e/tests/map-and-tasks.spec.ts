@@ -51,6 +51,24 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await expect(page.getByText("Water the beans")).toBeVisible();
   await expect(page.locator(".task-pin")).toHaveCount(1);
 
+  // The Today sheet: undated jobs are hidden until asked for, then listed under their bed,
+  // and the print stylesheet strips the app chrome. The PDF is kept for eyeballing.
+  await page.getByRole("link", { name: "Today" }).click();
+  await expect(page.getByText("Nothing due")).toBeVisible();
+  await page.getByLabel("Include jobs with no date").click();
+  const sheet = page.getByLabel("Todo list");
+  await expect(sheet.getByRole("heading", { name: "Bed 1" })).toBeVisible();
+  await expect(sheet.getByText("Water the beans")).toBeVisible();
+  await expect(sheet.locator(".pin-n")).toHaveText("1");
+  await page.emulateMedia({ media: "print" });
+  await expect(page.locator(".subbar")).toBeHidden();
+  await expect(page.locator(".today-controls")).toBeHidden();
+  await page.pdf({ path: "test-results/today.pdf", format: "A4" });
+  await page.setViewportSize({ width: 794, height: 700 }); // A4 width at 96dpi
+  await page.screenshot({ path: "test-results/today-print.png" });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.emulateMedia({ media: "screen" });
+
   // The Tasks page shows it with its location, and completing it moves it away.
   await page.getByRole("link", { name: "Tasks" }).click();
   await expect(page.getByText("Water the beans")).toBeVisible();

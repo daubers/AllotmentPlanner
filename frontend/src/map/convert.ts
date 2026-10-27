@@ -1,7 +1,9 @@
 import L from "leaflet";
 
-export type Kind = "bed" | "path" | "shed" | "tree" | "water" | "compost" | "boundary" | "other";
-export const KINDS: Kind[] = ["bed", "path", "shed", "tree", "water", "compost", "boundary", "other"];
+import { colourFor, KINDS, KIND_COLOURS, type Kind } from "./kinds";
+
+export { colourFor, KINDS, KIND_COLOURS };
+export type { Kind };
 
 export type FeatureProps = { name: string; kind: Kind; radius_m: number | null; style: Record<string, unknown> };
 export type GeoJSONFeature = {
@@ -11,19 +13,8 @@ export type GeoJSONFeature = {
   properties: Partial<FeatureProps>;
 };
 
-export const KIND_COLOURS: Record<Kind, string> = {
-  bed: "#3f8f3f",
-  path: "#a08c6a",
-  shed: "#8a5a3c",
-  tree: "#1f6b3a",
-  water: "#2f7fc1",
-  compost: "#6b4f2a",
-  boundary: "#444444",
-  other: "#7a5ea8",
-};
-
 export function styleFor(kind: string | undefined): L.PathOptions {
-  const color = KIND_COLOURS[(kind as Kind) ?? "other"] ?? KIND_COLOURS.other;
+  const color = colourFor(kind);
   return { color, fillColor: color, fillOpacity: 0.3, weight: 2 };
 }
 
