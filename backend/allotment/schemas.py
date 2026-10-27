@@ -63,3 +63,34 @@ class MemberSchema(Schema):
     email = fields.Email(dump_only=True)
     display_name = fields.String(dump_only=True)
     role = fields.String()
+
+
+class FeatureInSchema(Schema):
+    """A GeoJSON Feature. ``id`` is optional and only used by the bulk endpoint."""
+
+    type = fields.String(required=True, validate=validate.Equal("Feature"))
+    id = fields.Integer(load_default=None)
+    geometry = fields.Dict(required=True)
+    properties = fields.Dict(load_default=dict)
+
+
+class FeaturePatchSchema(Schema):
+    geometry = fields.Dict()
+    properties = fields.Dict()
+
+
+class FeatureSchema(Schema):
+    type = fields.String()
+    id = fields.Integer()
+    geometry = fields.Dict()
+    properties = fields.Dict()
+
+
+class FeatureCollectionInSchema(Schema):
+    type = fields.String(required=True, validate=validate.Equal("FeatureCollection"))
+    features = fields.List(fields.Nested(FeatureInSchema), required=True)
+
+
+class FeatureCollectionSchema(Schema):
+    type = fields.String()
+    features = fields.List(fields.Nested(FeatureSchema))

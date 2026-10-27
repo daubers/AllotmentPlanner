@@ -26,6 +26,20 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    services:
+      postgis:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: allotment
+          POSTGRES_PASSWORD: allotment
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U allotment"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://allotment:allotment@postgis:5432/allotment_test
     steps:
       - uses: actions/checkout@v4
       # No setup-python: parallel jobs race on the runner's shared /opt/hostedtoolcache,
@@ -36,10 +50,27 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/venv"
           echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/venv/bin/pip" install -q -e "backend[dev]"
-      # Unit tests run on SQLite. When the PostGIS models land (AM-3) add a
-      # postgis/postgis:16-3.4 service container and set DATABASE_URL here.
+      # Tests need PostGIS (service above); conftest creates the allotment_test database.
       - run: pytest -q --cov=allotment
         working-directory: backend
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      # Uses the runner's own Node (setup-node would race on the shared tool cache).
+      - run: node --version && npm --version
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Generated API client is up to date
+        run: |
+          npm run gen:api
+          git diff --exit-code src/api/schema.d.ts
 
   compose:
     runs-on: ubuntu-latest
