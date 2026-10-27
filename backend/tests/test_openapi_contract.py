@@ -9,11 +9,12 @@ SPEC = Path(__file__).resolve().parents[2] / "frontend" / "openapi.json"
 
 
 def _normalise(spec: dict) -> dict:
-    """Python 3.13 renamed HTTP 422 to UNPROCESSABLE_CONTENT (was UNPROCESSABLE_ENTITY), and
-    flask-smorest uses that name for a response component. Ignore the rename so the check
-    gives the same answer on any supported Python."""
+    """Python 3.13 renamed HTTP 422 from "Unprocessable Entity" to "Unprocessable Content", and
+    flask-smorest uses both the name and the phrase in a response component. Ignore the rename
+    so the check gives the same answer on any supported Python."""
     text = json.dumps(spec, sort_keys=True)
-    return json.loads(text.replace("UNPROCESSABLE_ENTITY", "UNPROCESSABLE_CONTENT"))
+    text = text.replace("UNPROCESSABLE_ENTITY", "UNPROCESSABLE_CONTENT")
+    return json.loads(text.replace("Unprocessable Entity", "Unprocessable Content"))
 
 
 @pytest.mark.skipif(not SPEC.exists(), reason="frontend/ is not available (e.g. in the api image)")
