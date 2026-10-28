@@ -40,7 +40,7 @@ npx expo prebuild                     # generates ios/ and android/ (not committ
 npx expo run:android                  # or run:ios (macOS + Xcode)
 # or cloud builds: npm i -g eas-cli && eas build --profile development --platform all
 ```
-On the sign-in screen, enter the address the phone can reach: your computer's LAN IP and the web port (`192.168.1.20:8080`) or the API port (`192.168.1.20:8000`). `localhost` means the phone itself. Plain `http` is allowed in these builds for self-hosted use on a home network; use `https` for anything reachable from the internet.
+On the sign-in screen, enter the address the phone can reach. For the development stack that is your computer's LAN IP with the API port (`192.168.1.20:8000`) or the web dev server port (`192.168.1.20:5173`); for a production deployment it is its address (`https://plot.example.com`, or `192.168.1.20:8080` on a home network). `localhost` means the phone itself. Plain `http` is allowed in these builds for self-hosted use on a home network; use `https` for anything reachable from the internet.
 
 ## Checks
 `npm run typecheck`, `npm test` (Jest: session, queue, request handlers), and `npx expo export` (bundling) run in CI as the `mobile` job. Sensors, camera, background transfer and the native screens can only be checked on a device or simulator.

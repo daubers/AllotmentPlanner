@@ -1,0 +1,279 @@
+# Allotment Planner
+
+Plan and log the work on an allotment: draw the plot on a map, pin tasks to beds, print the day's list, keep a photo history, post progress to Mastodon, and get a "look what we did" overview. A phone app records photos with their GPS and compass, helps build a map from them, and corrects the drawn plot to real sizes from tape-measure readings.
+
+- **Web app** (React + TypeScript): map editor (Leaflet), tasks, printable daily list, photo timeline with before/after slider, progress overview, Mastodon settings, map layers.
+- **API** (Flask, PostgreSQL + PostGIS, Celery, Redis): multi-user with owner / editor / viewer roles, OpenAPI at `/api/docs`.
+- **Mapper** (optional, heavy): builds a map from photos and video with OpenSfM and GDAL, recognises objects (water butts, trees, sheds) with local models, and uses a GoPro's GPS track when there is one.
+- **Phone app** (Expo / React Native, Android and iOS): sign in, guided photo capture, measuring checklist, offline queue.
+
+Planned work, with the reasoning behind each piece, is in [docs/plan.md](docs/plan.md); tickets live in YouTrack project **AM**.
+
+> **Status.** The server and web app are used and tested. The phone app has tests, a clean bundle and screenshot review, but had not yet been run on a real device when this was written. Building the plot outline automatically from photos works on synthetic data but did not on the first real photo set; the measuring checklist is the dependable route to real dimensions. See [docs/plan.md](docs/plan.md) for the honest details.
+
+## How it fits together
+
+```
+ phone app ─┐                       ┌─ worker  (thumbnails, metadata, Mastodon posts)
+            ├─ HTTPS ─ nginx ─ api ─┼─ beat    (schedules: daily digest, sweeper)
+ web app ───┘  (frontend)    Flask  ├─ mapper  (OpenSfM + GDAL + recognition models; optional)
+                                │   └─ redis   (Celery broker)
+                                ├─ PostgreSQL + PostGIS
+                                └─ media storage (a volume, or S3-compatible)
+```
+
+```
+backend/      Flask app (allotment/…), Alembic migrations, tests, Dockerfile (dev and prod targets)
+frontend/     Vite + React + TypeScript, generated API client, Dockerfile (dev and nginx prod targets)
+mobile/       Expo app (Android and iOS)
+worker/       Dockerfile for the mapper image (OpenSfM, GDAL, torch)
+deploy/       Production compose file, its settings template, Prometheus config
+e2e/          Playwright browser tests
+scripts/      mapping_check.py: end-to-end check of the mapping pipeline on a synthetic scene
+docs/         plan.md (design and phases), ci.md (CI and images), mobile.md (phone app)
+```
+
+## Quick start (development)
+
+You need Docker with Compose v2. Everything runs in containers.
+
+```
+git clone ssh://git@git.daubney.dev:222/matt/Allotment-Manager.git
+cd Allotment-Manager
+make up          # copies .env.example to .env, builds, starts everything, migrates the database
+```
+
+Then open:
+
+| What | Address |
+|---|---|
+| Web app (Vite dev server, hot reload) | http://localhost:5173 |
+| API and interactive docs | http://localhost:8000/api/docs |
+| Celery monitor (Flower) | http://localhost:5555 |
+
+Register an account in the web app, create an allotment, and start drawing. `make down` stops everything; your data stays in Docker volumes (`pgdata`, `media`).
+
+Optional extras:
+
+```
+make mapper          # the photo-mapping worker (a large image; the first build takes a while)
+make observability   # Prometheus (9090), Grafana (3000), Jaeger (16686)
+make logs            # follow api and worker logs
+```
+
+The database schema is brought up to date by a one-shot `migrate` service on every `make up`. `make migrate` runs it by hand.
+
+## Development
+
+```
+make test                                  # backend tests, in a container
+ruff check backend && ruff format backend  # lint and format (CI checks both)
+
+cd frontend && npm ci
+npm run typecheck && npm test              # TypeScript and Vitest
+npm run gen:api                            # regenerate the API client after the API changes
+
+cd mobile && npm ci
+npm run typecheck && npm test              # TypeScript and Jest
+
+make e2e                                   # Playwright browser tests against the running stack
+make mapping-check                         # synthetic end-to-end check of the mapper (needs `make mapper`)
+```
+
+**Changing the API.** The OpenAPI document drives the TypeScript client. After changing endpoints or schemas: write the document with `docker compose run --rm --no-deps -v "$PWD/frontend:/out" api flask openapi write /out/openapi.json`, run `npm run gen:api` in `frontend/`, then `npm run gen:api` in `mobile/` (it copies the web app's generated types). CI fails if either is out of date.
+
+**Changing the database.** Add an Alembic migration under `backend/migrations/versions/` (`docker compose run --rm api flask db migrate -m "what changed"`, then read and edit what it wrote) and run `make migrate`.
+
+**Backend tests in a container** use the image's copy of `tests/`; when you add or change tests, mount them: `docker compose run --rm --no-deps -v "$PWD/backend/tests:/app/tests" api pytest -q`.
+
+**Working method.** One feature branch per ticket (`AM-<n>-short-name`), small regular commits, merge to `main` only when the tests pass and CI is green. See [docs/ci.md](docs/ci.md).
+
+## Build
+
+CI is Gitea Actions ([docs/ci.md](docs/ci.md)):
+
+| Workflow | When | What |
+|---|---|---|
+| `test.yml` | every push and PR | ruff, backend tests with a PostGIS service, frontend typecheck/tests/build, phone app typecheck/tests/bundle, generated API types up to date, compose files valid |
+| `build.yml` | push to `main`, tags `v*` | repeats the backend tests, then builds and pushes three images |
+
+Images are pushed to the Gitea registry as `git.daubney.dev/<owner>/…`:
+
+| Image | Contents |
+|---|---|
+| `allotment-api` | the Flask app (gunicorn); also run as the Celery worker and beat |
+| `allotment-frontend` | the built web app served by nginx, which proxies `/api` to the `api` service |
+| `allotment-worker` | the mapper: OpenSfM compiled from source, GDAL, torch (CPU) and the recognition code |
+
+Tags: `latest` (main), `sha-<commit>`, the branch name, and `X.Y.Z` / `X.Y` for releases. The recognition models (about 1.3 GB) are **not** in the image; they download into a volume the first time a map job needs them. CI needs one secret, `REGISTRY_TOKEN` (a personal access token with `write:package`).
+
+**Release:** `git tag v0.2.0 && git push origin v0.2.0`.
+
+**Build the images yourself:**
+
+```
+docker build --target prod -t allotment-api backend
+docker build --target prod -t allotment-frontend frontend
+docker build -f worker/Dockerfile -t allotment-worker backend    # slow: compiles OpenSfM, about 5 minutes
+```
+
+## Deployment
+
+The supported way to run it is the production compose file, [`deploy/docker-compose.prod.yml`](deploy/docker-compose.prod.yml), which runs the published images. It was tested from a clean start (migration, health, web app, API through nginx, and a photo upload processed by the worker). The optional mapper service was validated but not run. It needs a Linux host with Docker and Compose v2, a few GB of RAM (the mapper needs considerably more: building its image alone takes about 4 GB), and disk for your photos.
+
+### 1. Get the files onto the server
+
+You only need the `deploy/` folder. Either clone the repository or copy these two files:
+
+```
+mkdir allotment && cd allotment
+# copy deploy/docker-compose.prod.yml here as docker-compose.yml, and:
+cp .env.production.example .env
+```
+
+### 2. Settings
+
+Edit `.env`. The ones that matter:
+
+| Setting | What to put |
+|---|---|
+| `POSTGRES_PASSWORD` | a long random password (`openssl rand -hex 32`) |
+| `JWT_SECRET_KEY` | a different long random value; signs logins. Compose refuses to start without it |
+| `TOKEN_ENCRYPTION_KEY` | another random value; encrypts stored Mastodon tokens. **Keep it safe**: losing it means reconnecting Mastodon |
+| `REGISTRY`, `TAG` | where the images are (`git.daubney.dev/matt`) and which version (`latest`, `0.2.0`, or `sha-…` to pin) |
+| `HTTP_PORT` | the one port the web app and API are served on (default 8080) |
+
+The full list, including S3 storage and mapping limits, is in the file and in [Configuration](#configuration).
+
+### 3. Start it
+
+```
+docker login git.daubney.dev          # username, and a token with read:package
+docker compose up -d
+docker compose ps                     # everything Up (healthy); `migrate` and `volumes-init` show Exited (0)
+```
+
+Open `http://<server>:8080`, register the first account, create your allotment. On start-up a `volumes-init` step makes the data volumes writable and a `migrate` step upgrades the database; the apps wait for both.
+
+To also run the photo-mapping worker: `docker compose --profile mapping up -d` (the first map build downloads about 1.3 GB of models).
+
+### 4. Put TLS in front of it
+
+Serve it over HTTPS before exposing it to the internet; the phone app also needs HTTPS for anything outside your home network. The compose file publishes only `HTTP_PORT`, so point a reverse proxy at it. With Caddy, which gets certificates by itself (`Caddyfile`):
+
+```
+plot.example.com {
+    reverse_proxy localhost:8080
+}
+```
+
+With nginx, add TLS as usual and allow large uploads (a GoPro chapter is about 4 GB):
+
+```
+client_max_body_size 4g;
+proxy_request_buffering off;
+proxy_read_timeout 3600s;
+proxy_send_timeout 3600s;
+```
+
+(These two snippets are standard configuration but were not run as part of testing.)
+
+### 5. Who can sign up
+
+Anyone who can reach the server can register an account. They get an empty account and cannot see anyone else's allotments (access is by invitation, per allotment), but the server does accept the sign-up. There is no switch to turn registration off yet (ticket AM-54), so keep the service on a private network or behind your proxy's access control until there is.
+
+### Backups
+
+Two things hold your data: the database and the photo volume. Back up both, and `.env`.
+
+```
+docker compose exec -T db pg_dump -U allotment allotment | gzip > allotment-$(date +%F).sql.gz
+docker run --rm -v allotment_media:/data -v "$PWD":/backup busybox \
+    tar czf /backup/media-$(date +%F).tgz -C /data .
+```
+
+To restore into a fresh install: start only the database (`docker compose up -d db`), load the dump (`gunzip -c allotment-….sql.gz | docker compose exec -T db psql -U allotment allotment`), unpack the media archive into the `allotment_media` volume the same way as above (with `tar xzf`), then `docker compose up -d`. (Volume names start with the compose project name, `allotment`. These commands were written from the compose file, not rehearsed on a real backup; try a restore on a spare machine before you rely on them.)
+
+### Upgrading
+
+```
+docker compose pull
+docker compose up -d        # the migrate step upgrades the database first
+```
+
+To pin a known-good version, set `TAG` in `.env`. Rolling back the *code* is `TAG=<previous>` and `up -d`, but migrations only go forward: if a release changed the database, restore the backup you took first, or run `docker compose run --rm migrate flask db downgrade -1` for a single step.
+
+### Health and monitoring
+
+- `GET /healthz` (process is up) and `GET /readyz` (database and Redis reachable) on the API; the compose healthcheck uses `/readyz`.
+- `GET /metrics` is Prometheus format (request counts and latencies, domain events, Celery task outcomes). It is served by the API but not through the public port, so scrape it from inside the Docker network (`api:8000`); `deploy/prometheus/prometheus.yml` shows a scrape config.
+- Logs are structured JSON on stdout: `docker compose logs -f api worker`.
+- OpenTelemetry traces are exported if `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
+
+### Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| `docker compose up` stops with "set POSTGRES_PASSWORD…" | a required setting is missing from `.env` |
+| `pull access denied` | `docker login git.daubney.dev` with a token that has `read:package`, and check `REGISTRY` |
+| Uploads stay "pending" | the `worker` container is down: `docker compose logs worker` |
+| Map builds stay "queued" | the mapper isn't running: start it with `--profile mapping` |
+| Big uploads fail through your proxy | raise its body-size limit and timeouts (see TLS above) |
+| The phone app can't connect | use the address the *phone* can reach (not `localhost`), with `https://` if it is on the internet |
+
+## Phone app
+
+The app is in [`mobile/`](mobile/); details are in [docs/mobile.md](docs/mobile.md).
+
+```
+cd mobile && npm ci
+npx expo start        # scan the QR code with Expo Go (enough for sign-in and the screens)
+```
+
+The camera, GPS, compass and background uploads need a **development build**:
+
+```
+npx expo prebuild                 # writes ios/ and android/ (not committed)
+npx expo run:android              # or run:ios (macOS with Xcode)
+```
+
+On the sign-in screen enter the address of your server: `http://<computer's LAN IP>:8000` for the development stack, or your deployment's address (`https://plot.example.com`). `localhost` means the phone itself.
+
+To install on other phones without the app stores, build with EAS (`npm i -g eas-cli`, `eas build:configure`, then `eas build --platform android --profile preview`); that needs an Expo account and, for iOS, an Apple developer account. There is no `eas.json` in the repository yet and store distribution has not been set up, so treat this as the starting point rather than a tested recipe.
+
+To look at the screens without a phone: `EXPO_PUBLIC_DEMO=1 npx expo start --web` serves them in a browser with built-in fake data.
+
+## Configuration
+
+Set in `.env` (development: `.env.example`; production: `deploy/.env.production.example`).
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `DATABASE_URL` | compose default | SQLAlchemy URL of the PostGIS database |
+| `REDIS_URL` | `redis://redis:6379/0` | Celery broker |
+| `JWT_SECRET_KEY` | insecure dev value | signs logins; **must** be set in production |
+| `TOKEN_ENCRYPTION_KEY` | derived from the JWT key | encrypts stored Mastodon tokens |
+| `STORAGE_BACKEND` | `file` | `file` (a volume) or `s3` |
+| `MEDIA_ROOT` | `/data/media` | where the `file` backend stores photos |
+| `S3_ENDPOINT_URL`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | | for `s3` |
+| `MAX_UPLOAD_MB` | `4096` | largest accepted upload; keep nginx's `client_max_body_size` in step |
+| `LOG_LEVEL` | `INFO` | |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | send traces to an OpenTelemetry collector |
+| `MASTODON_PHOTO_BATCH_SECONDS` | `180` | a burst of photos becomes one post |
+| `MASTODON_DIGEST_HOUR_UTC` | `19` | when the daily digest is posted |
+| `FEDIVERSE_ALLOW_PRIVATE_HOSTS` | unset | `1` allows http and private addresses (testing against a local instance only) |
+| `MAPPING_MAX_IMAGES` | `150` | most images in one map build |
+| `MAPPING_MAX_FRAMES_PER_VIDEO` / `MAPPING_VIDEO_FPS` | `60` / `1` | how a video is sampled |
+| `MAPPING_TIMEOUT_SECONDS` | `7200` | give up on a build after this long |
+| `MAPPING_DETECT_MAX_SHOTS` / `MAPPING_DETECT_MAX_RANGE_M` | `40` / `15` | photos looked at, and how far away an object may be |
+| `DETECTOR_MODEL`, `SEGMENTER_MODEL` | Grounding DINO tiny, SAM base | recognition models (downloaded on first use) |
+
+## More documentation
+
+- [docs/plan.md](docs/plan.md): design, data model, every phase and ticket, and what real photos taught us.
+- [docs/ci.md](docs/ci.md): workflows, secrets, image tags, local equivalents.
+- [docs/mobile.md](docs/mobile.md): the phone app: capture, measuring, design, previewing.
+
+## Licence
+
+No licence has been chosen yet; all rights reserved until one is added.

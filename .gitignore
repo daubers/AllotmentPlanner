@@ -14,3 +14,6 @@ coverage/
 .coverage
 node_modules/
 dist/
+
+# Production settings and secrets
+deploy/.env
