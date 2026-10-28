@@ -136,6 +136,17 @@ def pixel_rays(shot: Shot, pixels: np.ndarray) -> np.ndarray:
     return in_camera @ shot.rotation  # rows of R^T d  ==  (R^T @ d)^T
 
 
+def project_points(shot: Shot, points: np.ndarray) -> np.ndarray:
+    """Pixels (N, 2) where world points (N, 3) appear; NaN for points behind the camera."""
+    cam = shot.camera
+    x = np.asarray(points, dtype=float) @ shot.rotation.T + shot.translation
+    with np.errstate(divide="ignore", invalid="ignore"):
+        u, v = x[:, 0] / x[:, 2] * cam.focal, x[:, 1] / x[:, 2] * cam.focal
+    px = np.c_[u * cam.size + cam.width / 2 - 0.5, v * cam.size + cam.height / 2 - 0.5]
+    px[x[:, 2] <= 0] = np.nan
+    return px
+
+
 def ground_hits(
     shot: Shot, plane: tuple[float, float, float], pixels, max_range: float
 ) -> np.ndarray:
