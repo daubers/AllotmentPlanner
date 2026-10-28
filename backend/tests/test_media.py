@@ -300,3 +300,69 @@ def test_upload_video(client, plot, tmp_path):
     assert client.get(m["thumb_url"]).mimetype == "image/jpeg"
     part = client.get(m["url"], headers={"Range": "bytes=0-99"})
     assert part.status_code == 206 and part.data == data[:100]
+
+
+# --- positions sent by the mobile app --------------------------------------------------------
+
+
+def test_the_apps_own_position_beats_the_files_exif(client, plot):
+    original = make_jpeg(size=(400, 300), heading=90.0)  # EXIF says 51.5, -0.12, facing 90
+    m = upload(
+        client,
+        plot,
+        original,
+        lat=51.6174,
+        lng=-1.1099,
+        heading=200,
+        taken_at="2026-10-28T09:30:00Z",
+        capture_session="walk-1",
+    ).json
+    assert (m["lat"], m["lng"], m["heading"]) == (51.6174, -1.1099, 200.0)
+    assert m["position_source"] == "device" and m["capture_session"] == "walk-1"
+    assert m["taken_at"].startswith("2026-10-28T09:30:00") and m["taken_at_source"] == "device"
+
+
+def test_exif_position_is_marked_as_coming_from_the_file(client, plot):
+    m = upload(client, plot, make_jpeg(size=(400, 300))).json
+    assert m["position_source"] == "exif"
+    assert upload(client, plot, make_png(), name="b.png").json["position_source"] is None
+
+
+def test_position_needs_both_halves_and_sane_numbers(client, plot):
+    assert upload(client, plot, make_png(), lat=51.0).status_code == 422
+    assert upload(client, plot, make_png(), lat=95, lng=0).status_code == 422
+    assert upload(client, plot, make_png(), lat=51, lng=0, heading=400).status_code == 422
+
+
+def test_resending_an_upload_returns_the_first_one(client, plot, media_root):
+    before = len(stored_files(media_root))
+    first = upload(client, plot, make_png(), client_id="abc123", capture_session="w")
+    again = upload(client, plot, make_png(), name="again.png", client_id="abc123")
+    assert first.status_code == again.status_code == 201
+    assert again.json["id"] == first.json["id"]
+    assert len(client.get(plot["url"], headers=plot["editor"]).json) == 1
+    assert (
+        len(stored_files(media_root)) - before <= 2
+    )  # the first file and its thumbnail; none for the repeat
+    other = upload(client, plot, make_png(), client_id="different")
+    assert other.json["id"] != first.json["id"]
+
+
+def test_media_can_be_listed_by_capture_session(client, plot):
+    upload(client, plot, make_png(), capture_session="a")
+    upload(client, plot, make_png(), capture_session="a")
+    upload(client, plot, make_png(), capture_session="b")
+    got = client.get(f"{plot['url']}?capture_session=a", headers=plot["viewer"]).json
+    assert len(got) == 2 and {m["capture_session"] for m in got} == {"a"}
+
+
+def test_setting_a_position_by_hand_is_recorded_as_manual(client, plot):
+    mid = upload(client, plot, make_png()).json["id"]
+    patched = client.patch(
+        f"{plot['url']}/{mid}", json={"lat": 51.2, "lng": -1.2}, headers=plot["editor"]
+    ).json
+    assert patched["position_source"] == "manual"
+    cleared = client.patch(
+        f"{plot['url']}/{mid}", json={"lat": None, "lng": None}, headers=plot["editor"]
+    ).json
+    assert cleared["position_source"] is None

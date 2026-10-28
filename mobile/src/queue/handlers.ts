@@ -16,6 +16,8 @@ export type Deps = {
   session: Session;
   fetchImpl?: typeof fetch;
   uploadFile: (args: UploadArgs) => Promise<UploadResult>;
+  /** Delete a local file once it is safely on the server. */
+  removeFile?: (uri: string) => void;
 };
 
 export type RequestJob = { method: "POST" | "PUT" | "PATCH" | "DELETE"; path: string; body?: unknown };
@@ -26,6 +28,8 @@ export type UploadJob = {
   mimeType: string;
   /** Extra form fields the API accepts, such as feature_id or task_id. */
   fields?: Record<string, string>;
+  /** The file is a copy the app made for this upload: delete it once the server has it. */
+  deleteAfterUpload?: boolean;
 };
 
 function reasonFrom(body: string): string | null {
@@ -91,6 +95,13 @@ export function makeHandlers(deps: Deps): Record<string, Handler> {
       }
       await checkResponse(result.status, result.body, deps.session);
       ctx.onProgress(1);
+      if (payload.deleteAfterUpload) {
+        try {
+          deps.removeFile?.(payload.uri);
+        } catch {
+          /* already gone: nothing to clean up */
+        }
+      }
     },
   };
 }

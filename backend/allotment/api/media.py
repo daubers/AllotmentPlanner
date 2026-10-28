@@ -9,6 +9,7 @@ from flask import Response, current_app, request
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from itsdangerous import BadSignature, URLSafeTimedSerializer
+from sqlalchemy.exc import IntegrityError
 from werkzeug.utils import secure_filename
 
 from .. import events, media_meta
@@ -57,6 +58,8 @@ def media_to_dict(m: Media) -> dict:
         "lat": m.lat,
         "lng": m.lng,
         "heading": m.heading,
+        "position_source": m.position_source,
+        "capture_session": m.capture_session,
         "feature_id": m.feature_id,
         "task_id": m.task_id,
         "caption": m.caption,
@@ -67,6 +70,10 @@ def media_to_dict(m: Media) -> dict:
         "uploaded_by": m.uploaded_by,
         "created_at": m.created_at,
     }
+
+
+def _by_client_id(allotment, client_id: str) -> Media | None:
+    return db.session.query(Media).filter_by(allotment_id=allotment.id, client_id=client_id).first()
 
 
 def _check_refs(allotment, feature_id, task_id) -> None:
@@ -103,7 +110,7 @@ class MediaList(MethodView):
     @blp.response(200, MediaSchema(many=True))
     def get(self, args, allotment, membership):
         q = db.session.query(Media).filter_by(allotment_id=allotment.id)
-        for key in ("kind", "feature_id", "task_id"):
+        for key in ("kind", "feature_id", "task_id", "capture_session"):
             if key in args:
                 q = q.filter(getattr(Media, key) == args[key])
         if "taken_from" in args:
@@ -123,6 +130,12 @@ class MediaList(MethodView):
     def post(self, form, allotment, membership):
         """Upload a photo or video. Time, GPS, size and thumbnail are read in the background."""
         _check_refs(allotment, form["feature_id"], form["task_id"])
+        if (form["lat"] is None) != (form["lng"] is None):
+            abort(422, message="lat and lng must be sent together")
+        if form["client_id"]:
+            earlier = _by_client_id(allotment, form["client_id"])
+            if earlier is not None:  # the app is resending an upload that did get through
+                return media_to_dict(earlier)
         upload = request.files.get("file")
         if upload is None:
             abort(422, message="Missing 'file' in the multipart form")
@@ -154,9 +167,27 @@ class MediaList(MethodView):
             feature_id=form["feature_id"],
             task_id=form["task_id"],
             caption=form["caption"],
+            capture_session=form["capture_session"],
+            client_id=form["client_id"],
         )
+        if form["lat"] is not None:
+            media.lat, media.lng, media.position_source = form["lat"], form["lng"], "device"
+        if form["heading"] is not None:
+            media.heading = form["heading"] % 360
+        if form["taken_at"] is not None:
+            taken = form["taken_at"]
+            media.taken_at = taken if taken.tzinfo else taken.replace(tzinfo=UTC)
+            media.taken_at_source = "device"
         db.session.add(media)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except IntegrityError:  # two copies of the same upload arrived at once
+            db.session.rollback()
+            safe_delete(key)
+            earlier = _by_client_id(allotment, form["client_id"])
+            if earlier is None:
+                raise
+            return media_to_dict(earlier)
         events.emit(
             "media.uploaded",
             actor_id=membership.user_id,
@@ -192,6 +223,8 @@ class MediaDetail(MethodView):
         for key in ("caption", "feature_id", "task_id", "lat", "lng", "heading"):
             if key in data:
                 setattr(media, key, data[key])
+        if "lat" in data:
+            media.position_source = "manual" if data["lat"] is not None else None
         if "taken_at" in data:
             taken = data["taken_at"]
             media.taken_at = taken if taken.tzinfo else taken.replace(tzinfo=UTC)

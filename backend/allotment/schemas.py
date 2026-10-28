@@ -188,12 +188,39 @@ class MediaUploadFormSchema(Schema):
     feature_id = fields.Integer(load_default=None)
     task_id = fields.Integer(load_default=None)
     caption = fields.String(load_default="", validate=validate.Length(max=500))
+    lat = fields.Float(
+        load_default=None,
+        validate=validate.Range(min=-90, max=90),
+        metadata={"description": "Where the phone was (its own GPS). Beats the file's EXIF."},
+    )
+    lng = fields.Float(load_default=None, validate=validate.Range(min=-180, max=180))
+    heading = fields.Float(
+        load_default=None,
+        validate=validate.Range(min=0, max=360),
+        metadata={"description": "Compass heading in degrees, 0 = north"},
+    )
+    taken_at = fields.DateTime(
+        load_default=None, metadata={"description": "When it was taken, if the app knows"}
+    )
+    capture_session = fields.String(
+        load_default=None,
+        validate=validate.Length(min=1, max=64),
+        metadata={"description": "Groups the photos of one walk-round, to build a map from them"},
+    )
+    client_id = fields.String(
+        load_default=None,
+        validate=validate.Length(min=1, max=64),
+        metadata={
+            "description": "The app's id for this upload: sending it again returns the same item"
+        },
+    )
 
 
 class MediaQuerySchema(Schema):
     kind = fields.String(validate=validate.OneOf(["photo", "video"]))
     feature_id = fields.Integer()
     task_id = fields.Integer()
+    capture_session = fields.String()
     taken_from = fields.Date(metadata={"description": "On or after this date"})
     taken_to = fields.Date(metadata={"description": "On or before this date"})
     order = fields.String(load_default="desc", validate=validate.OneOf(["asc", "desc"]))
@@ -225,6 +252,8 @@ class MediaSchema(Schema):
     lat = fields.Float(allow_none=True)
     lng = fields.Float(allow_none=True)
     heading = fields.Float(allow_none=True)
+    position_source = fields.String(allow_none=True)
+    capture_session = fields.String(allow_none=True)
     feature_id = fields.Integer(allow_none=True)
     task_id = fields.Integer(allow_none=True)
     caption = fields.String()
@@ -337,6 +366,12 @@ class MapJobInSchema(Schema):
         fields.Integer(),
         load_default=None,
         metadata={"description": "Photos/videos to use; default is every ready photo and video"},
+    )
+    capture_session = fields.String(
+        load_default=None,
+        metadata={
+            "description": "Use the photos uploaded in this capture session (not with media_ids)"
+        },
     )
     view = fields.String(
         load_default="oblique",

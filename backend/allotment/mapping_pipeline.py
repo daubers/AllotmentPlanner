@@ -133,7 +133,7 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
     geotagged = 0
     frames_total = 0
     headings: dict[str, float] = {}
-    photo_fixes: dict[str, tuple[float, float, datetime | None]] = {}
+    photo_fixes: dict[str, tuple[float, float, datetime | None, str | None]] = {}
 
     for media_id in job.media_ids:
         media = db.session.get(Media, media_id)
@@ -146,7 +146,7 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
             if media.heading is not None:
                 headings[name] = media.heading
             if media.lat is not None and media.lng is not None:
-                photo_fixes[name] = (media.lat, media.lng, media.taken_at)
+                photo_fixes[name] = (media.lat, media.lng, media.taken_at, media.position_source)
         else:
             if not media_meta.have_ffmpeg():
                 raise JobFailed("This worker has no ffmpeg, so videos can't be used")
@@ -221,27 +221,30 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
 
 
 def photo_locations(
-    fixes: dict[str, tuple[float, float, datetime | None]], job: MapJob
+    fixes: dict[str, tuple[float, float, datetime | None, str | None]], job: MapJob
 ) -> dict[str, tuple[float, float]]:
     """The photos' GPS positions, unless they are plainly stuck: a phone that never updated its
     location stamps every photo with the same place however far you walked, and trusting that
-    would pin the whole map to a point."""
-    times = [t for _, _, t in fixes.values() if t is not None]
-    places = {(round(lat, 5), round(lng, 5)) for lat, lng, _ in fixes.values()}
+    would pin the whole map to a point. Positions the mobile app read from the phone's GPS at the
+    moment of the shot (``device``) are never doubted this way."""
+    from_file = {n: f for n, f in fixes.items() if f[3] != "device"}
+    times = [t for _, _, t, _ in from_file.values() if t is not None]
+    places = {(round(lat, 5), round(lng, 5)) for lat, lng, _, _ in from_file.values()}
     if (
-        len(fixes) >= STALE_MIN_PHOTOS
+        len(from_file) >= STALE_MIN_PHOTOS
         and len(places) == 1
         and times
         and (max(times) - min(times)).total_seconds() >= STALE_MIN_SPAN_S
     ):
         _append_log(
             job,
-            f"all {len(fixes)} photos claim the same location over "
+            f"{len(from_file)} photos claim the same location over "
             f"{(max(times) - min(times)).total_seconds() / 60:.1f} minutes, "
             "so their GPS looks stuck and was ignored",
         )
-        return {}
-    return {name: (lat, lng) for name, (lat, lng, _) in fixes.items()}
+        from_file = {}
+    kept = {n: f for n, f in fixes.items() if f[3] == "device" or n in from_file}
+    return {name: (lat, lng) for name, (lat, lng, _, _) in kept.items()}
 
 
 def _head(storage, key: str) -> bytes:

@@ -18,3 +18,8 @@ export async function uploadFile(args: UploadArgs): Promise<UploadResult> {
   });
   return { status: res.status, body: res.body };
 }
+
+export function removeFile(uri: string): void {
+  const file = new File(uri);
+  if (file.exists) file.delete();
+}

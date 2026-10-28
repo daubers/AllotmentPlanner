@@ -945,6 +945,7 @@ export interface paths {
                     kind?: "photo" | "video";
                     feature_id?: number;
                     task_id?: number;
+                    capture_session?: string;
                     /** @description On or after this date */
                     taken_from?: string;
                     /** @description On or before this date */
@@ -2239,6 +2240,8 @@ export interface components {
             lat?: number | null;
             lng?: number | null;
             heading?: number | null;
+            position_source?: string | null;
+            capture_session?: string | null;
             feature_id?: number | null;
             task_id?: number | null;
             caption?: string;
@@ -2263,6 +2266,34 @@ export interface components {
             task_id?: number | null;
             /** @default  */
             caption?: string;
+            /**
+             * @description Where the phone was (its own GPS). Beats the file's EXIF.
+             * @default null
+             */
+            lat?: number | null;
+            /** @default null */
+            lng?: number | null;
+            /**
+             * @description Compass heading in degrees, 0 = north
+             * @default null
+             */
+            heading?: number | null;
+            /**
+             * Format: date-time
+             * @description When it was taken, if the app knows
+             * @default null
+             */
+            taken_at?: string | null;
+            /**
+             * @description Groups the photos of one walk-round, to build a map from them
+             * @default null
+             */
+            capture_session?: string | null;
+            /**
+             * @description The app's id for this upload: sending it again returns the same item
+             * @default null
+             */
+            client_id?: string | null;
         };
         MediaPatch: {
             caption?: string;
@@ -2417,6 +2448,11 @@ export interface components {
              * @default null
              */
             media_ids?: number[] | null;
+            /**
+             * @description Use the photos uploaded in this capture session (not with media_ids)
+             * @default null
+             */
+            capture_session?: string | null;
             /**
              * @description oblique: hand-held, camera roughly level; overhead: looking down
              * @default oblique

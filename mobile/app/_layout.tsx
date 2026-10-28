@@ -11,6 +11,7 @@ function Gate() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="login" />
+      <Stack.Screen name="capture" options={{ animation: "slide_from_bottom" }} />
     </Stack>
   );
 }

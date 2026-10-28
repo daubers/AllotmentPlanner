@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "expo-router";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp, useQueueState } from "../src/app/AppProvider";
@@ -11,6 +12,7 @@ export default function Home() {
   const palette = usePalette();
   const s = useMemo(() => makeStyles(palette), [palette]);
   const state = useQueueState();
+  const router = useRouter();
   const [failed, setFailed] = useState<Job[]>([]);
 
   const allotments = useQuery({
@@ -64,6 +66,15 @@ export default function Home() {
           ))}
           {allotments.data?.length === 0 ? <Text style={s.muted}>No allotments yet. Create one in the web app.</Text> : null}
         </View>
+
+        <Pressable
+          style={[s.button, { opacity: allotmentId === null ? 0.5 : 1 }]}
+          disabled={allotmentId === null}
+          onPress={() => router.push("/capture")}
+          accessibilityRole="button"
+        >
+          <Text style={s.buttonText}>Photograph the plot</Text>
+        </Pressable>
 
         <View style={s.card}>
           <Text style={s.heading}>Waiting to send</Text>

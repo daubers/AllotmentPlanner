@@ -5,7 +5,7 @@ import { createApi, type Api } from "../api/client";
 import { Session } from "../auth/session";
 import { secureStore } from "../native/secureStore";
 import { makeHandlers } from "../queue/handlers";
-import { uploadFile } from "../queue/nativeUpload";
+import { removeFile, uploadFile } from "../queue/nativeUpload";
 import { JobQueue, type QueueState } from "../queue/queue";
 import { SqliteJobStore } from "../queue/sqliteStore";
 
@@ -48,7 +48,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const session = new Session(secureStore);
       await session.load();
       const store = await SqliteJobStore.open();
-      const queue = new JobQueue(store, makeHandlers({ session, uploadFile }));
+      const queue = new JobQueue(store, makeHandlers({ session, uploadFile, removeFile }));
       const saved = await secureStore.get(ALLOTMENT_KEY);
       if (saved) setAllotmentId(Number(saved));
       setBooted({ session, queue });
