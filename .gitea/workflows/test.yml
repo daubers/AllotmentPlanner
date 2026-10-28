@@ -72,6 +72,21 @@ jobs:
           npm run gen:api
           git diff --exit-code src/api/schema.d.ts
 
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: The app bundles for Android and iOS
+        run: CI=1 npx expo export --platform android --platform ios --output-dir /tmp/mobile-export
+      - name: API types match the web app's
+        run: diff src/api/schema.d.ts ../frontend/src/api/schema.d.ts
+
   compose:
     runs-on: ubuntu-latest
     steps:
