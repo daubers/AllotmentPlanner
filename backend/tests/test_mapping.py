@@ -524,12 +524,33 @@ def test_sharpness_ranks_blurred_frames_lower(tmp_path):
     assert sharp > soft > very_soft
 
 
-def test_the_sharpest_frame_of_each_group_is_kept(tmp_path):
-    blurs = [4, 0, 6, 5, 5, 0, 3, 4, 0]  # three groups; the sharp one is 2nd, 3rd and 3rd
-    paths = [_noise_jpeg(tmp_path / f"{i}.jpg", blur=b) for i, b in enumerate(blurs)]
-    kept = pipeline.sharpest_of_each_group(paths, 3)
-    assert [p.name for p in kept] == ["1.jpg", "5.jpg", "8.jpg"]
-    assert pipeline.sharpest_of_each_group(paths[:4], 3)[1].name == "3.jpg"  # a short last group
+def test_a_frame_that_repeats_the_last_is_a_near_duplicate(tmp_path):
+    a = _noise_jpeg(tmp_path / "a.jpg")
+    same = _noise_jpeg(tmp_path / "b.jpg")
+    other = tmp_path / "c.jpg"
+    from PIL import Image
+
+    Image.new("RGB", (320, 240), (200, 30, 30)).save(other)
+    assert pipeline.near_duplicate(a, same)
+    assert not pipeline.near_duplicate(a, other)
+
+
+def _fix(lat, lng, taken):
+    return (lat, lng, datetime(2026, 10, 27, 16, 52, taken, tzinfo=UTC))
+
+
+def test_photos_that_never_changed_place_are_not_trusted(job):
+    stuck = {f"m{i}.jpg": _fix(51.61743, -1.10998, 0) for i in range(5)}
+    stuck["m4.jpg"] = (51.61743, -1.10998, datetime(2026, 10, 27, 16, 54, 30, tzinfo=UTC))
+    assert pipeline.photo_locations(stuck, job) == {}
+    assert "looks stuck" in job.log
+
+
+def test_photos_in_different_places_or_taken_together_are_trusted(job):
+    moving = {f"m{i}.jpg": _fix(51.6174 + i * 1e-4, -1.1099, 0) for i in range(5)}
+    assert len(pipeline.photo_locations(moving, job)) == 5
+    burst = {f"m{i}.jpg": _fix(51.6174, -1.1099, i) for i in range(5)}  # one place, seconds apart
+    assert len(pipeline.photo_locations(burst, job)) == 5
 
 
 def test_opensfm_config_links_video_frames_to_photos(job):
