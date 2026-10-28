@@ -27,6 +27,7 @@ COUNTERS = {
     "feature.deleted": "map_edits",
     "feature.bulk_replaced": "map_edits",
     "layer.created": "map_edits",
+    "measurements.applied": "map_edits",
 }
 FIELDS = ("tasks_done", "tasks_added", "photos_added", "map_edits")
 # A day counts towards a streak if real work happened (planning alone doesn't).
@@ -70,6 +71,8 @@ def build_overview(allotment, days: int, today: date) -> dict:
         n = 1
         if type_ == "feature.bulk_replaced":  # one save can touch many features
             n = sum((payload or {}).get(k, 0) for k in ("created", "updated", "deleted")) or 1
+        if type_ == "measurements.applied":  # one shape corrected counts as one map edit
+            n = (payload or {}).get("features", 1)
         per_day[at.astimezone(UTC).date()][COUNTERS[type_]] += n
 
     def day_row(day: date) -> dict:

@@ -1794,6 +1794,229 @@
         }
       ]
     },
+    "/api/v1/allotments/{allotment_id}/measurements": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeasurementList"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "The checklist, with each distance's current length on the map.",
+        "tags": [
+          "measurements"
+        ]
+      },
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Measurement"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeasurementCustom"
+              }
+            }
+          }
+        },
+        "summary": "Add an extra distance between any two corners of a shape (a spare, to check a fit).",
+        "tags": [
+          "measurements"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/measurements/sync": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeasurementList"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Make the checklist match the drawn shapes. Safe to repeat: nothing measured is lost.",
+        "description": "New shapes get their distances; distances for corners that no longer exist are removed\nif unmeasured and kept (flagged stale) if they were measured.",
+        "tags": [
+          "measurements"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/measurements/{measurement_id}": {
+      "patch": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Measurement"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeasurementPatch"
+              }
+            }
+          }
+        },
+        "summary": "Record a measurement, add a note, or skip it.",
+        "tags": [
+          "measurements"
+        ]
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Remove an extra distance you added. The generated ones can only be skipped.",
+        "tags": [
+          "measurements"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "measurement_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/measurements/fit": {
+      "post": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "preview",
+            "description": "true: only show the result; false: change the map",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Correct the drawn shapes to match the measurements.",
+        "description": "``preview=true`` (the default) only reports what would change. ``preview=false`` applies\nit, all or nothing: if any corrected shape is invalid nothing is changed.",
+        "tags": [
+          "measurements"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
     "/api/v1/allotments/{allotment_id}/map-jobs": {
       "get": {
         "responses": {
@@ -2183,6 +2406,10 @@
       "description": "Objects recognised in photos, waiting to be accepted as map features"
     },
     {
+      "name": "measurements",
+      "description": "Measuring checklist: distances taken on site that correct the drawn shapes"
+    },
+    {
       "name": "mapping",
       "description": "Build map layers from photos and video, and show them"
     },
@@ -2351,6 +2578,15 @@
           "description": {
             "type": "string"
           },
+          "length_unit": {
+            "type": "string",
+            "enum": [
+              "m",
+              "cm",
+              "ft_in"
+            ],
+            "readOnly": true
+          },
           "role": {
             "type": "string",
             "enum": [
@@ -2391,6 +2627,14 @@
           },
           "description": {
             "type": "string"
+          },
+          "length_unit": {
+            "type": "string",
+            "enum": [
+              "m",
+              "cm",
+              "ft_in"
+            ]
           }
         },
         "additionalProperties": false
@@ -3323,6 +3567,228 @@
         "required": [
           "ids"
         ],
+        "additionalProperties": false
+      },
+      "Measurement": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "feature_id": {
+            "type": "integer"
+          },
+          "feature_name": {
+            "type": "string"
+          },
+          "feature_kind": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "edge",
+              "diagonal",
+              "radius",
+              "custom"
+            ]
+          },
+          "a": {
+            "type": "integer",
+            "description": "Corner number, counting from 0"
+          },
+          "b": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string",
+            "description": "For people: corners counted from 1, e.g. '1 to 2'"
+          },
+          "drawn_m": {
+            "type": "number",
+            "description": "Its length on the map now",
+            "nullable": true
+          },
+          "value_m": {
+            "type": "number",
+            "nullable": true
+          },
+          "note": {
+            "type": "string"
+          },
+          "skipped": {
+            "type": "boolean"
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "measured_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "measured_by": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "MeasurementFeature": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "corners": {
+            "type": "integer"
+          },
+          "measured": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MeasurementList": {
+        "type": "object",
+        "properties": {
+          "length_unit": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Measurement"
+            }
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MeasurementFeature"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Distances to take, not counting skipped ones"
+          },
+          "measured": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MeasurementCustom": {
+        "type": "object",
+        "properties": {
+          "feature_id": {
+            "type": "integer"
+          },
+          "a": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "b": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "a",
+          "b",
+          "feature_id"
+        ],
+        "additionalProperties": false
+      },
+      "MeasurementPatch": {
+        "type": "object",
+        "properties": {
+          "value_m": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 1000.0,
+            "description": "Metres; null clears it",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "skipped": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FitFeature": {
+        "type": "object",
+        "properties": {
+          "feature_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "changed": {
+            "type": "boolean"
+          },
+          "rms_before_m": {
+            "type": "number"
+          },
+          "rms_after_m": {
+            "type": "number"
+          },
+          "max_move_m": {
+            "type": "number",
+            "description": "Furthest any corner moves"
+          },
+          "missing": {
+            "type": "integer",
+            "description": "More measurements needed to fix the shape"
+          },
+          "recheck": {
+            "type": "array",
+            "description": "Measurement ids to re-measure",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "geometry": {
+            "description": "The corrected GeoJSON geometry"
+          },
+          "drawn_geometry": {},
+          "radius_m": {
+            "type": "number",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FitResult": {
+        "type": "object",
+        "properties": {
+          "applied": {
+            "type": "boolean"
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FitFeature"
+            }
+          }
+        },
         "additionalProperties": false
       },
       "MapJob": {

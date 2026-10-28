@@ -26,6 +26,7 @@ def _dump(allotment: Allotment, role: str) -> dict:
         "id": allotment.id,
         "name": allotment.name,
         "description": allotment.description,
+        "length_unit": allotment.length_unit,
         "role": role,
     }
 

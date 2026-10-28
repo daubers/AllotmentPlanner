@@ -52,6 +52,9 @@ class Allotment(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
     description: Mapped[str] = mapped_column(Text, default="")
+    length_unit: Mapped[str] = mapped_column(
+        String(8), default="m", server_default="m"
+    )  # how lengths are shown: m | cm | ft_in (always stored in metres)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     memberships: Mapped[list["Membership"]] = relationship(
@@ -107,6 +110,33 @@ class MapFeature(db.Model):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, onupdate=_now
     )
+
+
+class Measurement(db.Model):
+    """One distance to measure on site, between two corners of a drawn feature (or its radius)."""
+
+    __tablename__ = "measurements"
+    __table_args__ = (UniqueConstraint("feature_id", "a", "b", "kind", name="uq_measurement_pair"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    feature_id: Mapped[int] = mapped_column(
+        ForeignKey("map_features.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(10))  # edge | diagonal | radius | custom
+    a: Mapped[int] = mapped_column()  # corner index, 0-based (the UI shows it plus one)
+    b: Mapped[int] = mapped_column()
+    value_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    note: Mapped[str] = mapped_column(String(300), default="")
+    skipped: Mapped[bool] = mapped_column(Boolean, default=False)
+    stale: Mapped[bool] = mapped_column(Boolean, default=False)  # its corners no longer exist
+    measured_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    measured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
 class TaskStatus(enum.StrEnum):

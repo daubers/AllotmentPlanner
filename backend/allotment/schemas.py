@@ -39,15 +39,20 @@ class AllotmentCreateSchema(Schema):
     description = fields.String(load_default="")
 
 
+LENGTH_UNITS = ["m", "cm", "ft_in"]
+
+
 class AllotmentUpdateSchema(Schema):
     name = fields.String(validate=validate.Length(min=1, max=120))
     description = fields.String()
+    length_unit = fields.String(validate=validate.OneOf(LENGTH_UNITS))
 
 
 class AllotmentSchema(Schema):
     id = fields.Integer(dump_only=True)
     name = fields.String()
     description = fields.String()
+    length_unit = fields.String(dump_only=True, validate=validate.OneOf(LENGTH_UNITS))
     role = fields.String(dump_only=True, validate=validate.OneOf(ROLES))
 
 
@@ -473,3 +478,85 @@ class SuggestionPatchSchema(Schema):
 
 class SuggestionIdsSchema(Schema):
     ids = fields.List(fields.Integer(), required=True, validate=validate.Length(min=1, max=200))
+
+
+class MeasurementSchema(Schema):
+    id = fields.Integer()
+    feature_id = fields.Integer()
+    feature_name = fields.String()
+    feature_kind = fields.String()
+    kind = fields.String(validate=validate.OneOf(["edge", "diagonal", "radius", "custom"]))
+    a = fields.Integer(metadata={"description": "Corner number, counting from 0"})
+    b = fields.Integer()
+    label = fields.String(
+        metadata={"description": "For people: corners counted from 1, e.g. '1 to 2'"}
+    )
+    drawn_m = fields.Float(allow_none=True, metadata={"description": "Its length on the map now"})
+    value_m = fields.Float(allow_none=True)
+    note = fields.String()
+    skipped = fields.Boolean()
+    stale = fields.Boolean()
+    measured_at = fields.DateTime(allow_none=True)
+    measured_by = fields.Integer(allow_none=True)
+
+
+class MeasurementFeatureSchema(Schema):
+    id = fields.Integer()
+    name = fields.String()
+    kind = fields.String()
+    corners = fields.Integer()
+    measured = fields.Integer()
+    total = fields.Integer()
+
+
+class MeasurementListSchema(Schema):
+    length_unit = fields.String()
+    items = fields.List(fields.Nested(MeasurementSchema))
+    features = fields.List(fields.Nested(MeasurementFeatureSchema))
+    total = fields.Integer(metadata={"description": "Distances to take, not counting skipped ones"})
+    measured = fields.Integer()
+
+
+class MeasurementPatchSchema(Schema):
+    value_m = fields.Float(
+        allow_none=True,
+        validate=validate.Range(min=0.01, max=1000),
+        metadata={"description": "Metres; null clears it"},
+    )
+    note = fields.String(validate=validate.Length(max=300))
+    skipped = fields.Boolean()
+
+
+class MeasurementCustomSchema(Schema):
+    feature_id = fields.Integer(required=True)
+    a = fields.Integer(required=True, validate=validate.Range(min=0))
+    b = fields.Integer(required=True, validate=validate.Range(min=0))
+
+
+class FitQuerySchema(Schema):
+    preview = fields.Boolean(
+        load_default=True,
+        metadata={"description": "true: only show the result; false: change the map"},
+    )
+
+
+class FitFeatureSchema(Schema):
+    feature_id = fields.Integer()
+    name = fields.String()
+    changed = fields.Boolean()
+    rms_before_m = fields.Float()
+    rms_after_m = fields.Float()
+    max_move_m = fields.Float(metadata={"description": "Furthest any corner moves"})
+    missing = fields.Integer(metadata={"description": "More measurements needed to fix the shape"})
+    recheck = fields.List(
+        fields.Integer(), metadata={"description": "Measurement ids to re-measure"}
+    )
+    geometry = fields.Raw(metadata={"description": "The corrected GeoJSON geometry"})
+    drawn_geometry = fields.Raw()
+    radius_m = fields.Float(allow_none=True)
+    error = fields.String(allow_none=True)
+
+
+class FitResultSchema(Schema):
+    applied = fields.Boolean()
+    features = fields.List(fields.Nested(FitFeatureSchema))

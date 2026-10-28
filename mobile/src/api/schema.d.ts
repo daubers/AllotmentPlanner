@@ -1670,6 +1670,239 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/allotments/{allotment_id}/measurements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        /** The checklist, with each distance's current length on the map. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MeasurementList"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        /** Add an extra distance between any two corners of a shape (a spare, to check a fit). */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MeasurementCustom"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Measurement"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/measurements/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make the checklist match the drawn shapes. Safe to repeat: nothing measured is lost.
+         * @description New shapes get their distances; distances for corners that no longer exist are removed
+         *     if unmeasured and kept (flagged stale) if they were measured.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MeasurementList"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/measurements/{measurement_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                measurement_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an extra distance you added. The generated ones can only be skipped. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    measurement_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Record a measurement, add a note, or skip it. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    measurement_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MeasurementPatch"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Measurement"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/measurements/fit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Correct the drawn shapes to match the measurements.
+         * @description ``preview=true`` (the default) only reports what would change. ``preview=false`` applies
+         *     it, all or nothing: if any corrected shape is invalid nothing is changed.
+         */
+        post: {
+            parameters: {
+                query?: {
+                    /** @description true: only show the result; false: change the map */
+                    preview?: boolean;
+                };
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FitResult"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/allotments/{allotment_id}/map-jobs": {
         parameters: {
             query?: never;
@@ -2066,6 +2299,8 @@ export interface components {
             name?: string;
             description?: string;
             /** @enum {string} */
+            readonly length_unit?: "m" | "cm" | "ft_in";
+            /** @enum {string} */
             readonly role?: "viewer" | "editor" | "owner";
         };
         AllotmentCreate: {
@@ -2076,6 +2311,8 @@ export interface components {
         AllotmentUpdate: {
             name?: string;
             description?: string;
+            /** @enum {string} */
+            length_unit?: "m" | "cm" | "ft_in";
         };
         Member: {
             readonly user_id?: number;
@@ -2414,6 +2651,77 @@ export interface components {
         };
         SuggestionIds: {
             ids: number[];
+        };
+        Measurement: {
+            id?: number;
+            feature_id?: number;
+            feature_name?: string;
+            feature_kind?: string;
+            /** @enum {string} */
+            kind?: "edge" | "diagonal" | "radius" | "custom";
+            /** @description Corner number, counting from 0 */
+            a?: number;
+            b?: number;
+            /** @description For people: corners counted from 1, e.g. '1 to 2' */
+            label?: string;
+            /** @description Its length on the map now */
+            drawn_m?: number | null;
+            value_m?: number | null;
+            note?: string;
+            skipped?: boolean;
+            stale?: boolean;
+            /** Format: date-time */
+            measured_at?: string | null;
+            measured_by?: number | null;
+        };
+        MeasurementFeature: {
+            id?: number;
+            name?: string;
+            kind?: string;
+            corners?: number;
+            measured?: number;
+            total?: number;
+        };
+        MeasurementList: {
+            length_unit?: string;
+            items?: components["schemas"]["Measurement"][];
+            features?: components["schemas"]["MeasurementFeature"][];
+            /** @description Distances to take, not counting skipped ones */
+            total?: number;
+            measured?: number;
+        };
+        MeasurementCustom: {
+            feature_id: number;
+            a: number;
+            b: number;
+        };
+        MeasurementPatch: {
+            /** @description Metres; null clears it */
+            value_m?: number | null;
+            note?: string;
+            skipped?: boolean;
+        };
+        FitFeature: {
+            feature_id?: number;
+            name?: string;
+            changed?: boolean;
+            rms_before_m?: number;
+            rms_after_m?: number;
+            /** @description Furthest any corner moves */
+            max_move_m?: number;
+            /** @description More measurements needed to fix the shape */
+            missing?: number;
+            /** @description Measurement ids to re-measure */
+            recheck?: number[];
+            /** @description The corrected GeoJSON geometry */
+            geometry?: unknown;
+            drawn_geometry?: unknown;
+            radius_m?: number | null;
+            error?: string | null;
+        };
+        FitResult: {
+            applied?: boolean;
+            features?: components["schemas"]["FitFeature"][];
         };
         MapJob: {
             id?: number;
