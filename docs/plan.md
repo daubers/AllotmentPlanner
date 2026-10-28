@@ -24,7 +24,7 @@ Tickets live in YouTrack project **AM** (Allotment Manager) at pm.daubney.dev. W
 | Recognise objects in photos | AM-25 | Merged (in Review) |
 | Plot boundary from fences | AM-26 | Merged; no outline from the real set (see AM-26 notes) |
 | Per-frame GPS from video telemetry | AM-22 | Merged (in Review) |
-| 12 Mobile app: shell, auth, offline queue | AM-27 | Backlog |
+| 12 Mobile app: shell, auth, offline queue | AM-27 | Merged (in Review); see [mobile.md](mobile.md) |
 | 13 Mobile app: guided photo and video capture | AM-28 | Backlog |
 | 14 Mobile app: Measure screen (needs AM-17) | AM-29 | Backlog |
 | 15 Mobile app: walk the boundary with GPS | AM-30 | Backlog |
