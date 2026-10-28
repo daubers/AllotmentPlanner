@@ -19,6 +19,13 @@ class Storage(Protocol):
         ...
 
     def delete(self, key: str) -> None: ...
+    def get_bytes(self, key: str) -> bytes | None:
+        """The whole object, or None if it doesn't exist (for small objects such as map tiles)."""
+        ...
+
+    def delete_prefix(self, prefix: str) -> None:
+        """Remove every object whose key starts with ``prefix/``."""
+        ...
 
 
 class FileStorage:
@@ -55,6 +62,15 @@ class FileStorage:
 
     def delete(self, key: str) -> None:
         self._path(key).unlink(missing_ok=True)
+
+    def get_bytes(self, key: str) -> bytes | None:
+        try:
+            return self._path(key).read_bytes()
+        except FileNotFoundError:
+            return None
+
+    def delete_prefix(self, prefix: str) -> None:
+        shutil.rmtree(self._path(prefix.rstrip("/")), ignore_errors=True)
 
 
 class S3Storage:
@@ -94,6 +110,19 @@ class S3Storage:
     def delete(self, key: str) -> None:
         self.client.delete_object(Bucket=self.bucket, Key=key)
 
+    def get_bytes(self, key: str) -> bytes | None:
+        try:
+            return self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
+        except self.client.exceptions.NoSuchKey:
+            return None
+
+    def delete_prefix(self, prefix: str) -> None:
+        paginator = self.client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix.rstrip("/") + "/"):
+            objects = [{"Key": o["Key"]} for o in page.get("Contents", [])]
+            if objects:
+                self.client.delete_objects(Bucket=self.bucket, Delete={"Objects": objects})
+
 
 def _build(app: Flask) -> Storage:
     cfg = app.config
@@ -117,6 +146,13 @@ def get_storage() -> Storage:
     if "storage" not in app.extensions:
         app.extensions["storage"] = _build(app)
     return app.extensions["storage"]
+
+
+def safe_delete_prefix(prefix: str) -> None:
+    try:
+        get_storage().delete_prefix(prefix)
+    except Exception:  # noqa: BLE001 - best effort, like safe_delete
+        current_app.logger.warning("could not delete %s", prefix)
 
 
 def safe_delete(*keys: str | None) -> None:

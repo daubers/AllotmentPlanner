@@ -23,6 +23,12 @@ class Config:
     FEDIVERSE_ALLOW_PRIVATE_HOSTS = os.environ.get("FEDIVERSE_ALLOW_PRIVATE_HOSTS") == "1"
     MASTODON_PHOTO_BATCH_SECONDS = int(os.environ.get("MASTODON_PHOTO_BATCH_SECONDS", "180"))
     MASTODON_DIGEST_HOUR_UTC = int(os.environ.get("MASTODON_DIGEST_HOUR_UTC", "19"))
+    # Map from photos (OpenSfM + GDAL, run by the separate `mapper` worker)
+    MAPPING_MAX_IMAGES = int(os.environ.get("MAPPING_MAX_IMAGES", "150"))
+    MAPPING_VIDEO_FRAMES_PER_SECOND = float(os.environ.get("MAPPING_VIDEO_FPS", "1"))
+    MAPPING_MAX_FRAMES_PER_VIDEO = int(os.environ.get("MAPPING_MAX_FRAMES_PER_VIDEO", "60"))
+    MAPPING_TIMEOUT_SECONDS = int(os.environ.get("MAPPING_TIMEOUT_SECONDS", "7200"))
+    MAPPING_TILE_TOKEN_TTL_SECONDS = 6 * 3600
     OTEL_EXPORTER_OTLP_ENDPOINT = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-only-insecure-secret-change-me-in-prod")

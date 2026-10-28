@@ -14,7 +14,7 @@ from ..schemas import (
     MemberUpdateSchema,
 )
 from ..security import current_user, require_role
-from ..storage import safe_delete
+from ..storage import safe_delete, safe_delete_prefix
 
 blp = Blueprint(
     "allotments", __name__, url_prefix="/api/v1/allotments", description="Allotments and members"
@@ -104,6 +104,7 @@ class AllotmentDetail(MethodView):
         db.session.delete(allotment)
         db.session.commit()
         safe_delete(*keys)
+        safe_delete_prefix(f"allotments/{allotment_id}/layers")
         events.emit("allotment.deleted", actor_id=membership.user_id, allotment_id=allotment_id)
 
 

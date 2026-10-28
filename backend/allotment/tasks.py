@@ -1,19 +1,22 @@
 """Celery tasks. Imported by the worker via ``include=`` in celery_app."""
 
 import os
+import shutil
 import tempfile
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import structlog
 from flask import current_app, has_app_context
 
 from . import events, media_meta
+from . import mapping_geo as geo
 from .celery_app import celery
 from .crypto import decrypt
 from .extensions import db
 from .fediverse import MastodonClient, MastodonError
 from .metrics import MASTODON_POSTS
-from .models import Allotment, MastodonAccount, MastodonPost, Media
+from .models import Allotment, MapJob, MastodonAccount, MastodonPost, Media
 from .storage import get_storage
 
 log = structlog.get_logger(__name__)
@@ -262,3 +265,65 @@ def mastodon_sweep() -> int:
             db.session.commit()
             send_mastodon_post.apply_async(args=[post.id])
         return len(stuck)
+
+
+def _work_root() -> Path:
+    return Path(os.environ.get("MAPPING_WORK_DIR") or tempfile.gettempdir())
+
+
+@celery.task(name="allotment.run_map_job")
+def run_map_job(job_id: int) -> str:
+    """Build a map layer from photos. Slow, so it runs on the ``mapping`` queue (``mapper``)."""
+    from . import mapping_pipeline as pipeline
+
+    with _app().app_context():
+        job = db.session.get(MapJob, job_id)
+        if job is None or job.status != "queued":
+            return "skipped"
+        structlog.contextvars.bind_contextvars(map_job_id=job_id, allotment_id=job.allotment_id)
+
+        def finish(status: str, error: str | None = None) -> str:
+            job.status, job.error = status, (error[:500] if error else None)
+            job.finished_at = datetime.now(UTC)
+            db.session.commit()
+            events.emit(
+                f"map_job.{status}",
+                actor_id=job.created_by,
+                allotment_id=job.allotment_id,
+                subject={"map_job_id": job.id},
+                payload={"error": job.error},
+            )
+            return status
+
+        if job.cancel_requested:
+            return finish("cancelled")
+        job.status, job.started_at = "running", datetime.now(UTC)
+        db.session.commit()
+        work = _work_root() / f"job-{job_id}"
+        shutil.rmtree(work, ignore_errors=True)
+        work.mkdir(parents=True)
+        try:
+            layer = pipeline.process(job, work)
+            db.session.commit()
+            events.emit(
+                "layer.created",
+                actor_id=job.created_by,
+                allotment_id=job.allotment_id,
+                subject={"layer_id": layer.id, "map_job_id": job.id},
+                payload={"tiles": layer.tile_count},
+            )
+            log.info("map_job_done", tiles=layer.tile_count)
+            return finish("ready")
+        except pipeline.JobCancelled:
+            db.session.rollback()
+            return finish("cancelled")
+        except (pipeline.JobFailed, geo.ReconstructionError) as exc:
+            db.session.rollback()
+            log.warning("map_job_failed", error=str(exc))
+            return finish("failed", str(exc))
+        except Exception as exc:  # noqa: BLE001 - record any failure on the job, then re-log
+            db.session.rollback()
+            log.exception("map_job_crashed")
+            return finish("failed", f"Unexpected error: {exc.__class__.__name__}")
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
