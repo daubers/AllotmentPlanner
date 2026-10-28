@@ -7,7 +7,9 @@ GDAL. The geometry lives in :mod:`mapping_geo`.
 
 import json
 import os
+import shutil
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -22,6 +24,7 @@ from PIL import Image
 from . import mapping_geo as geo
 from . import media_meta
 from .extensions import db
+from .mapping_video import video_frame_rate
 from .models import MapJob, MapLayer, Media
 from .storage import get_storage
 
@@ -36,6 +39,7 @@ GPS_ACCURACY_M = 5.0  # how much OpenSfM trusts each photo's location
 MAX_PIXELS = 80_000_000  # output raster size limit; coarser pixels are used beyond this
 LOG_LIMIT = 20_000
 REACH_PER_METRE_OF_HEIGHT = 12  # ignore ground further away than this many camera heights
+FRAME_CANDIDATES = 3  # per video frame wanted, sample this many and keep the sharpest (motion blur)
 
 
 class JobFailed(Exception):
@@ -121,21 +125,7 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
     cfg = current_app.config
     overrides: dict[str, dict] = {}
     geotagged = 0
-
-    def add_override(name: str, media: Media) -> None:
-        nonlocal geotagged
-        if media.lat is not None and media.lng is not None:
-            geotagged += 1
-            overrides[name] = {
-                "gps": {
-                    "latitude": media.lat,
-                    "longitude": media.lng,
-                    # Altitude from phones is unreliable, so every photo is placed at the stated
-                    # carrying height; OpenSfM then works out the real geometry itself.
-                    "altitude": job.camera_height_m,
-                    "dop": GPS_ACCURACY_M,
-                }
-            }
+    frames_total = 0
 
     for media_id in job.media_ids:
         media = db.session.get(Media, media_id)
@@ -145,7 +135,18 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
             ext = media_meta.extension_for("photo", _head(storage, media.storage_key))
             name = f"m{media.id}{ext}"
             storage.download(media.storage_key, str(images / name))
-            add_override(name, media)
+            if media.lat is not None and media.lng is not None:
+                geotagged += 1
+                overrides[name] = {
+                    "gps": {
+                        "latitude": media.lat,
+                        "longitude": media.lng,
+                        # Altitude from phones is unreliable, so every photo is placed at the
+                        # stated carrying height; OpenSfM works out the real geometry itself.
+                        "altitude": job.camera_height_m,
+                        "dop": GPS_ACCURACY_M,
+                    }
+                }
         else:
             if not media_meta.have_ffmpeg():
                 raise JobFailed("This worker has no ffmpeg, so videos can't be used")
@@ -157,23 +158,29 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
                 prefix=f"v{media.id}_",
                 fps=cfg["MAPPING_VIDEO_FRAMES_PER_SECOND"],
                 limit=cfg["MAPPING_MAX_FRAMES_PER_VIDEO"],
+                duration=media.duration_s,
             )
             source.unlink()
+            frames_total += len(frames)
+            # A video has one location (where it started), not one per frame, so frames carry no
+            # GPS: pinning them all to that point would drag the map together. They are placed by
+            # matching against the geotagged photos. Each video gets its own camera model.
             for frame in frames:
-                add_override(frame, media)
+                overrides[frame] = {"camera": f"video {media.id}"}
 
     total = len(list(images.iterdir()))
     if total < MIN_IMAGES:
         raise JobFailed(
-            f"Only {total} usable images; at least {MIN_IMAGES} overlapping photos are needed"
+            f"Only {total} usable images; at least {MIN_IMAGES} overlapping photos "
+            "(or enough video) are needed"
         )
     if geotagged < MIN_GEOTAGGED:
         raise JobFailed(
-            f"Only {geotagged} of the images have a location; "
-            f"at least {MIN_GEOTAGGED} are needed to place the map"
+            f"Only {geotagged} of the photos have a location; at least {MIN_GEOTAGGED} are needed "
+            "to place and scale the map (a video has only one location, which can't)"
         )
     (work / "exif_overrides.json").write_text(json.dumps(overrides))
-    (work / "config.yaml").write_text(yaml.safe_dump(opensfm_config(job)))
+    (work / "config.yaml").write_text(yaml.safe_dump(opensfm_config(job, frames_total > 0)))
     return total
 
 
@@ -181,8 +188,8 @@ def _head(storage, key: str) -> bytes:
     return b"".join(storage.read_range(key, 0, 15))
 
 
-def opensfm_config(job: MapJob) -> dict:
-    return {
+def opensfm_config(job: MapJob, has_frames: bool = False) -> dict:
+    config = {
         "processes": max(1, (os.cpu_count() or 2) - 1),
         "feature_process_size": 2048,
         "use_altitude_tag": True,
@@ -190,31 +197,66 @@ def opensfm_config(job: MapJob) -> dict:
         "align_orientation_prior": "vertical" if job.view == "overhead" else "horizontal",
         "undistorted_image_max_size": 3000,
     }
+    if has_frames:
+        # OpenSfM switches off GPS-based pair selection as soon as any image lacks GPS, and with
+        # nothing else configured it then tries every pair. Neighbouring frames (by file name)
+        # plus look-alikes from other cameras (bag of words) link the video to the photos.
+        config |= {
+            "matching_order_neighbors": 6,
+            "matching_bow_neighbors": 10,
+            "matching_bow_other_cameras": True,
+        }
+    return config
 
 
-def extract_frames(video: Path, out_dir: Path, prefix: str, fps: float, limit: int) -> list[str]:
-    """Sample frames from a video as JPEGs; returns their file names."""
-    pattern = str(out_dir / f"{prefix}%04d.jpg")
-    subprocess.run(  # noqa: S603
-        [
-            "ffmpeg",
-            "-v",
-            "error",
-            "-i",
-            str(video),
-            "-vf",
-            f"fps={fps},scale='min(2048,iw)':-2",
-            "-frames:v",
-            str(limit),
-            "-q:v",
-            "2",
-            pattern,
-        ],  # fmt: skip
-        check=True,
-        capture_output=True,
-        timeout=600,
-    )
-    return sorted(p.name for p in out_dir.glob(f"{prefix}*.jpg"))
+def sharpness(path: Path) -> float:
+    """Variance of a Laplacian over a fixed-size greyscale copy: higher means less blur."""
+    with Image.open(path) as img:
+        grey = img.convert("L")
+        grey = grey.resize((480, max(1, round(480 * grey.height / grey.width))))
+    g = np.asarray(grey, dtype=float)
+    lap = 4 * g[1:-1, 1:-1] - g[:-2, 1:-1] - g[2:, 1:-1] - g[1:-1, :-2] - g[1:-1, 2:]
+    return float(lap.var())
+
+
+def sharpest_of_each_group(paths: list[Path], size: int) -> list[Path]:
+    """The least blurred frame from each run of ``size`` consecutive ones."""
+    return [max(paths[i : i + size], key=sharpness) for i in range(0, len(paths), size)]
+
+
+def extract_frames(
+    video: Path, out_dir: Path, prefix: str, fps: float, limit: int, duration: float | None = None
+) -> list[str]:
+    """Sample frames from a video as JPEGs, keeping the sharpest of several candidates for each
+    sampling point (hand-held video is often blurred). Returns the file names, in order."""
+    rate = video_frame_rate(duration, fps, limit)
+    with tempfile.TemporaryDirectory() as tmp:
+        subprocess.run(  # noqa: S603
+            [
+                "ffmpeg",
+                "-v",
+                "error",
+                "-i",
+                str(video),
+                "-vf",
+                f"fps={rate * FRAME_CANDIDATES},scale='min(2048,iw)':-2",
+                "-frames:v",
+                str(limit * FRAME_CANDIDATES),
+                "-q:v",
+                "2",
+                str(Path(tmp) / "c%05d.jpg"),
+            ],  # fmt: skip
+            check=True,
+            capture_output=True,
+            timeout=900,
+        )
+        chosen = sharpest_of_each_group(sorted(Path(tmp).glob("c*.jpg")), FRAME_CANDIDATES)[:limit]
+        names = []
+        for n, path in enumerate(chosen, start=1):
+            name = f"{prefix}{n:04d}.jpg"
+            shutil.move(path, out_dir / name)
+            names.append(name)
+        return names
 
 
 # --- 2. OpenSfM ------------------------------------------------------------------------------
