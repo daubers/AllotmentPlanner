@@ -13,7 +13,8 @@
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true,
           "NSAllowsArbitraryLoads": true
-        }
+        },
+        "NSMotionUsageDescription": "Allotment checks how level the camera is held."
       }
     },
     "android": {
@@ -37,6 +38,18 @@
             "usesCleartextTraffic": true
           },
           "ios": {}
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allotment uses the camera to take photos of your plot."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allotment records where each photo was taken so it can build a map of your plot."
         }
       ]
     ],

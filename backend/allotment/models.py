@@ -154,6 +154,7 @@ class Media(db.Model):
     """An uploaded photo or video, with the metadata pulled from the file itself."""
 
     __tablename__ = "media"
+    __table_args__ = (UniqueConstraint("allotment_id", "client_id", name="uq_media_client_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     allotment_id: Mapped[int] = mapped_column(
@@ -178,6 +179,13 @@ class Media(db.Model):
     lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     lng: Mapped[float | None] = mapped_column(Float, nullable=True)
     heading: Mapped[float | None] = mapped_column(Float, nullable=True)
+    position_source: Mapped[str | None] = mapped_column(
+        String(10), nullable=True
+    )  # where lat/lng came from: exif | device (the app's own GPS) | manual
+    capture_session: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    client_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )  # the app's id for this upload, so a resent upload is recognised
     feature_id: Mapped[int | None] = mapped_column(
         ForeignKey("map_features.id", ondelete="SET NULL"), nullable=True, index=True
     )

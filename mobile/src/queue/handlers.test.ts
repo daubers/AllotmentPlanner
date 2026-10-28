@@ -90,3 +90,17 @@ test("an upload that drops or is too big is handled", async () => {
     "Too large",
   );
 });
+
+test("a copy the app made is deleted once the server has it, but not before", async () => {
+  const session = await signedIn();
+  const removeFile = jest.fn();
+  const job = { allotmentId: 1, uri: "file:///captures/a.jpg", name: "a.jpg", mimeType: "image/jpeg", deleteAfterUpload: true };
+  const refused = makeHandlers({ session, removeFile, uploadFile: jest.fn().mockResolvedValue({ status: 503, body: "" }) });
+  await expect(refused.upload(job, ctx)).rejects.toBeInstanceOf(RetryableError);
+  expect(removeFile).not.toHaveBeenCalled();
+  const ok = makeHandlers({ session, removeFile, uploadFile: jest.fn().mockResolvedValue({ status: 201, body: "{}" }) });
+  await ok.upload(job, ctx);
+  expect(removeFile).toHaveBeenCalledWith("file:///captures/a.jpg");
+  await ok.upload({ ...job, deleteAfterUpload: false }, ctx);
+  expect(removeFile).toHaveBeenCalledTimes(1);
+});

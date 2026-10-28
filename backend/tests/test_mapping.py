@@ -430,6 +430,23 @@ def test_a_few_geotagged_photos_are_enough_for_overlapping_untagged_ones(plot, j
     assert len(json.loads((work / "exif_overrides.json").read_text())) == 3
 
 
+def test_a_job_can_be_built_from_a_capture_session(client, plot, queued):
+    ids = add_media(plot["id"], 6)
+    other = add_media(plot["id"], 3)
+    db.session.query(Media).filter(Media.id.in_(ids)).update({"capture_session": "walk"})
+    db.session.query(Media).filter(Media.id.in_(other)).update({"capture_session": "later"})
+    db.session.commit()
+    resp = create(client, plot, capture_session="walk")
+    assert resp.status_code == 202, resp.json
+    assert db.session.get(MapJob, resp.json["id"]).media_ids == ids
+
+
+def test_capture_session_and_media_ids_do_not_mix_and_must_exist(client, plot, queued):
+    ids = add_media(plot["id"], 6)
+    assert create(client, plot, capture_session="x", media_ids=ids).status_code == 422
+    assert create(client, plot, capture_session="nothing-here").status_code == 422
+
+
 # --- videos --------------------------------------------------------------------------------
 
 
@@ -535,15 +552,34 @@ def test_a_frame_that_repeats_the_last_is_a_near_duplicate(tmp_path):
     assert not pipeline.near_duplicate(a, other)
 
 
-def _fix(lat, lng, taken):
-    return (lat, lng, datetime(2026, 10, 27, 16, 52, taken, tzinfo=UTC))
+def _fix(lat, lng, taken, source="exif"):
+    return (lat, lng, datetime(2026, 10, 27, 16, 52, taken, tzinfo=UTC), source)
 
 
 def test_photos_that_never_changed_place_are_not_trusted(job):
     stuck = {f"m{i}.jpg": _fix(51.61743, -1.10998, 0) for i in range(5)}
-    stuck["m4.jpg"] = (51.61743, -1.10998, datetime(2026, 10, 27, 16, 54, 30, tzinfo=UTC))
+    stuck["m4.jpg"] = (51.61743, -1.10998, datetime(2026, 10, 27, 16, 54, 30, tzinfo=UTC), "exif")
     assert pipeline.photo_locations(stuck, job) == {}
     assert "looks stuck" in job.log
+
+
+def test_positions_read_by_the_app_are_never_called_stuck(job):
+    same_spot = {f"m{i}.jpg": _fix(51.61743, -1.10998, 0, "device") for i in range(5)}
+    same_spot["m4.jpg"] = (
+        51.61743,
+        -1.10998,
+        datetime(2026, 10, 27, 16, 54, 30, tzinfo=UTC),
+        "device",
+    )
+    assert len(pipeline.photo_locations(same_spot, job)) == 5
+    mixed = {
+        **{f"e{i}.jpg": _fix(51.0, -1.0, 0) for i in range(5)},
+        "d.jpg": _fix(51.5, -1.5, 0, "device"),
+    }
+    mixed["e4.jpg"] = (51.0, -1.0, datetime(2026, 10, 27, 16, 55, tzinfo=UTC), "exif")
+    assert set(pipeline.photo_locations(mixed, job)) == {
+        "d.jpg"
+    }  # the stuck EXIF ones go, the app's stay
 
 
 def test_photos_in_different_places_or_taken_together_are_trusted(job):

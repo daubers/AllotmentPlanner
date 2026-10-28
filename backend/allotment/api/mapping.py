@@ -131,11 +131,17 @@ class MapJobList(MethodView):
         query = db.session.query(Media).filter(
             Media.allotment_id == allotment.id, Media.status == "ready"
         )
-        if data["media_ids"] is None:
+        if data["capture_session"] is not None:
+            if data["media_ids"] is not None:
+                abort(422, message="Give media_ids or capture_session, not both")
+            query = query.filter(Media.capture_session == data["capture_session"])
+        elif data["media_ids"] is None:
             query = query.filter(Media.kind.in_(["photo", "video"]))
         else:
             query = query.filter(Media.id.in_(data["media_ids"]))
         media = query.order_by(Media.taken_at, Media.id).all()
+        if data["capture_session"] is not None and not media:
+            abort(422, message="No finished photos in that capture session yet")
         if data["media_ids"] is not None and len(media) != len(set(data["media_ids"])):
             abort(422, message="Some of those files aren't ready or aren't in this allotment")
         cfg = current_app.config

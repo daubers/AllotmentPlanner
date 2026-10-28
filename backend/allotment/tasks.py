@@ -85,10 +85,11 @@ def process_media(media_id: int) -> str:
                 return _fail(media, f"Processing failed: {exc.__class__.__name__}")
 
         media.width, media.height, media.duration_s = meta.width, meta.height, meta.duration_s
-        if meta.taken_at and media.taken_at_source != "manual":
+        if meta.taken_at and media.taken_at_source not in ("manual", "device"):
             media.taken_at, media.taken_at_source = meta.taken_at, "exif"
         if meta.lat is not None and media.lat is None:
             media.lat, media.lng, media.heading = meta.lat, meta.lng, meta.heading
+            media.position_source = "exif"
         elif meta.heading is not None and media.heading is None:
             media.heading = meta.heading
         media.thumb_key = thumb_key if has_thumb else None

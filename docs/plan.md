@@ -25,7 +25,7 @@ Tickets live in YouTrack project **AM** (Allotment Manager) at pm.daubney.dev. W
 | Plot boundary from fences | AM-26 | Merged; no outline from the real set (see AM-26 notes) |
 | Per-frame GPS from video telemetry | AM-22 | Merged (in Review) |
 | 12 Mobile app: shell, auth, offline queue | AM-27 | Merged (in Review); see [mobile.md](mobile.md) |
-| 13 Mobile app: guided photo and video capture | AM-28 | Backlog |
+| 13 Mobile app: guided photo capture | AM-28 | Merged (in Review); see [mobile.md](mobile.md) |
 | 14 Mobile app: Measure screen (needs AM-17) | AM-29 | Backlog |
 | 15 Mobile app: walk the boundary with GPS | AM-30 | Backlog |
 | 16 Mobile app: tasks and quick photos | AM-31 | Backlog |
@@ -115,7 +115,7 @@ Gitea CI gets a `mobile` job (typecheck, lint, jest); EAS builds are manual (`do
 10. **Polish**: seed data, e2e tests, README/docs.
 11. **Measuring checklist** (AM-17): `Measurement` model + `length_unit`, checklist generation from features, least-squares fit with preview/apply, Measure page with units and corner sketch, phone layout fixes. Depends only on map features (AM-3), so it can start at any point. Not in scope: corner numbers drawn on the Leaflet map, a printable paper checklist, GPS-assisted measuring, anchoring scale/rotation to surveyed points.
 12. **Mobile app shell** (AM-27): Expo project, login, allotment switcher, generated API types, offline queue and resumable uploads, `packages/shared`, CI job, `docs/mobile.md`.
-13. **Guided capture** (AM-28): camera with device GPS/heading/tilt, coaching, capture sessions, `POST /media` position fields and `Media.position_source`, build-a-map-from-this-session.
+13. **Guided capture** (AM-28): camera with device GPS/heading/tilt, coaching, capture sessions, `POST /media` position fields (`lat`, `lng`, `heading`, `taken_at`, `capture_session`, `client_id`), `Media.position_source` and de-duplication by client id, `POST /map-jobs` by `capture_session`. ✅ Phone-video capture was left out (see the follow-up ticket).
 14. **Measure screen** (AM-29): phone client for phase 11 (depends on AM-17).
 15. **Walk the boundary** (AM-30): GPS trace recording, `POST /allotments/{id}/boundary-trace`, "Plot boundary" suggestion.
 16. **Tasks and quick photos** (AM-31): Today screen, create/tick tasks, photos attached to features or tasks, read-only map.

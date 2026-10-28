@@ -972,6 +972,14 @@
           },
           {
             "in": "query",
+            "name": "capture_session",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
             "name": "taken_from",
             "description": "On or after this date",
             "schema": {
@@ -2839,6 +2847,14 @@
             "type": "number",
             "nullable": true
           },
+          "position_source": {
+            "type": "string",
+            "nullable": true
+          },
+          "capture_session": {
+            "type": "string",
+            "nullable": true
+          },
           "feature_id": {
             "type": "integer",
             "nullable": true
@@ -2899,6 +2915,52 @@
             "type": "string",
             "default": "",
             "maxLength": 500
+          },
+          "lat": {
+            "type": "number",
+            "default": null,
+            "minimum": -90.0,
+            "maximum": 90.0,
+            "description": "Where the phone was (its own GPS). Beats the file's EXIF.",
+            "nullable": true
+          },
+          "lng": {
+            "type": "number",
+            "default": null,
+            "minimum": -180.0,
+            "maximum": 180.0,
+            "nullable": true
+          },
+          "heading": {
+            "type": "number",
+            "default": null,
+            "minimum": 0.0,
+            "maximum": 360.0,
+            "description": "Compass heading in degrees, 0 = north",
+            "nullable": true
+          },
+          "taken_at": {
+            "type": "string",
+            "format": "date-time",
+            "default": null,
+            "description": "When it was taken, if the app knows",
+            "nullable": true
+          },
+          "capture_session": {
+            "type": "string",
+            "default": null,
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Groups the photos of one walk-round, to build a map from them",
+            "nullable": true
+          },
+          "client_id": {
+            "type": "string",
+            "default": null,
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "The app's id for this upload: sending it again returns the same item",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -3352,6 +3414,12 @@
             "items": {
               "type": "integer"
             },
+            "nullable": true
+          },
+          "capture_session": {
+            "type": "string",
+            "default": null,
+            "description": "Use the photos uploaded in this capture session (not with media_ids)",
             "nullable": true
           },
           "view": {
