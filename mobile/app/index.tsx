@@ -1,19 +1,70 @@
 import { useQuery } from "@tanstack/react-query";
-import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React, { useEffect, useState } from "react";
+import { Pressable, View } from "react-native";
+import { useChecklist } from "../src/measure/hooks";
 import { useApp, useQueueState } from "../src/state/AppProvider";
-import type { Job } from "../src/queue/queue";
-import { makeStyles, usePalette } from "../src/ui/theme";
+import { Banner, Button, Card, Chip, Loading, ProgressBar, Row, Screen, Section, T } from "../src/ui/kit";
+import { radius, space, usePalette } from "../src/ui/theme";
+
+function Tile({
+  title,
+  body,
+  onPress,
+  primary,
+  disabled,
+  footer,
+}: {
+  title: string;
+  body: string;
+  onPress: () => void;
+  primary?: boolean;
+  disabled?: boolean;
+  footer?: React.ReactNode;
+}) {
+  const p = usePalette();
+  const fg = primary ? p.onAccent : p.text;
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityHint={body}
+      style={({ pressed }) => ({
+        borderRadius: radius.lg,
+        padding: space.lg,
+        gap: space.sm,
+        backgroundColor: primary ? p.accent : p.surface,
+        borderWidth: 1,
+        borderColor: primary ? p.accent : p.border,
+        opacity: disabled ? 0.5 : pressed ? 0.9 : 1,
+        minHeight: 96,
+        justifyContent: "center",
+      })}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <T kind="heading" style={{ color: fg, fontSize: 20 }}>
+          {title}
+        </T>
+        <T kind="heading" style={{ color: fg }}>
+          ›
+        </T>
+      </View>
+      <T kind="body" style={{ color: fg, opacity: primary ? 0.92 : 1 }} muted={!primary}>
+        {body}
+      </T>
+      {footer}
+    </Pressable>
+  );
+}
 
 export default function Home() {
   const { api, session, queue, allotmentId, chooseAllotment } = useApp();
-  const palette = usePalette();
-  const s = useMemo(() => makeStyles(palette), [palette]);
-  const state = useQueueState();
   const router = useRouter();
-  const [failed, setFailed] = useState<Job[]>([]);
+  const state = useQueueState();
+  const checklist = useChecklist();
+  const [switching, setSwitching] = useState(false);
 
   const allotments = useQuery({
     queryKey: ["allotments", session.serverUrl],
@@ -31,97 +82,107 @@ export default function Home() {
     if (first !== undefined && !list?.some((a) => a.id === allotmentId)) chooseAllotment(first);
   }, [allotments.data, allotmentId, chooseAllotment]);
 
-  useEffect(() => {
-    void queue.jobs().then((jobs) => setFailed(jobs.filter((j) => j.status === "failed")));
-  }, [queue, state.pending, state.failed]);
+  const current = allotments.data?.find((a) => a.id === allotmentId);
+  const many = (allotments.data?.length ?? 0) > 1;
+  const canEdit = current ? current.role !== "viewer" : false;
+  const c = checklist.data;
 
-  const waiting = state.pending;
+  const banner =
+    state.failed > 0 ? (
+      <Banner tone="danger" text={`${state.failed} ${state.failed === 1 ? "item" : "items"} couldn't be sent`} action="Review" onAction={() => router.push("/uploads")} />
+    ) : state.pending > 0 ? (
+      <Banner
+        tone="warn"
+        text={state.active ? `Sending… ${Math.round(state.active.progress * 100)}%  (${state.pending} waiting)` : `${state.pending} waiting to send`}
+        action="Details"
+        onAction={() => router.push("/uploads")}
+      />
+    ) : null;
+
   return (
-    <SafeAreaView style={s.screen}>
-      <ScrollView contentContainerStyle={s.content}>
-        <Text style={s.title}>Allotment</Text>
+    <Screen back={false}>
+      <View style={{ gap: space.xs }}>
+        <T kind="eyebrow" muted>
+          YOUR PLOT
+        </T>
+        {allotments.isLoading ? (
+          <T kind="title">Allotment</T>
+        ) : (
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.md }}>
+            <T kind="title" style={{ flex: 1 }} accessibilityRole="header">
+              {current?.name ?? "Allotment"}
+            </T>
+            {many ? <Button label={switching ? "Close" : "Switch"} kind="secondary" small onPress={() => setSwitching(!switching)} /> : null}
+          </View>
+        )}
+      </View>
 
-        <View style={s.card}>
-          <Text style={s.heading}>Your allotments</Text>
-          {allotments.isLoading ? <ActivityIndicator /> : null}
-          {allotments.isError ? (
-            <>
-              <Text style={s.error}>{allotments.error.message}</Text>
-              <Pressable style={s.ghost} onPress={() => allotments.refetch()}>
-                <Text style={s.ghostText}>Try again</Text>
-              </Pressable>
-            </>
-          ) : null}
-          {allotments.data?.map((a) => (
-            <Pressable
+      {switching && allotments.data ? (
+        <Card>
+          {allotments.data.map((a, i) => (
+            <Row
               key={a.id}
-              style={[s.row, { opacity: a.id === allotmentId ? 1 : 0.7 }]}
-              onPress={() => a.id !== undefined && chooseAllotment(a.id)}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: a.id === allotmentId }}
-            >
-              <Text style={s.text}>{a.id === allotmentId ? "● " : "○ "}{a.name}</Text>
-              <Text style={s.muted}>{a.role}</Text>
-            </Pressable>
+              first={i === 0}
+              title={a.name ?? ""}
+              subtitle={a.role}
+              value={a.id === allotmentId ? "Current" : undefined}
+              valueTone="ok"
+              onPress={() => {
+                if (a.id !== undefined) chooseAllotment(a.id);
+                setSwitching(false);
+              }}
+            />
           ))}
-          {allotments.data?.length === 0 ? <Text style={s.muted}>No allotments yet. Create one in the web app.</Text> : null}
+        </Card>
+      ) : null}
+
+      {banner}
+      {allotments.isLoading ? <Loading label="Loading your plot…" /> : null}
+      {allotments.isError ? <Banner tone="danger" text={allotments.error.message} action="Try again" onAction={() => allotments.refetch()} /> : null}
+      {allotments.data?.length === 0 ? (
+        <Card>
+          <T kind="heading">No allotments yet</T>
+          <T muted>Create one in the web app, then it will appear here.</T>
+        </Card>
+      ) : null}
+
+      {current ? (
+        <Section title="What would you like to do?">
+          <Tile
+            primary
+            title="Photograph the plot"
+            body="Walk round the edge. The app records where each photo was taken so a map can be built."
+            disabled={!canEdit}
+            onPress={() => router.push("/capture")}
+          />
+          <Tile
+            title="Measure the plot"
+            body={c && c.items.length ? "Take distances with a tape to correct the map to real sizes." : "Take distances with a tape. First make the checklist from your drawn shapes."}
+            disabled={!canEdit}
+            onPress={() => router.push("/measure")}
+            footer={
+              c && c.total > 0 ? (
+                <View style={{ gap: space.xs }}>
+                  <ProgressBar value={c.measured} total={c.total} />
+                  <T kind="caption" muted>
+                    {c.measured} of {c.total} measured
+                  </T>
+                </View>
+              ) : undefined
+            }
+          />
+          {!canEdit ? <T kind="caption" muted>You can look at this allotment but not change it.</T> : null}
+        </Section>
+      ) : null}
+
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.md, marginTop: space.md }}>
+        <View style={{ flex: 1 }}>
+          <T kind="caption" muted numberOfLines={1}>
+            {session.serverUrl}
+          </T>
         </View>
-
-        <Pressable
-          style={[s.button, { opacity: allotmentId === null ? 0.5 : 1 }]}
-          disabled={allotmentId === null}
-          onPress={() => router.push("/capture")}
-          accessibilityRole="button"
-        >
-          <Text style={s.buttonText}>Photograph the plot</Text>
-        </Pressable>
-
-        <Pressable
-          style={[s.ghost, { opacity: allotmentId === null ? 0.5 : 1 }]}
-          disabled={allotmentId === null}
-          onPress={() => router.push("/measure")}
-          accessibilityRole="button"
-        >
-          <Text style={s.ghostText}>Measure the plot</Text>
-        </Pressable>
-
-        <View style={s.card}>
-          <Text style={s.heading}>Waiting to send</Text>
-          <Text style={s.text}>
-            {waiting === 0 ? "Everything is sent." : `${waiting} waiting to upload`}
-          </Text>
-          {state.active ? (
-            <Text style={s.muted}>
-              Sending now… {Math.round(state.active.progress * 100)}%
-            </Text>
-          ) : null}
-          {failed.map((job) => (
-            <View key={job.id} style={{ gap: 6 }}>
-              <Text style={s.error}>{job.error ?? "Failed"}</Text>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <Pressable style={[s.ghost, { flex: 1 }]} onPress={() => queue.retry(job.id).then(() => queue.run())}>
-                  <Text style={s.ghostText}>Retry</Text>
-                </Pressable>
-                <Pressable style={[s.ghost, { flex: 1 }]} onPress={() => queue.drop(job.id)}>
-                  <Text style={s.ghostText}>Discard</Text>
-                </Pressable>
-              </View>
-            </View>
-          ))}
-          {waiting > 0 ? (
-            <Pressable style={s.ghost} onPress={() => queue.run()}>
-              <Text style={s.ghostText}>Send now</Text>
-            </Pressable>
-          ) : null}
-        </View>
-
-        <View style={s.card}>
-          <Text style={s.muted}>{session.serverUrl}</Text>
-          <Pressable style={s.ghost} onPress={() => session.logout()}>
-            <Text style={s.ghostText}>Sign out</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        <Button label="Sign out" kind="quiet" small onPress={() => session.logout()} />
+      </View>
+    </Screen>
   );
 }

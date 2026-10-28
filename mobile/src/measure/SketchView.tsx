@@ -84,6 +84,7 @@ function Outline({
                   fontWeight={on ? "700" : "400"}
                   fill={on ? accent : text}
                   textAnchor="middle"
+                  fontFamily="system-ui, -apple-system, Roboto, sans-serif"
                 >
                   {i + 1}
                 </SvgText>

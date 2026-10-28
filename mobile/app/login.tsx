@@ -1,17 +1,18 @@
-import React, { useMemo, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import React, { useState } from "react";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useApp } from "../src/state/AppProvider";
 import { LoginError } from "../src/auth/session";
-import { makeStyles, usePalette } from "../src/ui/theme";
+import { useApp } from "../src/state/AppProvider";
+import { Banner, Button, Card, Field, T } from "../src/ui/kit";
+import { space, usePalette } from "../src/ui/theme";
 
 export default function Login() {
   const { session } = useApp();
-  const palette = usePalette();
-  const s = useMemo(() => makeStyles(palette), [palette]);
+  const p = usePalette();
   const [server, setServer] = useState(session.serverUrl);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -28,49 +29,40 @@ export default function Login() {
   }
 
   return (
-    <SafeAreaView style={s.screen}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: p.bg }}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
-          <Text style={s.title}>Allotment</Text>
-          <View style={s.card}>
-            <Text style={s.muted}>Server address</Text>
-            <TextInput
-              style={s.input}
-              value={server}
-              onChangeText={setServer}
-              placeholder="plot.example.com or 192.168.1.5:8080"
-              placeholderTextColor={palette.muted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              accessibilityLabel="Server address"
-            />
-            <Text style={s.muted}>Email</Text>
-            <TextInput
-              style={s.input}
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              textContentType="username"
-              accessibilityLabel="Email"
-            />
-            <Text style={s.muted}>Password</Text>
-            <TextInput
-              style={s.input}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              textContentType="password"
-              accessibilityLabel="Password"
-              onSubmitEditing={submit}
-            />
-            {error ? <Text style={s.error}>{error}</Text> : null}
-            <Pressable style={s.button} onPress={submit} disabled={busy || !server || !email || !password} accessibilityRole="button">
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.buttonText}>Sign in</Text>}
-            </Pressable>
+        <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.xl, flexGrow: 1, justifyContent: "center" }} keyboardShouldPersistTaps="handled">
+          <View style={{ gap: space.xs }}>
+            <T kind="display" accessibilityRole="header">
+              Allotment
+            </T>
+            <T muted>Plan, measure and log your plot.</T>
           </View>
+          <Card>
+            <View style={{ gap: space.lg }}>
+              <Field
+                label="Server address"
+                helper="Where your Allotment server is, e.g. plot.example.com or 192.168.1.5:8080"
+                value={server}
+                onChangeText={setServer}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                textContentType="URL"
+              />
+              <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" textContentType="username" autoComplete="email" />
+              <View>
+                <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry={!show} textContentType="password" autoComplete="password" onSubmitEditing={submit} returnKeyType="go" />
+                <Pressable onPress={() => setShow(!show)} accessibilityRole="button" accessibilityLabel={show ? "Hide password" : "Show password"} style={{ alignSelf: "flex-end", minHeight: 44, justifyContent: "center" }}>
+                  <T kind="label" style={{ color: p.accent }}>
+                    {show ? "Hide password" : "Show password"}
+                  </T>
+                </Pressable>
+              </View>
+              {error ? <Banner tone="danger" text={error} /> : null}
+              <Button label="Sign in" onPress={submit} busy={busy} disabled={!server || !email || !password} />
+            </View>
+          </Card>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
