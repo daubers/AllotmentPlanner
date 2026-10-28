@@ -36,7 +36,9 @@ Tickets live in YouTrack project **AM** (Allotment Manager) at pm.daubney.dev. W
 backend/            Flask app (allotment/...), alembic migrations, tests, Dockerfile (dev + prod targets)
   allotment/{api,models,schemas,security,events,...}
 frontend/           Vite + React + TS, generated API client, Dockerfile
-worker/             Celery worker image (backend code + OpenSfM + GDAL)   (not yet created; AM-9)
+worker/             Celery worker image (backend code + OpenSfM + GDAL)
+mobile/             Expo (React Native) field app for Android and iOS   (planned; AM-27 to AM-31)
+packages/shared/    TypeScript shared by web and mobile: unit parser, corner-sketch maths   (planned)
 .gitea/workflows/   test.yml, build.yml
 docker-compose.yml  dev stack, with an `observability` profile
 docs/ , .env.example, Makefile
@@ -67,6 +69,14 @@ Planned: features (CRUD, GeoJSON in/out, bulk `PUT` of a FeatureCollection), tas
 Vite + React + TS, React Router, TanStack Query, `openapi-typescript` + `openapi-fetch` generated client (`npm run gen:api`), Leaflet via `react-leaflet` + `@geoman-io/leaflet-geoman-free`. Pages: Login, Allotment switcher, **Map** (editor with feature list, task pins, overlay layers, media markers), **Tasks**, **Today** (printable), **Timeline** (photo history with date slider/compare), **Overview**, **Media upload**, **Settings** (members, Mastodon), **Measure** (phase 11). Tests: Vitest + Testing Library; Playwright e2e against the compose stack.
 
 **Measure page** (mobile first, used on site): checklist grouped by feature with progress ("7 / 12 measured"); each row has a number input with a unit, notes and skip; a numbered-corner sketch (reusing `map/sketch.ts`) highlights the item being measured; "Apply to map" opens a preview of drawn against corrected shape with residuals, recheck warnings and what is still needed. A tolerant unit parser/formatter accepts `3.2`, `320cm`, `10ft 6in` and `10'6"`, shown per the allotment's `length_unit`. Phone fixes it needs: wrap the tab bar (a sixth tab overflows), `100dvh` for the shell, `inputmode="decimal"` on number fields, 44px touch targets.
+
+## Mobile app (planned, AM-27 to AM-31)
+The mapping pipeline is only as good as what it is fed. Real phone sets so far had a GPS fix that never updated, shots about 10 s apart with too little overlap to chain together, and no measured distance to pin the scale. A native field app fixes the inputs rather than the algorithms. **Expo / React Native + TypeScript** (Expo Router, EAS builds), talking to the same API with types generated from the same OpenAPI document; tokens in secure storage; an SQLite write queue so everything works without signal (idempotent writes, retry with backoff, resumable uploads). Backend additions are small: optional `lat`, `lng`, `heading`, `taken_at` and `capture_session` on `POST /media` (stored with `Media.position_source` = `exif`|`device`|`manual`; device values beat EXIF and are trusted by `prepare_dataset`), the measurement endpoints of phase 11, and `POST /allotments/{id}/boundary-trace`.
+- **Guided capture**: reads GPS (fresh, high accuracy, shown in metres), compass heading and tilt itself and sends them explicitly, so a stale EXIF fix cannot poison a job. Coaching comes from the failures seen on real photos: step between shots, tilt and blur warnings, keep the fence in view, a coverage strip of headings and distance walked, a session summary, and "Build map from this session".
+- **Measure**: the phase 11 checklist as a phone screen (numbered corner sketch, decimal keypad, unit parser, preview/apply). An AR tape measure is a later option.
+- **Walk the boundary**: record the phone's GPS while walking the fence line, with corner pins; the server fits lines (reusing `boundary.py`) or takes the pinned corners and creates a "Plot boundary" `MapSuggestion`, so the existing review and accept flow applies it.
+- **Tasks and quick photos**: today's tasks with optimistic tick-off, tasks at the current position or on a feature, photos attached to features or tasks, a read-only map.
+Gitea CI gets a `mobile` job (typecheck, lint, jest); EAS builds are manual (`docs/mobile.md`). Out of scope for now: app store distribution, DJI and Android video telemetry, AR measuring, background upload on iOS beyond what the OS grants.
 
 ## Observability and hooks (cross-cutting)
 - **Domain event bus**: `emit(event_type, ...)` in `allotment/events.py`. Every state change goes through it. Subscribers: `ActivityLog` writer, Mastodon publisher, metrics counter, structured log line. New behaviour (webhooks, notifications) is added by registering a subscriber. Optional per-allotment outbound webhook subscriber. Measuring adds `measurement.recorded`, `measurement.synced` and `measurements.applied`; the last is recorded in `ActivityLog` and counts as a map edit on the overview.
@@ -104,6 +114,11 @@ Vite + React + TS, React Router, TanStack Query, `openapi-typescript` + `openapi
    **Accuracy and limits.** The model is a flat ground plane (a fitted, possibly tilted plane), so hills, tall objects and very oblique shots distort; ground further than 12 camera heights away is ignored. Position and, importantly, **scale come from the photos' GPS**: phone jitter of 1-3 m across a plot shows up as a scale error of about 1-4% (checked: 0.3 m noise gives ~1%, 1.5 m noise gives ~4%, with position within 0.5 m either way). The map is shape-consistent but should be corrected with a measured distance; that is what the measuring checklist (phase 11) and ticket AM-18 are for. `make mapping-check` renders a textured ground plane from 25 GPS-tagged overhead cameras, runs it through the real pipeline and compares the tiles with the known texture (scale and rotation scans, offset, correlation). It is not in CI because it needs the 3.5 GB worker image. Real hand-held photos have only been checked through this synthetic scene.
 10. **Polish**: seed data, e2e tests, README/docs.
 11. **Measuring checklist** (AM-17): `Measurement` model + `length_unit`, checklist generation from features, least-squares fit with preview/apply, Measure page with units and corner sketch, phone layout fixes. Depends only on map features (AM-3), so it can start at any point. Not in scope: corner numbers drawn on the Leaflet map, a printable paper checklist, GPS-assisted measuring, anchoring scale/rotation to surveyed points.
+12. **Mobile app shell** (AM-27): Expo project, login, allotment switcher, generated API types, offline queue and resumable uploads, `packages/shared`, CI job, `docs/mobile.md`.
+13. **Guided capture** (AM-28): camera with device GPS/heading/tilt, coaching, capture sessions, `POST /media` position fields and `Media.position_source`, build-a-map-from-this-session.
+14. **Measure screen** (AM-29): phone client for phase 11 (depends on AM-17).
+15. **Walk the boundary** (AM-30): GPS trace recording, `POST /allotments/{id}/boundary-trace`, "Plot boundary" suggestion.
+16. **Tasks and quick photos** (AM-31): Today screen, create/tick tasks, photos attached to features or tasks, read-only map.
 
 ## Verification
 - Backend: `pytest` (API tests; Celery eager; Mastodon mocked; OpenSfM pipeline on a small sample set marked slow); PostGIS-backed tests once geometry models land.
