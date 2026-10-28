@@ -23,7 +23,7 @@ from flask import current_app
 from PIL import Image
 
 from . import boundary as boundary_fit
-from . import calibration, detection_geo, media_meta
+from . import calibration, detection_geo, media_meta, video_telemetry
 from . import detector as detector_module
 from . import mapping_geo as geo
 from .extensions import db
@@ -38,10 +38,13 @@ OPENSFM_MAIN = os.environ.get("OPENSFM_MAIN", "/opt/OpenSfM/bin/opensfm_main.py"
 
 MIN_IMAGES = 5
 MIN_GEOTAGGED = 3
+STALE_MIN_PHOTOS = 4  # this many photos at one place, over this long, mean the GPS is stuck
+STALE_MIN_SPAN_S = 60
 GPS_ACCURACY_M = 5.0  # how much OpenSfM trusts each photo's location
 MAX_PIXELS = 80_000_000  # output raster size limit; coarser pixels are used beyond this
 LOG_LIMIT = 20_000
 REACH_PER_METRE_OF_HEIGHT = 12  # ignore ground further away than this many camera heights
+STATIC_FRAME_DIFF = 2.0  # mean grey-level difference (of 255) below which a frame repeats the last
 FRAME_CANDIDATES = 3  # per video frame wanted, sample this many and keep the sharpest (motion blur)
 
 
@@ -130,6 +133,7 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
     geotagged = 0
     frames_total = 0
     headings: dict[str, float] = {}
+    photo_fixes: dict[str, tuple[float, float, datetime | None]] = {}
 
     for media_id in job.media_ids:
         media = db.session.get(Media, media_id)
@@ -142,17 +146,7 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
             if media.heading is not None:
                 headings[name] = media.heading
             if media.lat is not None and media.lng is not None:
-                geotagged += 1
-                overrides[name] = {
-                    "gps": {
-                        "latitude": media.lat,
-                        "longitude": media.lng,
-                        # Altitude from phones is unreliable, so every photo is placed at the
-                        # stated carrying height; OpenSfM works out the real geometry itself.
-                        "altitude": job.camera_height_m,
-                        "dop": GPS_ACCURACY_M,
-                    }
-                }
+                photo_fixes[name] = (media.lat, media.lng, media.taken_at)
         else:
             if not media_meta.have_ffmpeg():
                 raise JobFailed("This worker has no ffmpeg, so videos can't be used")
@@ -166,13 +160,47 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
                 limit=cfg["MAPPING_MAX_FRAMES_PER_VIDEO"],
                 duration=media.duration_s,
             )
+            track = video_telemetry.read_track(source, media.duration_s)
             source.unlink()
             frames_total += len(frames)
-            # A video has one location (where it started), not one per frame, so frames carry no
-            # GPS: pinning them all to that point would drag the map together. They are placed by
-            # matching against the geotagged photos. Each video gets its own camera model.
-            for frame in frames:
+            if track and not video_telemetry.moves(track):
+                _append_log(job, f"video {media.id}: its GPS track never moves, so it was ignored")
+                track = []
+            placed = 0
+            for frame, t in frames:
+                # Each video gets its own camera model. A GoPro records a GPS track, which locates
+                # each frame; a phone video has only the one location (where it started), and
+                # pinning every frame to that would drag the map together, so those frames are
+                # placed by matching against the photos instead.
                 overrides[frame] = {"camera": f"video {media.id}"}
+                where = video_telemetry.position_at(track, t) if track else None
+                if where is not None:
+                    placed += 1
+                    overrides[frame]["gps"] = {
+                        "latitude": where[0],
+                        "longitude": where[1],
+                        "altitude": job.camera_height_m,
+                        "dop": GPS_ACCURACY_M,
+                    }
+            if placed:
+                geotagged += placed
+                _append_log(
+                    job,
+                    f"video {media.id}: {placed} of {len(frames)} frames located by its GPS track",
+                )
+
+    for name, (lat, lng) in photo_locations(photo_fixes, job).items():
+        geotagged += 1
+        overrides[name] = {
+            "gps": {
+                "latitude": lat,
+                "longitude": lng,
+                # Altitude from phones is unreliable, so every photo is placed at the stated
+                # carrying height; OpenSfM works out the real geometry itself.
+                "altitude": job.camera_height_m,
+                "dop": GPS_ACCURACY_M,
+            }
+        }
 
     total = len(list(images.iterdir()))
     if total < MIN_IMAGES:
@@ -183,12 +211,37 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
     if geotagged < MIN_GEOTAGGED:
         raise JobFailed(
             f"Only {geotagged} of the photos have a location; at least {MIN_GEOTAGGED} are needed "
-            "to place and scale the map (a video has only one location, which can't)"
+            "to place and scale the map (a phone video has only one location, which can't; "
+            "a GoPro's GPS track can)"
         )
     (work / "exif_overrides.json").write_text(json.dumps(overrides))
     (work / "headings.json").write_text(json.dumps(headings))
     (work / "config.yaml").write_text(yaml.safe_dump(opensfm_config(job, frames_total > 0)))
     return total
+
+
+def photo_locations(
+    fixes: dict[str, tuple[float, float, datetime | None]], job: MapJob
+) -> dict[str, tuple[float, float]]:
+    """The photos' GPS positions, unless they are plainly stuck: a phone that never updated its
+    location stamps every photo with the same place however far you walked, and trusting that
+    would pin the whole map to a point."""
+    times = [t for _, _, t in fixes.values() if t is not None]
+    places = {(round(lat, 5), round(lng, 5)) for lat, lng, _ in fixes.values()}
+    if (
+        len(fixes) >= STALE_MIN_PHOTOS
+        and len(places) == 1
+        and times
+        and (max(times) - min(times)).total_seconds() >= STALE_MIN_SPAN_S
+    ):
+        _append_log(
+            job,
+            f"all {len(fixes)} photos claim the same location over "
+            f"{(max(times) - min(times)).total_seconds() / 60:.1f} minutes, "
+            "so their GPS looks stuck and was ignored",
+        )
+        return {}
+    return {name: (lat, lng) for name, (lat, lng, _) in fixes.items()}
 
 
 def _head(storage, key: str) -> bytes:
@@ -226,16 +279,21 @@ def sharpness(path: Path) -> float:
     return float(lap.var())
 
 
-def sharpest_of_each_group(paths: list[Path], size: int) -> list[Path]:
-    """The least blurred frame from each run of ``size`` consecutive ones."""
-    return [max(paths[i : i + size], key=sharpness) for i in range(0, len(paths), size)]
+def near_duplicate(a: Path, b: Path) -> bool:
+    """True if two frames are almost the same picture (a camera that has stopped moving)."""
+    pair = []
+    for path in (a, b):
+        with Image.open(path) as img:
+            pair.append(np.asarray(img.convert("L").resize((64, 48)), dtype=float))
+    return float(np.abs(pair[0] - pair[1]).mean()) < STATIC_FRAME_DIFF
 
 
 def extract_frames(
     video: Path, out_dir: Path, prefix: str, fps: float, limit: int, duration: float | None = None
-) -> list[str]:
+) -> list[tuple[str, float]]:
     """Sample frames from a video as JPEGs, keeping the sharpest of several candidates for each
-    sampling point (hand-held video is often blurred). Returns the file names, in order."""
+    sampling point (hand-held video is often blurred) and skipping ones that repeat the last.
+    Returns (file name, seconds into the video) for each, in order."""
     rate = video_frame_rate(duration, fps, limit)
     with tempfile.TemporaryDirectory() as tmp:
         subprocess.run(  # noqa: S603
@@ -257,12 +315,23 @@ def extract_frames(
             capture_output=True,
             timeout=900,
         )
-        chosen = sharpest_of_each_group(sorted(Path(tmp).glob("c*.jpg")), FRAME_CANDIDATES)[:limit]
-        names = []
-        for n, path in enumerate(chosen, start=1):
-            name = f"{prefix}{n:04d}.jpg"
+        paths = sorted(Path(tmp).glob("c*.jpg"))
+        picks = []
+        for start in range(0, len(paths), FRAME_CANDIDATES):
+            group = range(start, min(start + FRAME_CANDIDATES, len(paths)))
+            best = max(group, key=lambda k: sharpness(paths[k]))
+            picks.append((paths[best], best / (rate * FRAME_CANDIDATES)))
+        names: list[tuple[str, float]] = []
+        last = None
+        for path, t in picks:
+            if len(names) >= limit:
+                break
+            if last is not None and near_duplicate(last, path):
+                continue
+            name = f"{prefix}{len(names) + 1:04d}.jpg"
             shutil.move(path, out_dir / name)
-            names.append(name)
+            last = out_dir / name
+            names.append((name, t))
         return names
 
 
