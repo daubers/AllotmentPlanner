@@ -7,6 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { LayersControl, MapContainer, TileLayer, useMap } from "react-leaflet";
 import { api } from "../api/client";
 import type { Task } from "../tasks/group";
+import { useLayers } from "../maps/hooks";
+import { layersToShow } from "../maps/status";
 import { useTaskActions, useTasks } from "../tasks/hooks";
 import { pinGroups, pinPopup } from "./pins";
 import {
@@ -25,6 +27,27 @@ type Item = { id: number; name: string; kind: Kind };
 type LayerWithId = L.Layer & { featureId?: number };
 
 const DEFAULT_CENTRE: L.LatLngTuple = [51.5, -0.12];
+
+/** The user's own photo maps, drawn over the base map and under the shapes. */
+function PhotoLayers({ allotmentId }: { allotmentId: number }) {
+  const layers = useLayers(allotmentId);
+  return (
+    <>
+      {layersToShow(layers.data).map((l, i) => (
+        <TileLayer
+          key={`${l.id}-${l.tile_url}`}
+          url={l.tile_url!}
+          opacity={l.opacity}
+          minNativeZoom={l.min_zoom}
+          maxNativeZoom={l.max_zoom}
+          maxZoom={22}
+          bounds={[[l.bounds![1], l.bounds![0]], [l.bounds![3], l.bounds![2]]]}
+          zIndex={10 + i}
+        />
+      ))}
+    </>
+  );
+}
 
 function TaskPins({ group, tasks, version }: { group: React.RefObject<L.FeatureGroup>; tasks: Task[]; version: unknown }) {
   const map = useMap();
@@ -184,7 +207,7 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
 
   return (
     <div className="editor">
-      <MapContainer center={DEFAULT_CENTRE} zoom={18} maxZoom={21} className="map">
+      <MapContainer center={DEFAULT_CENTRE} zoom={18} maxZoom={22} className="map">
         <LayersControl position="topright">
           <LayersControl.BaseLayer checked name="Street">
             <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maxNativeZoom={19} maxZoom={21} />
@@ -193,6 +216,7 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
             <TileLayer attribution="Tiles &copy; Esri" url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxNativeZoom={19} maxZoom={21} />
           </LayersControl.BaseLayer>
         </LayersControl>
+        <PhotoLayers allotmentId={allotmentId} />
         <TaskPins group={group} tasks={tasks.data ?? []} version={items} />
         <Editor
           group={group}

@@ -127,6 +127,14 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await expect(page.locator(".tile img")).toHaveCount(2); // latest photos
   await page.screenshot({ path: "test-results/overview.png" });
 
+  await page.getByRole("link", { name: "Layers" }).click();
+  await expect(page.getByRole("heading", { name: "Map layers" })).toBeVisible();
+  await expect(page.getByText("No layers yet.")).toBeVisible();
+  await expect(page.getByText("2 photos, 2 with a location.")).toBeVisible();
+  await expect(page.getByText(/Pick at least 5 photos/)).toBeVisible(); // not enough to build a map yet
+  await expect(page.getByRole("button", { name: "Build map" })).toBeDisabled();
+  await page.screenshot({ path: "test-results/layers.png", fullPage: true });
+
   await page.getByRole("link", { name: "Settings" }).click();
   await expect(page.getByRole("heading", { name: "Mastodon" })).toBeVisible();
   await expect(page.getByText("Nothing posted yet.")).toBeVisible();

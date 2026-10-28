@@ -1561,6 +1561,343 @@
           }
         }
       ]
+    },
+    "/api/v1/allotments/{allotment_id}/map-jobs": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MapJob"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "mapping"
+        ]
+      },
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapJob"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapJobIn"
+              }
+            }
+          }
+        },
+        "summary": "Queue a map build. Needs 5+ overlapping photos, 3+ of them with a location.",
+        "tags": [
+          "mapping"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/map-jobs/{job_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapJob"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "mapping"
+        ]
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Remove a finished job's record. Its layer, if any, stays until deleted itself.",
+        "tags": [
+          "mapping"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "job_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/map-jobs/{job_id}/cancel": {
+      "post": {
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapJob"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Stop a job: at once if it is still queued, within about ten seconds if running.",
+        "tags": [
+          "mapping"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "job_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/layers": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MapLayer"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "mapping"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/layers/{layer_id}": {
+      "patch": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapLayer"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapLayerPatch"
+              }
+            }
+          }
+        },
+        "tags": [
+          "mapping"
+        ]
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "mapping"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "layer_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/layers/{layer_id}/tiles/{z}/{x}/{y}.png": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "One map tile. Authorised by the signed ``t`` token from the layer JSON.",
+        "tags": [
+          "layer-tiles"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "t",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "layer_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "z",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "x",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "y",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
     }
   },
   "info": {
@@ -1603,6 +1940,14 @@
     {
       "name": "mastodon",
       "description": "Post allotment activity to a Mastodon account"
+    },
+    {
+      "name": "mapping",
+      "description": "Build map layers from photos and video, and show them"
+    },
+    {
+      "name": "layer-tiles",
+      "description": "Map tiles (signed links)"
     }
   ],
   "openapi": "3.0.3",
@@ -2588,6 +2933,171 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "MapJob": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "view": {
+            "type": "string"
+          },
+          "camera_height_m": {
+            "type": "number"
+          },
+          "media_count": {
+            "type": "integer"
+          },
+          "shots_total": {
+            "type": "integer",
+            "nullable": true
+          },
+          "shots_used": {
+            "type": "integer",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "log": {
+            "type": "string",
+            "description": "Tail of the processing log (detail view only)"
+          },
+          "layer_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "cancel_requested": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "MapJobIn": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "default": "",
+            "maxLength": 120
+          },
+          "media_ids": {
+            "type": "array",
+            "default": null,
+            "description": "Photos/videos to use; default is every ready photo",
+            "items": {
+              "type": "integer"
+            },
+            "nullable": true
+          },
+          "view": {
+            "type": "string",
+            "default": "oblique",
+            "enum": [
+              "oblique",
+              "overhead"
+            ],
+            "description": "oblique: hand-held, camera roughly level; overhead: looking down"
+          },
+          "camera_height_m": {
+            "type": "number",
+            "default": 1.7,
+            "minimum": 0.3,
+            "maximum": 120.0,
+            "description": "About how high the camera was held above the ground"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MapLayer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "job_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "bounds": {
+            "type": "array",
+            "description": "[west, south, east, north] in degrees",
+            "items": {
+              "type": "number"
+            }
+          },
+          "min_zoom": {
+            "type": "integer"
+          },
+          "max_zoom": {
+            "type": "integer"
+          },
+          "tile_count": {
+            "type": "integer"
+          },
+          "opacity": {
+            "type": "number"
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "tile_url": {
+            "type": "string",
+            "description": "XYZ template with a signed, expiring token"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MapLayerPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "opacity": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          "visible": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false

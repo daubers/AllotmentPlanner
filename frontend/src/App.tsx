@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth";
 import AllotmentLayout from "./pages/AllotmentLayout";
 import Allotments from "./pages/Allotments";
+import LayersPage from "./pages/LayersPage";
 import Login from "./pages/Login";
 import OverviewPage from "./pages/OverviewPage";
 import PhotosPage from "./pages/PhotosPage";
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="today" element={<TodayPage />} />
           <Route path="photos" element={<PhotosPage />} />
           <Route path="overview" element={<OverviewPage />} />
+          <Route path="layers" element={<LayersPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
