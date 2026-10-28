@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Media } from "../media/group";
-import { anyActive, clampOpacity, defaultHeight, jobSummary, layersToShow, readiness, videoFrames, type MapJob, type MapLayer } from "./status";
+import { anyActive, clampOpacity, defaultHeight, initialView, jobSummary, layerBox, layersToShow, readiness, videoFrames, type MapJob, type MapLayer } from "./status";
 
 const job = (extra: Partial<MapJob>): MapJob => ({ id: 1, status: "queued", stage: "", ...extra }) as MapJob;
 const photo = (id: number, extra: Partial<Media> = {}): Media => ({ id, kind: "photo", status: "ready", lat: 51.5, lng: -0.12, ...extra }) as Media;
@@ -93,5 +93,27 @@ describe("small helpers", () => {
     const layers = [{ id: 1, visible: true }, { id: 2, visible: false }] as MapLayer[];
     expect(layersToShow(layers).map((l) => l.id)).toEqual([1]);
     expect(layersToShow(undefined)).toEqual([]);
+  });
+});
+
+describe("initialView", () => {
+  const layer = (id: number, bounds: number[], visible = true) => ({ id, visible, bounds }) as MapLayer; // [w, s, e, n]
+  it("is null when there is nothing to show", () => {
+    expect(initialView(null, [])).toBeNull();
+    expect(initialView(undefined, undefined)).toBeNull();
+  });
+  it("opens on a photo layer when nothing has been drawn", () => {
+    expect(initialView(null, [layer(1, [-1.501, 52.0, -1.499, 52.001])])).toEqual([[52.0, -1.501], [52.001, -1.499]]);
+  });
+  it("covers both the drawn shapes and the layers", () => {
+    const drawn: [[number, number], [number, number]] = [[51.0, -0.2], [51.1, -0.1]];
+    expect(initialView(drawn, [layer(1, [-0.15, 50.9, 0.0, 51.05])])).toEqual([[50.9, -0.2], [51.1, 0.0]]);
+  });
+  it("ignores hidden layers", () => {
+    expect(initialView(null, [layer(1, [0, 0, 1, 1], false)])).toBeNull();
+    expect(initialView([[1, 1], [2, 2]], [layer(1, [50, 50, 51, 51], false)])).toEqual([[1, 1], [2, 2]]);
+  });
+  it("converts a layer's [west, south, east, north] to a Leaflet box", () => {
+    expect(layerBox({ bounds: [-1, 2, 3, 4] })).toEqual([[2, -1], [4, 3]]);
   });
 });

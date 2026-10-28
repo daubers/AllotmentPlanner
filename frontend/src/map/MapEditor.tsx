@@ -8,7 +8,7 @@ import { LayersControl, MapContainer, TileLayer, useMap } from "react-leaflet";
 import { api } from "../api/client";
 import type { Task } from "../tasks/group";
 import { useLayers } from "../maps/hooks";
-import { layersToShow } from "../maps/status";
+import { initialView, layersToShow, type Box } from "../maps/status";
 import { useTaskActions, useTasks } from "../tasks/hooks";
 import { pinGroups, pinPopup } from "./pins";
 import {
@@ -49,6 +49,23 @@ function PhotoLayers({ allotmentId }: { allotmentId: number }) {
   );
 }
 
+/** Opens the map on the plot: the drawn shapes and any visible photo layers together. Only when
+ *  the allotment has neither does it fall back to where the person is. Runs once per visit, so it
+ *  never fights the person panning around. */
+function InitialView({ drawn, allotmentId }: { drawn: Box | null | undefined; allotmentId: number }) {
+  const map = useMap();
+  const layers = useLayers(allotmentId);
+  const done = useRef(false);
+  useEffect(() => {
+    if (done.current || drawn === undefined || layers.isPending) return; // wait for both to load
+    done.current = true;
+    const view = initialView(drawn, layers.data);
+    if (view) map.fitBounds(view, { padding: [24, 24], maxZoom: 21 });
+    else navigator.geolocation?.getCurrentPosition((p) => map.setView([p.coords.latitude, p.coords.longitude], 19));
+  }, [map, drawn, layers.isPending, layers.data]);
+  return null;
+}
+
 function TaskPins({ group, tasks, version }: { group: React.RefObject<L.FeatureGroup>; tasks: Task[]; version: unknown }) {
   const map = useMap();
   useEffect(() => {
@@ -67,9 +84,10 @@ function TaskPins({ group, tasks, version }: { group: React.RefObject<L.FeatureG
   return null;
 }
 
-function Editor({ allotmentId, canEdit, group, onItems, onSelect, registerActions }: Props & {
+function Editor({ allotmentId, canEdit, group, onItems, onBounds, onSelect, registerActions }: Props & {
   group: React.RefObject<L.FeatureGroup>;
   onItems(items: Item[]): void;
+  onBounds(bounds: Box | null): void;
   onSelect(id: number | null): void;
   registerActions(a: { update(id: number, props: Partial<FeatureProps>): void; remove(id: number): void; focus(id: number): void }): void;
 }) {
@@ -109,8 +127,8 @@ function Editor({ allotmentId, canEdit, group, onItems, onSelect, registerAction
       }
       publish();
       const bounds = g.getBounds();
-      if (bounds.isValid()) map.fitBounds(bounds.pad(0.2), { maxZoom: 20 });
-      else navigator.geolocation?.getCurrentPosition((p) => map.setView([p.coords.latitude, p.coords.longitude], 19));
+      // The view is chosen by <InitialView>, which also knows about photo layers.
+      onBounds(bounds.isValid() ? [[bounds.getSouth(), bounds.getWest()], [bounds.getNorth(), bounds.getEast()]] : null);
     });
 
     if (canEdit) {
@@ -202,6 +220,7 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
   const current = items.find((i) => i.id === selected);
   const group = useRef(L.featureGroup());
   const tasks = useTasks(allotmentId);
+  const [drawnBounds, setDrawnBounds] = useState<Box | null | undefined>(undefined); // undefined: not loaded yet
   const taskActions = useTaskActions(allotmentId);
   const featureTasks = (tasks.data ?? []).filter((t) => t.feature_id === selected && t.status !== "done");
 
@@ -217,12 +236,14 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
           </LayersControl.BaseLayer>
         </LayersControl>
         <PhotoLayers allotmentId={allotmentId} />
+        <InitialView drawn={drawnBounds} allotmentId={allotmentId} />
         <TaskPins group={group} tasks={tasks.data ?? []} version={items} />
         <Editor
           group={group}
           allotmentId={allotmentId}
           canEdit={canEdit}
           onItems={setItems}
+          onBounds={setDrawnBounds}
           onSelect={setSelected}
           registerActions={(a) => (actions.current = a)}
         />

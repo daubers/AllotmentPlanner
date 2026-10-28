@@ -79,3 +79,22 @@ export const defaultHeight = (view: "oblique" | "overhead") => (view === "overhe
 export const clampOpacity = (value: number) => (Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.85);
 
 export const layersToShow = (layers: MapLayer[] | undefined) => (layers ?? []).filter((l) => l.visible);
+
+/** A map rectangle as Leaflet takes it: [[south, west], [north, east]]. */
+export type Box = [[number, number], [number, number]];
+
+export const layerBox = (l: Pick<MapLayer, "bounds">): Box => {
+  const [west, south, east, north] = l.bounds ?? [0, 0, 0, 0];
+  return [[south, west], [north, east]];
+};
+
+/** Where the map should open: everything drawn plus every visible photo layer, or null if the
+ *  allotment has neither (the caller then falls back to the person's location). */
+export function initialView(drawn: Box | null | undefined, layers: MapLayer[] | undefined): Box | null {
+  const boxes = [...(drawn ? [drawn] : []), ...layersToShow(layers).map(layerBox)];
+  if (!boxes.length) return null;
+  return [
+    [Math.min(...boxes.map((b) => b[0][0])), Math.min(...boxes.map((b) => b[0][1]))],
+    [Math.max(...boxes.map((b) => b[1][0])), Math.max(...boxes.map((b) => b[1][1]))],
+  ];
+}
