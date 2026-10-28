@@ -1,20 +1,21 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Text, useWindowDimensions, View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import Svg from "react-native-svg";
 import type { components } from "../../src/api/schema";
 import { useChecklist } from "../../src/measure/hooks";
 import { Compare } from "../../src/measure/SketchView";
 import { formatLength } from "../../src/measure/units";
 import { useApp } from "../../src/state/AppProvider";
-import { Button, Card, Screen, useStyles } from "../../src/ui/kit";
+import { Banner, Button, Card, Chip, Loading, Screen, T } from "../../src/ui/kit";
+import { space, usePalette } from "../../src/ui/theme";
 
 type Fit = components["schemas"]["FitFeature"];
 
 export default function Apply() {
   const { api, allotmentId, session } = useApp();
-  const { s } = useStyles();
+  const p = usePalette();
   const router = useRouter();
   const client = useQueryClient();
   const { width } = useWindowDimensions();
@@ -24,6 +25,7 @@ export default function Apply() {
   const [error, setError] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const [done, setDone] = useState(false);
+  const w = Math.min(width, 520) - 2 * space.lg - 2 * space.lg - 2;
 
   useEffect(() => {
     if (allotmentId === null) return;
@@ -39,6 +41,7 @@ export default function Apply() {
   async function apply() {
     if (allotmentId === null) return;
     setApplying(true);
+    setError(null);
     const { data, error: err } = await api.POST("/api/v1/allotments/{allotment_id}/measurements/fit", {
       params: { path: { allotment_id: allotmentId }, query: { preview: false } },
     });
@@ -55,49 +58,63 @@ export default function Apply() {
 
   return (
     <Screen
-      title="Apply to map"
+      title={done ? "Map corrected" : "Apply to the map"}
+      subtitle={done ? "Your drawn shapes now match the tape." : "This is what would change. Nothing is altered until you apply it."}
+      backLabel="Checklist"
       footer={
         done ? (
           <Button label="Done" onPress={() => router.dismissTo("/")} />
         ) : (
-          <Button label={changed.length ? `Change ${changed.length} shape${changed.length === 1 ? "" : "s"} on the map` : "Nothing to change"} disabled={!changed.length || blocked} busy={applying} onPress={apply} />
+          <Button
+            label={changed.length ? `Correct ${changed.length} shape${changed.length === 1 ? "" : "s"} on the map` : "Nothing to change"}
+            disabled={!changed.length || blocked}
+            busy={applying}
+            onPress={apply}
+          />
         )
       }
     >
-      {!fits && !error ? <ActivityIndicator /> : null}
-      {error ? <Text style={s.error}>{error}</Text> : null}
-      {done ? <Text style={s.heading}>The map has been corrected.</Text> : null}
-      {fits && fits.length === 0 ? <Text style={s.text}>Nothing has been measured yet.</Text> : null}
+      {!fits && !error ? <Loading label="Working out the corrections…" /> : null}
+      {error ? <Banner tone="danger" text={error} /> : null}
+      {fits && fits.length === 0 ? <Card><T muted>Nothing has been measured yet.</T></Card> : null}
 
       {fits?.map((fit) => (
         <Card key={fit.feature_id}>
-          <Text style={s.heading}>{fit.name}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.sm }}>
+            <T kind="heading" style={{ flex: 1 }}>
+              {fit.name}
+            </T>
+            {fit.error ? <Chip label="Can't apply" tone="danger" /> : fit.changed ? <Chip label="Will change" tone="ok" /> : <Chip label="Already right" />}
+          </View>
           {fit.error ? (
-            <Text style={s.error}>{fit.error} Check the measurements.</Text>
+            <Banner tone="danger" text={`${fit.error} Check the measurements.`} />
           ) : (
             <>
-              <Svg width={width - 64} height={200} accessibilityLabel={`${fit.name}: drawn outline dashed, corrected outline solid`}>
-                <Compare drawn={fit.drawn_geometry as any} corrected={fit.geometry as any} width={width - 64} />
-              </Svg>
-              <Text style={s.muted}>Dashed: as drawn. Solid: corrected.</Text>
-              <Text style={s.text}>
-                {fit.changed
-                  ? `Corners move by up to ${formatLength(fit.max_move_m ?? 0, unit)}. Typical error ${formatLength(fit.rms_before_m ?? 0, unit)} → ${formatLength(fit.rms_after_m ?? 0, unit)}.`
-                  : "Already matches your measurements."}
-              </Text>
+              <View style={{ alignItems: "center" }}>
+                <Svg width={w} height={200} accessibilityLabel={`${fit.name}: drawn outline dashed, corrected outline solid`}>
+                  <Compare drawn={fit.drawn_geometry as any} corrected={fit.geometry as any} width={w} />
+                </Svg>
+              </View>
+              <View style={{ flexDirection: "row", gap: space.lg }}>
+                <T kind="caption" muted>
+                  ┄ As drawn
+                </T>
+                <T kind="caption" style={{ color: p.accent, fontWeight: "700" }}>
+                  ━ Corrected
+                </T>
+              </View>
+              {fit.changed ? (
+                <T>
+                  Corners move by up to <T style={{ fontWeight: "700" }}>{formatLength(fit.max_move_m ?? 0, unit)}</T>. Typical error goes from {formatLength(fit.rms_before_m ?? 0, unit)} to {formatLength(fit.rms_after_m ?? 0, unit)}.
+                </T>
+              ) : null}
             </>
           )}
           {fit.missing ? (
-            <Text style={s.error}>
-              {fit.missing} more measurement{fit.missing === 1 ? "" : "s"} needed to fix this shape completely: the corners without one stay as drawn.
-            </Text>
+            <Banner tone="warn" text={`${fit.missing} more measurement${fit.missing === 1 ? "" : "s"} needed to fix this shape completely. Corners without one stay as drawn.`} />
           ) : null}
           {fit.recheck?.length ? (
-            <View>
-              <Text style={s.error}>
-                {fit.recheck.length} measurement{fit.recheck.length === 1 ? "" : "s"} don't agree with the others: one of them may be misread. Check them again.
-              </Text>
-            </View>
+            <Banner tone="warn" text={`${fit.recheck.length} measurement${fit.recheck.length === 1 ? "" : "s"} disagree with the others. One may be misread: measure again.`} />
           ) : null}
         </Card>
       ))}

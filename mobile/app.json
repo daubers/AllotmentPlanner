@@ -54,6 +54,10 @@
       ],
       "expo-asset"
     ],
-    "scheme": "allotment"
+    "scheme": "allotment",
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    }
   }
 }

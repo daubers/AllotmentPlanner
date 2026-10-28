@@ -1,12 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React, { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import { createApi, type Api } from "../api/client";
 import { Session } from "../auth/session";
 import { secureStore } from "../native/secureStore";
 import { makeHandlers } from "../queue/handlers";
 import { removeFile, uploadFile } from "../queue/nativeUpload";
-import { JobQueue, type QueueState } from "../queue/queue";
+import { JobQueue, MemoryJobStore, type QueueState } from "../queue/queue";
 import { SqliteJobStore } from "../queue/sqliteStore";
 
 const ALLOTMENT_KEY = "allotment.current";
@@ -47,7 +47,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       const session = new Session(secureStore);
       await session.load();
-      const store = await SqliteJobStore.open();
+      // The browser preview has no SQLite; its queue lives in memory only.
+      const store = Platform.OS === "web" ? new MemoryJobStore() : await SqliteJobStore.open();
       const queue = new JobQueue(store, makeHandlers({ session, uploadFile, removeFile }));
       const saved = await secureStore.get(ALLOTMENT_KEY);
       if (saved) setAllotmentId(Number(saved));

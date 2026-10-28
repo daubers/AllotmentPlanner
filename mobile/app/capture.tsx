@@ -2,32 +2,31 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import { DeviceMotion } from "expo-sensors";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp, useQueueState } from "../src/state/AppProvider";
 import {
   MIN_PHOTOS_FOR_MAP,
-  SECTORS,
   adviceFor,
   blocked,
   cameraPitchDeg,
   pickHeading,
   summarise,
-  verdict,
   type Fix,
   type Shot,
 } from "../src/capture/coaching";
 import { sessionUploads, type UploadProgress } from "../src/capture/sessionUploads";
 import { keepPhoto } from "../src/capture/storage";
 import { newId } from "../src/queue/queue";
-import { makeStyles, usePalette } from "../src/ui/theme";
+import { CaptureSummary, Hud, Pill } from "../src/capture/ui";
+import { Banner, Button, Card, Loading, Screen, T, type Tone } from "../src/ui/kit";
+import { radius, space, usePalette } from "../src/ui/theme";
 
 export default function Capture() {
   const { queue, allotmentId, api } = useApp();
   const router = useRouter();
   const palette = usePalette();
-  const s = useMemo(() => makeStyles(palette), [palette]);
   const queueState = useQueueState();
 
   const [camera, askCamera] = useCameraPermissions();
@@ -146,126 +145,82 @@ export default function Capture() {
 
   if (!camera || locationOk === null) {
     return (
-      <SafeAreaView style={s.screen}>
-        <ActivityIndicator style={{ marginTop: 40 }} />
-      </SafeAreaView>
+      <Screen title="Photograph the plot">
+        <Loading label="Getting the camera ready…" />
+      </Screen>
     );
   }
   if (!camera.granted || !locationOk) {
     return (
-      <SafeAreaView style={s.screen}>
-        <View style={s.content}>
-          <Text style={s.title}>Camera and location</Text>
-          <Text style={s.text}>
-            Photos are only useful for the map if they know where they were taken, so this needs the camera and your precise location.
-          </Text>
-          {!camera.granted ? (
-            <Pressable style={s.button} onPress={askCamera}>
-              <Text style={s.buttonText}>Allow camera</Text>
-            </Pressable>
-          ) : null}
-          {!locationOk ? <Text style={s.error}>Location is off. Turn it on for Allotment in your phone's settings.</Text> : null}
-          <Pressable style={s.ghost} onPress={() => router.back()}>
-            <Text style={s.ghostText}>Back</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
+      <Screen title="Camera and location" subtitle="Photos only help the map if they know where they were taken.">
+        <Card>
+          <T>Allotment needs the camera, and your precise location, to record where each photo was taken.</T>
+          {!camera.granted ? <Button label="Allow the camera" onPress={askCamera} /> : <T tone="ok" kind="label">Camera allowed</T>}
+          {!locationOk ? <Banner tone="danger" text="Location is off. Turn it on for Allotment in your phone's settings, then come back." /> : <T tone="ok" kind="label">Location allowed</T>}
+        </Card>
+      </Screen>
     );
   }
 
   if (finished) {
-    const ready = uploads.waiting === 0 && uploads.failed === 0 && summary.photos >= MIN_PHOTOS_FOR_MAP;
     return (
-      <SafeAreaView style={s.screen}>
-        <ScrollView contentContainerStyle={s.content}>
-          <Text style={s.title}>Walk finished</Text>
-          <View style={s.card}>
-            <Text style={s.heading}>
-              {summary.photos} photos · {Math.round(summary.walkedM)} m walked · {summary.sectors} of {SECTORS} directions
-            </Text>
-            {verdict(summary).map((note) => (
-              <Text key={note} style={s.text}>
-                {note}
-              </Text>
-            ))}
-          </View>
-          <View style={s.card}>
-            <Text style={s.heading}>Upload</Text>
-            <Text style={s.text}>
-              {uploads.waiting === 0 && uploads.failed === 0
-                ? "All photos are on the server."
-                : `${uploads.waiting} of ${uploads.total} still to send${queueState.active ? ` (${Math.round(queueState.active.progress * 100)}% of the current one)` : ""}`}
-            </Text>
-            {uploads.failed ? <Text style={s.error}>{uploads.failed} failed. See the home screen to retry.</Text> : null}
-          </View>
-          {mapMessage ? <Text style={s.text}>{mapMessage}</Text> : null}
-          <Pressable style={[s.button, { opacity: ready ? 1 : 0.5 }]} disabled={!ready} onPress={buildMap}>
-            <Text style={s.buttonText}>Build a map from this walk</Text>
-          </Pressable>
-          {!ready && summary.photos >= MIN_PHOTOS_FOR_MAP ? <Text style={s.muted}>Available once every photo has been sent.</Text> : null}
-          <Pressable style={s.ghost} onPress={() => setFinished(false)}>
-            <Text style={s.ghostText}>Keep taking photos</Text>
-          </Pressable>
-          <Pressable style={s.ghost} onPress={another}>
-            <Text style={s.ghostText}>Start a new walk</Text>
-          </Pressable>
-          <Pressable style={s.ghost} onPress={() => router.back()}>
-            <Text style={s.ghostText}>Done</Text>
-          </Pressable>
-        </ScrollView>
-      </SafeAreaView>
+      <CaptureSummary
+        summary={summary}
+        uploads={uploads}
+        queueState={queueState}
+        mapMessage={mapMessage}
+        minPhotos={MIN_PHOTOS_FOR_MAP}
+        onBuild={buildMap}
+        onKeepGoing={() => setFinished(false)}
+        onNewWalk={another}
+        onDone={() => router.back()}
+        onReview={() => router.push("/uploads")}
+      />
     );
   }
 
-  const accuracy = fix?.accuracy != null ? `±${Math.round(fix.accuracy)} m` : "no fix";
+  const gpsTone: Tone = !fix || now - fix.timestamp > 10_000 ? "danger" : fix.accuracy !== null && fix.accuracy > 15 ? "warn" : "ok";
+  const gps = fix?.accuracy != null ? `±${Math.round(fix.accuracy)} m` : "searching";
+  const compassTone: Tone = heading === null ? "warn" : "ok";
+  const levelTone: Tone = pitch === null ? "neutral" : Math.abs(pitch) > 25 ? "warn" : "ok";
+  const levelText = pitch === null ? "no sensor" : Math.abs(pitch) > 25 ? (pitch > 0 ? "too high" : "too low") : "level";
+  const top = advice[0];
+
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
       <CameraView ref={cameraRef} style={{ flex: 1 }} facing="back" />
-      <SafeAreaView style={{ position: "absolute", top: 0, left: 0, right: 0, padding: 12, gap: 6 }} pointerEvents="none">
-        <Text style={{ color: "#fff", fontSize: 14, backgroundColor: "#0008", padding: 6, borderRadius: 6 }}>
-          GPS {accuracy} · {heading === null ? "no compass" : `${Math.round(heading)}°`} · {summary.photos} photos · {Math.round(summary.walkedM)} m
-        </Text>
-        {advice.map((a) => (
-          <Text
-            key={a.id}
-            style={{ color: "#fff", fontSize: 15, padding: 8, borderRadius: 6, backgroundColor: a.level === "block" ? "#b3261ecc" : "#8a5a00cc" }}
-          >
-            {a.text}
-          </Text>
-        ))}
-        {shots.length === 0 && advice.length === 0 ? (
-          <Text style={{ color: "#fff", fontSize: 15, backgroundColor: "#0008", padding: 8, borderRadius: 6 }}>
-            Walk the edge of the plot. Face inwards, keep the fence in view, and take a photo every few steps.
-          </Text>
+      <SafeAreaView style={{ position: "absolute", top: 0, left: 0, right: 0, padding: space.md, gap: space.sm }} pointerEvents="box-none">
+        <View style={{ flexDirection: "row", gap: space.sm }} accessibilityRole="summary">
+          <Hud label="GPS" value={gps} tone={gpsTone} />
+          <Hud label="Compass" value={heading === null ? "none" : `${Math.round(heading)}°`} tone={compassTone} />
+          <Hud label="Camera" value={levelText} tone={levelTone} />
+        </View>
+        {top ? (
+          <Banner tone={top.level === "block" ? "danger" : "warn"} text={top.text} />
+        ) : shots.length === 0 ? (
+          <View style={{ backgroundColor: palette.overlay, borderRadius: radius.md, padding: space.md }}>
+            <T style={{ color: "#fff" }}>Walk the edge of the plot. Face inwards with the fence in view, and take a photo every few steps.</T>
+          </View>
         ) : null}
       </SafeAreaView>
-      <SafeAreaView style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-around", padding: 16 }}>
-          <Pressable style={[s.ghost, { backgroundColor: "#0008", borderColor: "#fff6" }]} onPress={() => router.back()}>
-            <Text style={{ color: "#fff", fontSize: 16 }}>Close</Text>
-          </Pressable>
+      <SafeAreaView style={{ position: "absolute", bottom: 0, left: 0, right: 0 }} pointerEvents="box-none">
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: space.lg }}>
+          <View style={{ flex: 1, alignItems: "flex-start" }}>
+            <Pill label="Close" onPress={() => router.back()} />
+          </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Take photo"
+            accessibilityState={{ disabled: stopped }}
             disabled={stopped}
             onPress={shoot}
-            style={{
-              width: 76,
-              height: 76,
-              borderRadius: 38,
-              borderWidth: 5,
-              borderColor: "#fff",
-              backgroundColor: stopped ? "#888" : "#fff",
-              opacity: stopped ? 0.5 : 1,
-            }}
-          />
-          <Pressable
-            style={[s.ghost, { backgroundColor: "#0008", borderColor: "#fff6", opacity: shots.length ? 1 : 0.4 }]}
-            disabled={!shots.length}
-            onPress={() => setFinished(true)}
+            style={{ width: 80, height: 80, borderRadius: 40, borderWidth: 5, borderColor: "#fff", alignItems: "center", justifyContent: "center", opacity: stopped ? 0.4 : 1 }}
           >
-            <Text style={{ color: "#fff", fontSize: 16 }}>Finish</Text>
+            <View style={{ width: 58, height: 58, borderRadius: 29, backgroundColor: "#fff" }} />
           </Pressable>
+          <View style={{ flex: 1, alignItems: "flex-end" }}>
+            <Pill label={shots.length ? `Finish · ${shots.length}` : "Finish"} onPress={() => setFinished(true)} disabled={!shots.length} />
+          </View>
         </View>
       </SafeAreaView>
     </View>

@@ -22,7 +22,7 @@ export type Layout = {
 };
 
 /** Fit points into a width x height drawing with padding, keeping their proportions. */
-export function layout(points: Point[], width: number, height: number, pad = 28): Layout {
+export function layout(points: Point[], width: number, height: number, pad = 36): Layout {
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
   const minX = Math.min(...xs);
@@ -46,13 +46,13 @@ export function layout(points: Point[], width: number, height: number, pad = 28)
     const dx = p.x - cx;
     const dy = p.y - cy;
     const len = Math.hypot(dx, dy) || 1;
-    return { x: p.x + (dx / len) * 16, y: p.y + (dy / len) * 16 };
+    return { x: p.x + (dx / len) * 18, y: p.y + (dy / len) * 18 };
   });
   return { points: placed, width, height, labels };
 }
 
 /** Both outlines drawn on one scale, so drawn and corrected can be compared. */
-export function layoutTogether(sets: Point[][], width: number, height: number, pad = 28): Layout[] {
+export function layoutTogether(sets: Point[][], width: number, height: number, pad = 36): Layout[] {
   const all = sets.flat();
   const joined = layout(all, width, height, pad);
   let at = 0;
