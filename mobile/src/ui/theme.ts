@@ -36,6 +36,7 @@ export function makeStyles(p: Palette) {
     buttonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
     ghost: { minHeight: TOUCH, borderRadius: 10, borderWidth: 1, borderColor: p.border, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
     ghostText: { color: p.text, fontSize: 16 },
+    footer: { padding: 16, gap: 8, borderTopWidth: 1, borderTopColor: p.border, backgroundColor: p.bg },
     row: { minHeight: TOUCH, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   });
 }

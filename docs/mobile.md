@@ -19,6 +19,10 @@ Photos are copied into the app's storage, queued, and the copy is deleted after 
 
 Not yet checked on a real phone: the compass reading for a camera held upright (it should be the direction the lens faces; confirm by photographing along a known direction), and background behaviour while a long upload runs. Video capture and a GPS track for a phone video are not part of this phase.
 
+## Measure the plot (AM-29, server side AM-17)
+"Measure the plot" lists the distances to take. The server makes the list from the shapes drawn on the map ("Make the checklist" / "Update from the map"): a polygon gets its sides plus a diagonal from corner 1 to each non-neighbouring corner (2n-3 distances fix a shape exactly), a line gets one per segment, a circle its radius. Each row opens a screen with a sketch of the shape, the two corners being measured drawn bold, what the map says, and an entry box that understands `3.2`, `320cm`, `10ft 6in` and `10'6"`; **Save and next** goes to the next unmeasured distance. Values are saved at once on screen and sent through the offline queue, so measuring works without signal (making the checklist and applying need to be online). The unit shown (m, cm, ft/in) is a setting of the allotment; the owner picks it.
+**Apply to map** previews the correction: the drawn outline dashed, the corrected one solid on the same scale, how far corners move, and warnings (a measurement that disagrees with the others, which probably means a misread; shapes that still need more measurements, whose other corners stay as drawn). Applying is all or nothing and counts as a map edit on the overview. The fit itself is least squares on local metres, pinned to the drawn position so the shape is not shifted, turned or mirrored (`backend/allotment/measure.py`). Adding a spare distance by hand (`POST /measurements`) gives the fit something to check the others against; exactly 2n-3 measurements always fit perfectly, so mistakes only show up when there is a spare.
+
 ## Running it
 ```
 docker compose up -d                 # the API, from the repo root

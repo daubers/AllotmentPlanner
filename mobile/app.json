@@ -51,7 +51,8 @@
         {
           "locationWhenInUsePermission": "Allotment records where each photo was taken so it can build a map of your plot."
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "scheme": "allotment"
   }
