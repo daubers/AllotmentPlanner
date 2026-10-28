@@ -87,7 +87,7 @@ def test_bulk_replace_counts_each_feature(client, register):
         "features": [
             {"type": "Feature", "geometry": bed, "properties": {"name": n, "kind": "bed"}}
             for n in ("A", "B", "C")
-        ]
+        ],
     }
     assert client.put(f"{base}/features", json=body, headers=headers).status_code == 200
     assert client.get(f"{base}/overview", headers=headers).json["totals"]["map_edits"] == 3
