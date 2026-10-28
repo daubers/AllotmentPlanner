@@ -29,6 +29,13 @@ Tickets live in YouTrack project **AM** (Allotment Manager) at pm.daubney.dev. W
 | 14 Mobile app: Measure screen | AM-29 | Merged (in Review); see [mobile.md](mobile.md) |
 | 15 Mobile app: walk the boundary with GPS | AM-30 | Backlog |
 | 16 Mobile app: tasks and quick photos | AM-31 | Backlog |
+| 17 Seed library | AM-38 | Backlog |
+| 18 Packet-reading spike (needs real packet photos) | AM-39 | Backlog |
+| 19 Seed trays | AM-40 | Backlog |
+| 20 Bed plantings | AM-41 | Backlog |
+| 21 Packet scanning pipeline | AM-42 | Backlog |
+| 22 Suggested tasks and overview | AM-43 | Backlog |
+| 23 Mobile: library, trays, bed plantings | AM-44 | Backlog |
 | CI: Gitea Actions | AM-11 | Merged (in Review) |
 
 ## Repo layout (monorepo)
@@ -78,6 +85,29 @@ The mapping pipeline is only as good as what it is fed. Real phone sets so far h
 - **Tasks and quick photos**: today's tasks with optimistic tick-off, tasks at the current position or on a feature, photos attached to features or tasks, a read-only map.
 Gitea CI gets a `mobile` job (typecheck, lint, jest); EAS builds are manual (`docs/mobile.md`). Out of scope for now: app store distribution, DJI and Android video telemetry, AR measuring, background upload on iOS beyond what the OS grants.
 
+## Seeds, trays and plantings (planned, AM-38 to AM-44)
+What is being grown, not just what is being done. A **seed library** is filled by photographing the back of a packet; **trays** hold sown seeds (several kinds per tray) with photos and a link back to each packet; **plantings** record what is in each bed and where, whether it was direct sown or planted out from a tray. Trays and beds each need an editor because each holds many kinds of plant. Decisions: packets are read by a **local vision-language model** on the mapper (photos stay on the server), the calendar graphic is read **from pixels**, positions in a bed are **drawn regions**, trays are **cell grids**, and tasks are **suggested** from sow dates.
+
+**Data model.**
+- `SeedPacket`: allotment, `status` (draft | active), name, variety, supplier, latin name, notes, sow depth (mm), spacing between plants and rows (cm), days to germinate (min, max), days to maturity (min, max), sun, `stock` (full | part | low | empty), best-before year, raw text read from the packet, and `calendar` `{sow_indoors, sow_outdoors, plant_out, harvest}`, each a list of months 1 to 12. Front and back photos are `Media` rows linked by `packet_id`.
+- `PacketScan`: a reading job like `MapJob` (media, status, log, result with a confidence per field, the calendar crop). It produces a **draft** packet to review, never an active one.
+- `Tray`: allotment, name, rows x cols, tray type label, sown date, location text, notes, status (active | planted out | finished). `TrayCell`: tray, row, col, packet, count, sown and germinated dates, status (empty | sown | germinated | failed | planted out), note, and the planting it went into; unique per tray, row, col.
+- `Planting`: bed (a `MapFeature`), packet, a **region** polygon validated to lie inside the bed, count, method (direct sow | transplant), the source tray and cells when transplanted, sown / planted / harvested dates, status (sown | growing | harvesting | finished | failed), notes. Regions may overlap (inter-planting), with a warning.
+- `Media` gains `packet_id`, `tray_id`, `planting_id`; `Task` gains `tray_id`, `planting_id`, so photos, the timeline, Mastodon posts and the daily list work unchanged.
+- Events `packet.created`, `packet.scanned`, `tray.created`, `planting.created`, `tray.planted_out`, `planting.harvested` are recorded in `ActivityLog`, with a new "sowings" overview counter.
+
+**Plant out is one transaction**: `POST /trays/{id}/plant-out` takes cells, a bed, a region and a date, creates one `Planting` per packet among the cells, marks the cells planted out pointing at it, all or nothing (422 with the reason if the region is outside the bed). A direct sow is `POST /beds/{feature_id}/plantings`.
+
+**Reading a packet.** Runs on the mapper (a new `vision` Celery queue; the model is downloaded into the `models` volume on first use, like Grounding DINO, because the registry limits layer size). (1) A small local VLM (candidate Qwen2-VL-2B-Instruct; fallback Florence-2 plus OCR with rules if CPU speed or accuracy disappoints) returns the text fields as JSON plus the location of the calendar and its legend. (2) `calendar_cv.py` reads the calendar from pixels, because a language model is unreliable at "which months is this bar over": crop it, find the 12 month columns from the header labels (J F M A M J J A S O N D, Jan to Dec, or 1 to 12) and the rows by horizontal projection, average the colour of each cell, cluster colours (background = most common) and match each cluster to a legend entry by swatch colour or row label. (3) The result opens as a **draft**: the calendar crop beside a 12-month editor per activity (tap months), every field editable, low-confidence fields highlighted. (4) A **spike comes first** (AM-39): an evaluation over 10 to 15 of the user's real packets, kept in scratch and deleted afterwards, reporting per-field and calendar accuracy and seconds per packet; the pipeline is only built if it is usable, otherwise the approach changes and that is said plainly.
+
+**Suggested tasks** (`task_suggestions.py`, pure): from a packet, a sow date and today: check germination at the packet's minimum days, prick out (about three weeks after sowing unless the packet says otherwise), harden off and plant out inside the plant-out months, thin, harvest at the start of the harvest window or by days to maturity. Listed and accepted in one step onto the task list, pinned to the tray or bed, all or nothing like map suggestions.
+
+**Screens.** Web: Seeds (library, search, "what can I sow this month?"), packet detail (fields, 12-month strip, photos, every tray and bed using it), add packet (upload, wait, review the draft), **tray editor** (select cells, assign a packet and count, mark germinated or failed, photos, plant out), **bed editor** (the bed's sketch, draw a region, pick a packet, direct sow or from a tray, plantings with status and dates, photos), plantings drawn as labelled regions in their beds on the map. Mobile: scan a packet, browse the library, tray grid with quick actions, a bed's plantings, photos; region drawing and plant out are built on web first.
+
+**Reuse.** The detector's lazy-model pattern and `models` volume; mapper queue routing; `MapJob` for `PacketScan`; the map-suggestion accept flow for task suggestions; media upload and signed URLs; the mobile offline queue and capture screen; `measure.py` projection helpers and the mobile sketch maths for region geometry; the UI kit.
+
+**Out of scope for now:** companion-planting advice, seed-saving records, shopping lists, weather-based timing, online barcode lookup (it would send data out).
+
 ## Observability and hooks (cross-cutting)
 - **Domain event bus**: `emit(event_type, ...)` in `allotment/events.py`. Every state change goes through it. Subscribers: `ActivityLog` writer, Mastodon publisher, metrics counter, structured log line. New behaviour (webhooks, notifications) is added by registering a subscriber. Optional per-allotment outbound webhook subscriber. Measuring adds `measurement.recorded`, `measurement.synced` and `measurements.applied`; the last is recorded in `ActivityLog` and counts as a map edit on the overview.
 - **Structured logging**: `structlog` JSON logs in api, worker and beat; `request_id` returned as `X-Request-ID` and propagated into Celery tasks.
@@ -119,6 +149,14 @@ Gitea CI gets a `mobile` job (typecheck, lint, jest); EAS builds are manual (`do
 14. **Measure screen** (AM-29): phone client for phase 11 (depends on AM-17).
 15. **Walk the boundary** (AM-30): GPS trace recording, `POST /allotments/{id}/boundary-trace`, "Plot boundary" suggestion.
 16. **Tasks and quick photos** (AM-31): Today screen, create/tick tasks, photos attached to features or tasks, read-only map.
+17. **Seed library** (AM-38): packets model and CRUD, search, "what can I sow this month?", calendar editor, photos, web pages, add by hand. Usable without scanning.
+18. **Packet-reading spike** (AM-39): evaluation harness over real packet photos, model choice, go / no-go.
+19. **Seed trays** (AM-40): tray and cell model, grid editor, statuses, photos, several kinds per tray.
+20. **Bed plantings** (AM-41): regions inside beds, bed editor, direct sow, plant out from a tray, map overlay.
+21. **Packet scanning pipeline** (AM-42): vision queue, `PacketScan`, calendar reader, draft review, mobile scan.
+22. **Suggested tasks and overview** (AM-43): task suggestions, accept, "sowings" counter, daily list shows the tray or bed.
+23. **Mobile: library, trays, bed plantings** (AM-44).
+Recommended order: 17, 18, 19, 20, 21, 22, 23. The spike goes early because it is the part most likely to disappoint; 19 and 20 give a fully manual system in the meantime.
 
 ## Verification
 - Backend: `pytest` (API tests; Celery eager; Mastodon mocked; OpenSfM pipeline on a small sample set marked slow); PostGIS-backed tests once geometry models land.
@@ -126,3 +164,4 @@ Gitea CI gets a `mobile` job (typecheck, lint, jest); EAS builds are manual (`do
 - `docker compose up --build` from a clean checkout reaches healthy; `http://localhost:8000/api/docs` and `http://localhost:5173` load; `flask seed-demo` populates a demo.
 - OpenAPI: generated TS client regenerates with no diff in CI.
 - Measuring: solver unit tests (a skewed rectangle fits exactly to 10 x 5 from edges plus one diagonal; a trapezoid; one bad measurement is flagged `recheck` with small residuals elsewhere; an under-determined shape reports its missing constraints; no mirror flip; circle radius), sync idempotence and stale handling, role tests (viewer 403 on writes, non-member 404, preview writes nothing, an invalid fit returns 422 and changes nothing), unit-parser tests, and an e2e step: draw a slightly wrong bed, measure, preview, apply, check its size on the map.
+- Seeds: packet CRUD and roles; calendar validation; tray bounds and one row/col per cell; plant out is atomic (rolls back if the region is outside the bed, a cell can't be planted out twice); suggestion rules as pure-function tests; the calendar reader on synthetic calendars (known months recovered across palettes, JPEG noise, small rotation); a real-packet evaluation table before and after the scanning pipeline; e2e: add a packet by hand, make a tray, sow cells, plant out into a bed, see it on the map.
