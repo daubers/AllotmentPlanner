@@ -26,8 +26,16 @@ def _test_database():
 
 
 @pytest.fixture
-def app():
-    app = create_app(TestConfig)
+def media_root(tmp_path):
+    return tmp_path / "media"
+
+
+@pytest.fixture
+def app(media_root):
+    class Config(TestConfig):
+        MEDIA_ROOT = str(media_root)
+
+    app = create_app(Config)
     with app.app_context():
         db.create_all()
         yield app

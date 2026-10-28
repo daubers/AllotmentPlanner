@@ -6,6 +6,7 @@ x-backend: &backend
   volumes:
     - ./backend/allotment:/app/allotment
     - ./backend/migrations:/app/migrations
+    - media:/data/media
   depends_on:
     db: {condition: service_healthy}
     redis: {condition: service_healthy}
@@ -30,15 +31,6 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       retries: 10
-
-  minio:
-    image: minio/minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: allotment
-      MINIO_ROOT_PASSWORD: allotment-secret
-    volumes: [miniodata:/data]
-    ports: ["9000:9000", "9001:9001"]
 
   api:
     <<: *backend
@@ -96,4 +88,4 @@ services:
 
 volumes:
   pgdata:
-  miniodata:
+  media:

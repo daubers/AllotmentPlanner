@@ -938,6 +938,343 @@
           }
         }
       ]
+    },
+    "/api/v1/allotments/{allotment_id}/media": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "photo",
+                "video"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "feature_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "task_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "taken_from",
+            "description": "On or after this date",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "taken_to",
+            "description": "On or before this date",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "schema": {
+              "type": "string",
+              "default": "desc",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 500
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Media"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "media"
+        ]
+      },
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Media"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaUploadForm"
+              }
+            }
+          }
+        },
+        "summary": "Upload a photo or video. Time, GPS, size and thumbnail are read in the background.",
+        "tags": [
+          "media"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/media/{media_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Media"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "media"
+        ]
+      },
+      "patch": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Media"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaPatch"
+              }
+            }
+          }
+        },
+        "tags": [
+          "media"
+        ]
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "media"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "media_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/media/{media_id}/reprocess": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Media"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Queue processing again, e.g. after a failure or if the broker was down at upload.",
+        "tags": [
+          "media"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "media_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/media/{media_id}/{variant}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "The file or its thumbnail. Authorised by the signed ``t`` token from the media JSON.",
+        "tags": [
+          "media-files"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "t",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "media_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "variant",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "file",
+              "thumb"
+            ]
+          }
+        }
+      ]
     }
   },
   "info": {
@@ -964,6 +1301,14 @@
     {
       "name": "todo",
       "description": "The printable day plan"
+    },
+    {
+      "name": "media",
+      "description": "Photos and videos"
+    },
+    {
+      "name": "media-files",
+      "description": "Signed media downloads"
     }
   ],
   "openapi": "3.0.3",
@@ -1569,6 +1914,159 @@
             "items": {
               "$ref": "#/components/schemas/TodoMember"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "Media": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer"
+          },
+          "width": {
+            "type": "integer",
+            "nullable": true
+          },
+          "height": {
+            "type": "integer",
+            "nullable": true
+          },
+          "duration_s": {
+            "type": "number",
+            "nullable": true
+          },
+          "taken_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "taken_at_source": {
+            "type": "string"
+          },
+          "lat": {
+            "type": "number",
+            "nullable": true
+          },
+          "lng": {
+            "type": "number",
+            "nullable": true
+          },
+          "heading": {
+            "type": "number",
+            "nullable": true
+          },
+          "feature_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "task_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "caption": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "url": {
+            "type": "string",
+            "description": "Signed, short-lived link to the file"
+          },
+          "thumb_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "uploaded_by": {
+            "type": "integer",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MediaUploadForm": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "default": null,
+            "type": "string",
+            "format": "binary",
+            "nullable": true
+          },
+          "feature_id": {
+            "type": "integer",
+            "default": null,
+            "nullable": true
+          },
+          "task_id": {
+            "type": "integer",
+            "default": null,
+            "nullable": true
+          },
+          "caption": {
+            "type": "string",
+            "default": "",
+            "maxLength": 500
+          }
+        },
+        "additionalProperties": false
+      },
+      "MediaPatch": {
+        "type": "object",
+        "properties": {
+          "caption": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "feature_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "task_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "taken_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lat": {
+            "type": "number",
+            "minimum": -90.0,
+            "maximum": 90.0,
+            "nullable": true
+          },
+          "lng": {
+            "type": "number",
+            "minimum": -180.0,
+            "maximum": 180.0,
+            "nullable": true
+          },
+          "heading": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 360.0,
+            "nullable": true
           }
         },
         "additionalProperties": false

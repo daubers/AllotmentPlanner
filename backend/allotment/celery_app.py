@@ -4,7 +4,9 @@ from celery import Celery, signals
 from .config import Config
 from .logging import configure_logging
 
-celery = Celery("allotment", broker=Config.REDIS_URL, backend=Config.REDIS_URL)
+celery = Celery(
+    "allotment", broker=Config.REDIS_URL, backend=Config.REDIS_URL, include=["allotment.tasks"]
+)
 celery.conf.update(
     task_track_started=True,
     worker_send_task_events=True,

@@ -15,7 +15,7 @@ Tickets live in YouTrack project **AM** (Allotment Manager) at pm.daubney.dev. W
 | 3 Map features CRUD + editor | AM-3 | Merged (in Review) |
 | 4 Tasks pinned to features | AM-4 | Merged (in Review) |
 | 5 Printable daily todo | AM-5 | Merged (in Review) |
-| 6 Media upload, EXIF, timeline | AM-6 | Backlog |
+| 6 Media upload, EXIF, timeline | AM-6 | Merged (in Review) |
 | 7 Progress overview | AM-7 | Backlog |
 | 8 Mastodon posting | AM-8 | Backlog |
 | 9 Map from media (OpenSfM) | AM-9 | Backlog |
@@ -38,7 +38,7 @@ docs/ , .env.example, Makefile
 - **SQLAlchemy 2 + Alembic**, Postgres with **PostGIS** (`postgis/postgis`); geometries as `geometry(…, 4326)` via GeoAlchemy2. Leaflet works in lat/lng, so no local-canvas coordinates. Alembic autogenerate ignores tables we don't own (`include_object` in `extensions.py`).
 - **Celery + Redis**: media processing (EXIF, thumbnails), photogrammetry, Mastodon posting, daily rollups.
 - **Auth**: Flask-JWT-Extended, argon2 hashes. Roles per allotment through memberships: `owner`, `editor`, `viewer`.
-- **Storage**: S3-compatible abstraction; MinIO in compose. Orthomaps stored as COG GeoTIFF + XYZ tiles.
+- **Storage**: `allotment/storage.py` with two backends behind one interface: plain files on a shared Docker volume (default; used by compose and tests) or any S3-compatible service (`STORAGE_BACKEND=s3`, tested against moto). MinIO was dropped: its container images are no longer published. Orthomaps will be stored as COG GeoTIFF + XYZ tiles.
 
 ### Data model
 `User`, `Allotment`, `Membership(user, allotment, role)` (done). Planned: `MapFeature` (allotment, kind: bed/path/shed/tree/etc., geometry incl. polygon/point/line, circle as point + `radius_m`, name, style jsonb), `MapLayer` (generated ortho: status, source job, bounds, tile URL), `Task` (title, description, status todo/doing/done, due date, priority, recurrence, assignee, optional `feature_id`, optional point geometry, completed_at/by), `Media` (kind photo/video, storage key, EXIF taken_at, lat/lng, heading, optional `feature_id`/`task_id`, caption), `MapJob` (input media, status, OpenSfM log, output layer), `ActivityLog` (event type, actor, subject refs, timestamp: feeds overview and Mastodon), `MastodonAccount` (instance URL, encrypted token, per-allotment, visibility).
@@ -68,7 +68,7 @@ Vite + React + TS, React Router, TanStack Query, `openapi-typescript` + `openapi
 - **Tests**: events asserted per operation; smoke test for `/metrics`, `/healthz`, `/readyz` and request-ID propagation into a Celery task.
 
 ## Docker
-`docker-compose.yml`: `db` (postgis), `redis`, `minio`, `api`, `worker`, `beat`, `flower`, plus `prometheus`/`grafana`/`jaeger` under the `observability` profile. `.env.example`, `Makefile` (`up`, `down`, `test`, `observability`, `logs`). Planned: `frontend` service, `flask seed-demo`, a compose test overlay. Risk: OpenSfM builds are slow; use a multi-stage worker Dockerfile with pinned versions, built separately so the rest of the stack starts quickly.
+`docker-compose.yml`: `db` (postgis), `redis`, `api`, `worker`, `beat`, `flower`, plus `prometheus`/`grafana`/`jaeger` under the `observability` profile. `.env.example`, `Makefile` (`up`, `down`, `test`, `observability`, `logs`). Planned: `frontend` service, `flask seed-demo`, a compose test overlay. Risk: OpenSfM builds are slow; use a multi-stage worker Dockerfile with pinned versions, built separately so the rest of the stack starts quickly.
 
 ## Phases
 1. **Scaffold & Docker**: repo, backend skeleton, event bus, logging, metrics, health, tracing, compose stack. ✅
@@ -76,7 +76,7 @@ Vite + React + TS, React Router, TanStack Query, `openapi-typescript` + `openapi
 3. **Map features CRUD**: PostGIS models + API; frontend map editor with Geoman draw/edit/delete. Adds the `frontend` image to CI and PostGIS to the CI test job. ✅
 4. **Tasks**: CRUD, pin to feature, recurrence, Tasks page, map pins. ✅
 5. **Today / print todo**: endpoint + print stylesheet. Done as a client-rendered sheet (SVG plot sketch with numbered pins) printed via the browser; a server-side PDF was dropped as unnecessary. ✅
-6. **Media & timeline**: upload (MinIO), EXIF/thumbnail task, feature-linked photos, timeline/compare.
+6. **Media & timeline**: upload through the API (multipart) into pluggable storage, Celery task for EXIF/GPS/ffprobe metadata and thumbnails, signed short-lived file URLs with Range support for video, feature/task-linked photos, day-grouped timeline, before/after slider. ✅ Not yet: HEIC (rejected with a clear message), manual drag-to-place on the map.
 7. **Progress overview**: `ActivityLog` writes everywhere, aggregation endpoint, dashboard.
 8. **Mastodon**: settings, posting task, event opt-ins, digest.
 9. **Map from media (OpenSfM)**: worker image, `MapJob` pipeline, ortho overlay, manual placement fallback. Adds the `worker` image to CI.

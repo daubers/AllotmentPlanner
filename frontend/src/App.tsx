@@ -4,6 +4,7 @@ import { useAuth } from "./auth";
 import AllotmentLayout from "./pages/AllotmentLayout";
 import Allotments from "./pages/Allotments";
 import Login from "./pages/Login";
+import PhotosPage from "./pages/PhotosPage";
 import TasksPage from "./pages/TasksPage";
 import TodayPage from "./pages/TodayPage";
 
@@ -35,6 +36,7 @@ export default function App() {
           <Route index element={<Suspense fallback={<p className="muted centre">Loading map…</p>}><MapView /></Suspense>} />
           <Route path="tasks" element={<TasksPage />} />
           <Route path="today" element={<TodayPage />} />
+          <Route path="photos" element={<PhotosPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
