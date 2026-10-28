@@ -1,14 +1,15 @@
 import { useState } from "react";
+import { formatDuration } from "../media/group";
 import { useMedia } from "../media/hooks";
 import { useMapActions, useLayers, useMapJobDetail, useMapJobs } from "../maps/hooks";
-import { anyActive, clampOpacity, defaultHeight, isActive, jobSummary, readiness, type MapJob } from "../maps/status";
+import { anyActive, clampOpacity, defaultHeight, isActive, jobSummary, readiness, videoFrames, type MapJob } from "../maps/status";
 import { useAllotment } from "./AllotmentLayout";
 
 export default function LayersPage() {
   const { id, canEdit } = useAllotment();
   const layers = useLayers(id);
   const jobs = useMapJobs(id, canEdit);
-  const media = useMedia(id, { kind: "photo" });
+  const media = useMedia(id); // photos and videos
   const actions = useMapActions(id);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"oblique" | "overhead">("oblique");
@@ -18,8 +19,9 @@ export default function LayersPage() {
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [openJob, setOpenJob] = useState<number | null>(null);
 
-  const photos = media.data ?? [];
-  const ready = readiness(photos, choosing ? selected : null);
+  const files = media.data ?? [];
+  const readyFiles = files.filter((m) => m.status === "ready");
+  const ready = readiness(files, choosing ? selected : null);
   const busy = anyActive(jobs.data);
 
   async function attempt(action: () => Promise<unknown>) {
@@ -130,30 +132,39 @@ export default function LayersPage() {
               <span className="hint">Roughly how high the camera was above the ground. Hand-held is about 1.7.</span>
             </label>
             <fieldset>
-              <legend>Photos</legend>
+              <legend>Photos and videos</legend>
               <label className="check">
-                <input type="radio" checked={!choosing} onChange={() => setChoosing(false)} /> All ready photos ({photos.filter((m) => m.status === "ready").length})
+                <input type="radio" checked={!choosing} onChange={() => setChoosing(false)} /> Everything that is ready ({readyFiles.length})
               </label>
               <label className="check">
                 <input type="radio" checked={choosing} onChange={() => setChoosing(true)} /> Choose which ones
               </label>
               {choosing && (
                 <ul className="grid pick-grid">
-                  {photos.filter((m) => m.status === "ready").map((m) => (
+                  {readyFiles.map((m) => (
                     <li key={m.id}>
                       <label className={`tile pick ${selected.has(m.id!) ? "picked" : ""}`}>
                         <input type="checkbox" checked={selected.has(m.id!)} onChange={() => toggle(m.id!)} aria-label={`Use ${m.filename}`} />
                         {m.thumb_url && <img src={m.thumb_url} alt="" loading="lazy" />}
-                        {m.lat == null && <span className="no-gps">no location</span>}
+                        {m.kind === "video" ? (
+                          <span className="tile-badge">▶ {formatDuration(m.duration_s)} · {videoFrames(m)} frames</span>
+                        ) : (
+                          m.lat == null && <span className="no-gps">no location</span>
+                        )}
                       </label>
                     </li>
                   ))}
                 </ul>
               )}
               <p className="muted">
-                {ready.total} photos, {ready.located} with a location.
+                {ready.photos} photos ({ready.located} with a location)
+                {ready.videos > 0 && <>, {ready.videos} {ready.videos === 1 ? "video" : "videos"}</>}: about {ready.images} images in all.
               </p>
               {ready.problems.map((p) => <p key={p} className="hint">{p}</p>)}
+              <p className="hint">
+                Videos are sampled about once a second (the sharpest frame each time) and fitted in by matching them to your photos,
+                so walk the plot with a video and take a few photos with location on to anchor it.
+              </p>
             </fieldset>
             <div className="inline">
               <button type="submit" disabled={!ready.ok || busy || actions.build.isPending}>Build map</button>

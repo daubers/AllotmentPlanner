@@ -334,7 +334,7 @@ class MapJobInSchema(Schema):
     media_ids = fields.List(
         fields.Integer(),
         load_default=None,
-        metadata={"description": "Photos/videos to use; default is every ready photo"},
+        metadata={"description": "Photos/videos to use; default is every ready photo and video"},
     )
     view = fields.String(
         load_default="oblique",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Media } from "../media/group";
-import { anyActive, clampOpacity, defaultHeight, jobSummary, layersToShow, readiness, type MapJob, type MapLayer } from "./status";
+import { anyActive, clampOpacity, defaultHeight, jobSummary, layersToShow, readiness, videoFrames, type MapJob, type MapLayer } from "./status";
 
 const job = (extra: Partial<MapJob>): MapJob => ({ id: 1, status: "queued", stage: "", ...extra }) as MapJob;
 const photo = (id: number, extra: Partial<Media> = {}): Media => ({ id, kind: "photo", status: "ready", lat: 51.5, lng: -0.12, ...extra }) as Media;
@@ -32,22 +32,51 @@ describe("anyActive", () => {
   });
 });
 
+describe("videoFrames", () => {
+  it("is about one frame a second", () => expect(videoFrames({ duration_s: 4 })).toBe(4));
+  it("spreads long videos over their whole length, capped at the limit", () => {
+    expect(videoFrames({ duration_s: 120 })).toBe(60);
+    expect(videoFrames({ duration_s: 600 })).toBe(60);
+  });
+  it("assumes the maximum when the length is unknown, and at least one frame otherwise", () => {
+    expect(videoFrames({ duration_s: null })).toBe(60);
+    expect(videoFrames({ duration_s: 0.2 })).toBe(1);
+  });
+});
+
 describe("readiness", () => {
   const many = (n: number, extra: Partial<Media> = {}) => Array.from({ length: n }, (_, i) => photo(i + 1, extra));
-  it("is ok with enough located, ready photos", () => expect(readiness(many(6), null)).toMatchObject({ ok: true, total: 6, located: 6 }));
+  const video = (id: number, seconds: number, extra: Partial<Media> = {}) =>
+    ({ id, kind: "video", status: "ready", duration_s: seconds, lat: 51.5, lng: -0.12, ...extra }) as Media;
+  it("is ok with enough located, ready photos", () => expect(readiness(many(6), null)).toMatchObject({ ok: true, photos: 6, images: 6, located: 6 }));
   it("asks for more photos", () => expect(readiness(many(4), null).problems[0]).toMatch(/at least 5/));
   it("asks for locations", () => {
     const r = readiness([...many(2), ...many(5, { lat: null, lng: null }).map((m, i) => ({ ...m, id: 100 + i }))], null);
     expect(r.ok).toBe(false);
-    expect(r.problems[0]).toMatch(/3 need a location.*2 have one/);
+    expect(r.problems[0]).toMatch(/3 photos need a location.*2 have one/);
   });
-  it("ignores photos still processing and videos in the default selection", () => {
-    expect(readiness([...many(5), photo(50, { status: "pending" }), photo(51, { kind: "video" })], null).total).toBe(5);
+  it("ignores media still processing", () => {
+    expect(readiness([...many(5), photo(50, { status: "pending" }), video(51, 30, { status: "pending" })], null).images).toBe(5);
+  });
+  it("counts a video as the frames taken from it", () => {
+    const r = readiness([...many(3), video(10, 8)], null);
+    expect(r).toMatchObject({ ok: true, photos: 3, videos: 1, images: 11, located: 3 });
+  });
+  it("lets a video make up the numbers but not place the map", () => {
+    expect(readiness([...many(2), video(10, 30)], null).problems.join(" ")).toMatch(/3 photos need a location.*\(2 have one\)/);
+    const alone = readiness([video(10, 120)], null);
+    expect(alone.ok).toBe(false);
+    expect(alone.problems[0]).toMatch(/only has one location/);
+  });
+  it("does not let a located video count as a located photo", () => {
+    expect(readiness([...many(2), video(10, 30, { lat: 51.5, lng: -0.12 })], null).located).toBe(2);
   });
   it("respects an explicit selection", () => {
-    expect(readiness(many(8), new Set([1, 2, 3])).total).toBe(3);
+    expect(readiness([...many(8), video(20, 10)], new Set([1, 2, 3])).images).toBe(3);
   });
-  it("enforces the upper limit", () => expect(readiness(many(8), null, 6).problems.join(" ")).toMatch(/at most 6/));
+  it("enforces the upper limit using frame counts", () => {
+    expect(readiness([...many(3), video(10, 600), video(11, 600)], null, 100).problems.join(" ")).toMatch(/about 123 images.*at most 100/);
+  });
 });
 
 describe("small helpers", () => {

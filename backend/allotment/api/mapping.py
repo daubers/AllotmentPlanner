@@ -7,6 +7,7 @@ from itsdangerous import BadSignature, URLSafeTimedSerializer
 
 from .. import events
 from ..extensions import db
+from ..mapping_video import estimated_frames
 from ..models import MapJob, MapLayer, Media, Role
 from ..schemas import (
     MapJobInSchema,
@@ -110,7 +111,10 @@ class MapJobList(MethodView):
     @blp.arguments(MapJobInSchema)
     @blp.response(202, MapJobSchema)
     def post(self, data, allotment, membership):
-        """Queue a map build. Needs 5+ overlapping photos, 3+ of them with a location."""
+        """Queue a map build from photos and videos.
+
+        Needs about 5+ overlapping images (a video counts as the frames sampled from it, about
+        one a second) and 3+ photos with a location, which place and scale the map."""
         if (
             db.session.query(MapJob)
             .filter(MapJob.allotment_id == allotment.id, MapJob.status.in_(ACTIVE))
@@ -121,22 +125,42 @@ class MapJobList(MethodView):
             Media.allotment_id == allotment.id, Media.status == "ready"
         )
         if data["media_ids"] is None:
-            query = query.filter(Media.kind == "photo")
+            query = query.filter(Media.kind.in_(["photo", "video"]))
         else:
             query = query.filter(Media.id.in_(data["media_ids"]))
         media = query.order_by(Media.taken_at, Media.id).all()
         if data["media_ids"] is not None and len(media) != len(set(data["media_ids"])):
-            abort(422, message="Some of those photos aren't ready or aren't in this allotment")
-        limit = current_app.config["MAPPING_MAX_IMAGES"]
-        videos = sum(1 for m in media if m.kind == "video")
-        if len(media) < MIN_IMAGES and not videos:
-            abort(422, message=f"Pick at least {MIN_IMAGES} photos that overlap each other")
-        if len(media) > limit:
-            abort(422, message=f"Pick at most {limit} photos or videos for one map")
-        if sum(1 for m in media if m.lat is not None) < MIN_GEOTAGGED:
+            abort(422, message="Some of those files aren't ready or aren't in this allotment")
+        cfg = current_app.config
+        images = sum(
+            1
+            if m.kind == "photo"
+            else estimated_frames(
+                m.duration_s,
+                cfg["MAPPING_VIDEO_FRAMES_PER_SECOND"],
+                cfg["MAPPING_MAX_FRAMES_PER_VIDEO"],
+            )
+            for m in media
+        )
+        if images < MIN_IMAGES:
             abort(
                 422,
-                message=f"At least {MIN_GEOTAGGED} of them need a location to place the map",
+                message=f"Pick at least {MIN_IMAGES} photos (or a video long enough for that many "
+                "frames) that overlap each other",
+            )
+        if images > cfg["MAPPING_MAX_IMAGES"]:
+            abort(
+                422,
+                message=f"That is about {images} images; pick at most {cfg['MAPPING_MAX_IMAGES']} "
+                "photos or seconds of video for one map",
+            )
+        located = sum(1 for m in media if m.kind == "photo" and m.lat is not None)
+        if located < MIN_GEOTAGGED:
+            abort(
+                422,
+                message=f"At least {MIN_GEOTAGGED} of the photos need a location to place the map "
+                f"({located} have one). A video has only one location, so it can't place the map "
+                "by itself",
             )
         job = MapJob(
             allotment_id=allotment.id,

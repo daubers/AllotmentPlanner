@@ -10,7 +10,7 @@ from allotment.models import ActivityLog, MapJob, MapLayer, Media
 from allotment.storage import get_storage
 from allotment.tasks import run_map_job
 
-from .helpers import make_jpeg
+from .helpers import HAVE_FFMPEG, make_jpeg, make_video
 
 PNG = b"\x89PNG\r\n\x1a\nfake-tile"
 
@@ -407,7 +407,7 @@ def test_dataset_needs_enough_images_and_locations(plot, job, tmp_path):
         pipeline.prepare_dataset(job, tmp_path / "a")
     job.media_ids = store_photos(plot["id"], 6, geotagged=False)
     db.session.commit()
-    with pytest.raises(pipeline.JobFailed, match="Only 0 of the images have a location"):
+    with pytest.raises(pipeline.JobFailed, match="Only 0 of the photos have a location"):
         pipeline.prepare_dataset(job, tmp_path / "b")
 
 
@@ -428,3 +428,138 @@ def test_a_few_geotagged_photos_are_enough_for_overlapping_untagged_ones(plot, j
     work = tmp_path / "ds"
     assert pipeline.prepare_dataset(job, work) == 7
     assert len(json.loads((work / "exif_overrides.json").read_text())) == 3
+
+
+# --- videos --------------------------------------------------------------------------------
+
+
+def add_video(allotment_id, seconds, located=False, storage_key=None):
+    m = Media(
+        allotment_id=allotment_id,
+        kind="video",
+        filename="walk.mp4",
+        content_type="video/mp4",
+        storage_key=storage_key or f"allotments/{allotment_id}/walk.mp4",
+        status="ready",
+        duration_s=seconds,
+        taken_at=datetime(2026, 10, 20, tzinfo=UTC),
+        lat=51.5 if located else None,
+        lng=-0.12 if located else None,
+    )
+    db.session.add(m)
+    db.session.commit()
+    return m.id
+
+
+def test_videos_are_included_by_default_and_count_as_their_frames(client, plot, queued):
+    add_media(plot["id"], 3)
+    add_video(plot["id"], 10)  # about 10 frames
+    resp = create(client, plot)
+    assert resp.status_code == 202, resp.json
+    assert resp.json["media_count"] == 4  # three photos and the video
+
+
+def test_a_video_alone_cannot_place_a_map(client, plot, queued):
+    add_video(plot["id"], 60, located=True)  # plenty of frames, and even a location
+    resp = create(client, plot)
+    assert resp.status_code == 422
+    assert "0 have one" in resp.json["message"] and "only one location" in resp.json["message"]
+
+
+def test_a_videos_location_does_not_count_towards_placing_the_map(client, plot, queued):
+    add_media(plot["id"], 2)  # two located photos...
+    add_media(plot["id"], 3, geotagged=False)
+    add_video(plot["id"], 30, located=True)  # ...and a located video: still only two
+    assert create(client, plot).status_code == 422
+
+
+def test_a_very_short_video_does_not_make_up_the_numbers(client, plot, queued):
+    add_media(plot["id"], 3)
+    add_video(plot["id"], 1)  # one frame: 3 + 1 < 5
+    resp = create(client, plot)
+    assert resp.status_code == 422 and "at least 5" in resp.json["message"]
+
+
+def test_video_frames_count_against_the_image_limit(client, plot, queued, app):
+    add_media(plot["id"], 3)
+    for _ in range(3):
+        add_video(plot["id"], 600)  # each capped at 60 frames
+    resp = create(client, plot)
+    assert resp.status_code == 422 and "about 183 images" in resp.json["message"]
+    app.config["MAPPING_MAX_IMAGES"] = 200
+    assert create(client, plot).status_code == 202
+
+
+# --- sampling arithmetic and frame choice ----------------------------------------------------
+
+
+def test_frame_rate_covers_long_videos_end_to_end():
+    from allotment.mapping_video import estimated_frames, video_frame_rate
+
+    assert video_frame_rate(4.0, 1.0, 60) == 1.0
+    assert video_frame_rate(120.0, 1.0, 60) == 0.5  # 60 frames spread over two minutes
+    assert video_frame_rate(None, 1.0, 60) == 1.0
+    assert estimated_frames(4.0, 1.0, 60) == 4
+    assert estimated_frames(120.0, 1.0, 60) == 60
+    assert estimated_frames(None, 1.0, 60) == 60
+    assert estimated_frames(0.2, 1.0, 60) == 1
+
+
+def _noise_jpeg(path, blur=0):
+    import numpy as np
+    from PIL import Image, ImageFilter
+
+    rng = np.random.default_rng(3)
+    img = Image.fromarray((rng.random((240, 320, 3)) * 255).astype("uint8"))
+    if blur:
+        img = img.filter(ImageFilter.GaussianBlur(blur))
+    img.save(path, "JPEG", quality=95)
+    return path
+
+
+def test_sharpness_ranks_blurred_frames_lower(tmp_path):
+    sharp = pipeline.sharpness(_noise_jpeg(tmp_path / "a.jpg"))
+    soft = pipeline.sharpness(_noise_jpeg(tmp_path / "b.jpg", blur=2))
+    very_soft = pipeline.sharpness(_noise_jpeg(tmp_path / "c.jpg", blur=6))
+    assert sharp > soft > very_soft
+
+
+def test_the_sharpest_frame_of_each_group_is_kept(tmp_path):
+    blurs = [4, 0, 6, 5, 5, 0, 3, 4, 0]  # three groups; the sharp one is 2nd, 3rd and 3rd
+    paths = [_noise_jpeg(tmp_path / f"{i}.jpg", blur=b) for i, b in enumerate(blurs)]
+    kept = pipeline.sharpest_of_each_group(paths, 3)
+    assert [p.name for p in kept] == ["1.jpg", "5.jpg", "8.jpg"]
+    assert pipeline.sharpest_of_each_group(paths[:4], 3)[1].name == "3.jpg"  # a short last group
+
+
+def test_opensfm_config_links_video_frames_to_photos(job):
+    plain = pipeline.opensfm_config(job)
+    assert "matching_bow_neighbors" not in plain and "matching_order_neighbors" not in plain
+    with_video = pipeline.opensfm_config(job, has_frames=True)
+    assert with_video["matching_order_neighbors"] == 6
+    assert with_video["matching_bow_neighbors"] == 10 and with_video["matching_bow_other_cameras"]
+    assert with_video["align_orientation_prior"] == "horizontal"
+
+
+@pytest.mark.skipif(not HAVE_FFMPEG, reason="ffmpeg not installed")
+def test_dataset_from_photos_and_a_real_video(plot, job, tmp_path):
+    photos = store_photos(plot["id"], 3)
+    clip = tmp_path / "clip.mp4"
+    make_video(clip, seconds=6)
+    key = f"allotments/{plot['id']}/walk.mp4"
+    get_storage().put(key, str(clip), "video/mp4")
+    video = add_video(plot["id"], 6.0, located=True, storage_key=key)
+    job.media_ids = [*photos, video]
+    db.session.commit()
+
+    work = tmp_path / "ds"
+    assert pipeline.prepare_dataset(job, work) == 3 + 6
+    frames = sorted(p.name for p in (work / "images").iterdir() if p.name.startswith("v"))
+    assert frames == [f"v{video}_{n:04d}.jpg" for n in range(1, 7)]
+    overrides = json.loads((work / "exif_overrides.json").read_text())
+    assert all(
+        "gps" not in overrides[f] and overrides[f]["camera"] == f"video {video}" for f in frames
+    )
+    assert sum("gps" in v for v in overrides.values()) == 3  # only the photos are located
+    config = (work / "config.yaml").read_text()
+    assert "matching_bow_neighbors: 10" in config and "matching_order_neighbors: 6" in config
