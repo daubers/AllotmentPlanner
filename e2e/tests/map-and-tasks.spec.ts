@@ -130,7 +130,7 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await page.getByRole("link", { name: "Layers" }).click();
   await expect(page.getByRole("heading", { name: "Map layers" })).toBeVisible();
   await expect(page.getByText("No layers yet.")).toBeVisible();
-  await expect(page.getByText("2 photos, 2 with a location.")).toBeVisible();
+  await expect(page.getByText(/2 photos \(2 with a location\): about 2 images in all\./)).toBeVisible();
   await expect(page.getByText(/Pick at least 5 photos/)).toBeVisible(); // not enough to build a map yet
   await expect(page.getByRole("button", { name: "Build map" })).toBeDisabled();
   await page.screenshot({ path: "test-results/layers.png", fullPage: true });
@@ -143,6 +143,21 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await page.getByRole("button", { name: "Connect" }).click();
   await expect(page.getByRole("alert")).toContainText("private network"); // the SSRF guard, end to end
   await page.screenshot({ path: "test-results/settings.png" });
+
+  // A video: uploaded like a photo, shown with its length, playable, and offered to the map builder.
+  await page.getByRole("link", { name: "Photos" }).click();
+  await page.getByLabel("Choose photos or videos").setInputFiles("fixtures/walk.mp4");
+  await expect(page.getByText("✓ walk.mp4")).toBeVisible();
+  await expect(page.locator(".tile-badge")).toContainText("0:03");
+  await page.getByRole("button", { name: /Open walk.mp4/ }).click();
+  const video = page.locator("dialog.lightbox video");
+  await expect(video).toBeVisible();
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => Math.round(v.duration))).toBe(3);
+  await page.keyboard.press("Escape");
+  await page.getByRole("link", { name: "Layers" }).click();
+  await expect(page.getByText(/2 photos \(2 with a location\), 1 video: about 5 images in all\./)).toBeVisible();
+  await expect(page.getByText(/Videos are sampled about once a second/)).toBeVisible();
 
   expect(errors).toEqual([]);
 });

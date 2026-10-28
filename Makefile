@@ -10,10 +10,12 @@ up: env
 mapper: env
 	docker compose --profile mapping up --build -d mapper
 
-# Builds a synthetic scene, runs it through the real pipeline and checks the result is in the right
-# place and shape (needs `make up mapper`; takes several minutes).
+# Builds synthetic scenes (photos only, then photos plus a walk-through video), runs them through the
+# real pipeline and checks the results are in the right place and shape (needs `make up mapper`;
+# takes several minutes).
 mapping-check:
 	python3 scripts/mapping_check.py
+	SCENARIO=video python3 scripts/mapping_check.py
 
 observability: env
 	docker compose --profile observability up --build -d

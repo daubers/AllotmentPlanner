@@ -1484,7 +1484,11 @@ export interface paths {
             };
         };
         put?: never;
-        /** Queue a map build. Needs 5+ overlapping photos, 3+ of them with a location. */
+        /**
+         * Queue a map build from photos and videos.
+         * @description Needs about 5+ overlapping images (a video counts as the frames sampled from it, about
+         *     one a second) and 3+ photos with a location, which place and scale the map.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -2160,7 +2164,7 @@ export interface components {
             /** @default  */
             name?: string;
             /**
-             * @description Photos/videos to use; default is every ready photo
+             * @description Photos/videos to use; default is every ready photo and video
              * @default null
              */
             media_ids?: number[] | null;

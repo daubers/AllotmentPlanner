@@ -1615,7 +1615,8 @@
             }
           }
         },
-        "summary": "Queue a map build. Needs 5+ overlapping photos, 3+ of them with a location.",
+        "summary": "Queue a map build from photos and videos.",
+        "description": "Needs about 5+ overlapping images (a video counts as the frames sampled from it, about\none a second) and 3+ photos with a location, which place and scale the map.",
         "tags": [
           "mapping"
         ]
@@ -3012,7 +3013,7 @@
           "media_ids": {
             "type": "array",
             "default": null,
-            "description": "Photos/videos to use; default is every ready photo",
+            "description": "Photos/videos to use; default is every ready photo and video",
             "items": {
               "type": "integer"
             },

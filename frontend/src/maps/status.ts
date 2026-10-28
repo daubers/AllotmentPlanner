@@ -41,15 +41,35 @@ export function jobSummary(job: MapJob): { label: string; tone: "ok" | "wait" | 
   }
 }
 
-/** Mirrors the server's checks so the form can explain a problem before anything is sent. */
-export function readiness(media: Media[], selected: Set<number> | null, maxImages = 150): { ok: boolean; total: number; located: number; problems: string[] } {
-  const chosen = media.filter((m) => m.status === "ready" && (selected ? selected.has(m.id!) : m.kind === "photo"));
-  const located = chosen.filter((m) => m.lat != null && m.lng != null).length;
+// Mirror the server's defaults (MAPPING_VIDEO_FPS, MAPPING_MAX_FRAMES_PER_VIDEO); the server decides.
+export const VIDEO_FPS = 1;
+export const MAX_FRAMES_PER_VIDEO = 60;
+
+/** About how many frames a video contributes: one a second, spread over the whole video if that
+ *  would exceed the per-video limit. */
+export function videoFrames(m: Pick<Media, "duration_s">): number {
+  const d = m.duration_s;
+  if (!d || d <= 0) return MAX_FRAMES_PER_VIDEO;
+  return Math.max(1, Math.min(MAX_FRAMES_PER_VIDEO, Math.ceil(d * Math.min(VIDEO_FPS, MAX_FRAMES_PER_VIDEO / d))));
+}
+
+export type Readiness = { ok: boolean; photos: number; videos: number; images: number; located: number; problems: string[] };
+
+/** Mirrors the server's checks so the form can explain a problem before anything is sent.
+ *  With no selection it counts every ready photo and video. Only photos can place the map: a video
+ *  has a single location, which can't fix position and scale. */
+export function readiness(media: Media[], selected: Set<number> | null, maxImages = 150): Readiness {
+  const chosen = media.filter((m) => m.status === "ready" && (!selected || selected.has(m.id!)));
+  const photos = chosen.filter((m) => m.kind === "photo");
+  const videos = chosen.filter((m) => m.kind === "video");
+  const images = photos.length + videos.reduce((n, v) => n + videoFrames(v), 0);
+  const located = photos.filter((m) => m.lat != null && m.lng != null).length;
   const problems: string[] = [];
-  if (chosen.length < MIN_IMAGES) problems.push(`Pick at least ${MIN_IMAGES} photos that overlap each other (${chosen.length} so far).`);
-  else if (located < MIN_GEOTAGGED) problems.push(`At least ${MIN_GEOTAGGED} need a location to place the map (${located} have one).`);
-  if (chosen.length > maxImages) problems.push(`Pick at most ${maxImages} for one map.`);
-  return { ok: problems.length === 0, total: chosen.length, located, problems };
+  if (images < MIN_IMAGES) problems.push(`Pick at least ${MIN_IMAGES} photos (or a video long enough for that many frames) that overlap each other (${images} so far).`);
+  else if (located < MIN_GEOTAGGED)
+    problems.push(`At least ${MIN_GEOTAGGED} photos need a location to place the map (${located} have one). A video can't do this on its own: it only has one location.`);
+  if (images > maxImages) problems.push(`That is about ${images} images; pick at most ${maxImages} photos or seconds of video for one map.`);
+  return { ok: problems.length === 0, photos: photos.length, videos: videos.length, images, located, problems };
 }
 
 /** Camera height suggestion for each way of taking the photos. */

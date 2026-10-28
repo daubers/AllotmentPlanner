@@ -11,11 +11,18 @@ a real phone gives (the check then fails on scale, which is the expected behavio
 
     make up mapper && make mapping-check        # needs numpy, Pillow and requests
     KEEP=1 ...                                  # keep the allotment to look at it in the app
+    SCENARIO=video ...                          # 9 geotagged photos + a walk-through video (GPS_NOISE 0.05)
+
+The video scenario adds a camera path with no GPS (as a phone video has none per frame, just one
+location at the start), some frames motion-blurred. It checks the video frames are placed by
+matching them to the photos, extend the map beyond what the photos cover, and line up with the
+true texture there.
 """
 
 import io
 import math
 import os
+import subprocess
 import sys
 import tempfile
 import time
@@ -24,7 +31,7 @@ from pathlib import Path
 
 import numpy as np
 import requests
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 API = "http://localhost:8000/api/v1"
 CENTRE = (51.5, -0.12)  # latitude, longitude of the scene centre
@@ -33,9 +40,15 @@ TEXTURE_RES = 0.01  # metres per texture pixel
 PHOTO = (2000, 1500)
 FOCAL = 0.8  # normalised by the long side
 HEIGHT = 12.0
-GPS_NOISE = float(os.environ.get("GPS_NOISE", "0.3"))  # metres per axis; phones are 1-3
 GRID_X = [-10, -5, 0, 5, 10]
 GRID_Y = [-8, -4, 0, 4, 8]
+SCENARIO = os.environ.get("SCENARIO", "photos")
+# GPS jitter in metres per axis (phones are 1-3). The video scenario defaults to almost none: only
+# nine photos anchor its scale, so realistic jitter would swamp what it is meant to check.
+GPS_NOISE = float(os.environ.get("GPS_NOISE", "0.05" if SCENARIO == "video" else "0.3"))
+VIDEO_FRAME = (1280, 960)
+VIDEO_FPS = 5
+VIDEO_SPEED = 3.0  # metres per second along the path
 
 
 def metres_per_degree(lat: float) -> tuple[float, float]:
@@ -80,9 +93,11 @@ def camera_rotation(rng: np.random.Generator) -> np.ndarray:
     return (np.eye(3) + kx) @ base  # first-order rotation is plenty for ~1.5 degrees
 
 
-def render(texture: Image.Image, centre: np.ndarray, rotation: np.ndarray) -> Image.Image:
+def render(
+    texture: Image.Image, centre: np.ndarray, rotation: np.ndarray, frame: tuple[int, int] = PHOTO
+) -> Image.Image:
     """The photo a camera at ``centre`` would take of the textured ground plane z = 0."""
-    w, h = PHOTO
+    w, h = frame
     size = max(w, h)
     corners = [(0, 0), (w - 1, 0), (w - 1, h - 1), (0, h - 1)]
     ground = []
@@ -97,7 +112,7 @@ def render(texture: Image.Image, centre: np.ndarray, rotation: np.ndarray) -> Im
         rows += [[x, y, 1, 0, 0, 0, -u * x, -u * y], [0, 0, 0, x, y, 1, -v * x, -v * y]]
         rhs += [u, v]
     coeffs = np.linalg.solve(np.array(rows, float), np.array(rhs, float))
-    return texture.transform(PHOTO, Image.PERSPECTIVE, tuple(coeffs), Image.BICUBIC)
+    return texture.transform(frame, Image.PERSPECTIVE, tuple(coeffs), Image.BICUBIC)
 
 
 def dms(value: float) -> tuple[float, float, float]:
@@ -123,17 +138,74 @@ def jpeg(image: Image.Image, lat: float, lng: float, index: int) -> bytes:
     return buf.getvalue()
 
 
-def make_photos(rng: np.random.Generator) -> list[bytes]:
-    texture = make_texture(rng)
+def make_photos(rng: np.random.Generator, texture: Image.Image, grid_x, grid_y) -> list[bytes]:
     lat_m, lon_m = metres_per_degree(CENTRE[0])
     photos = []
-    for i, (x, y) in enumerate((x, y) for y in GRID_Y for x in GRID_X):
+    for i, (x, y) in enumerate((x, y) for y in grid_y for x in grid_x):
         centre = np.array([x + rng.normal(0, 0.15), y + rng.normal(0, 0.15), HEIGHT + rng.normal(0, 0.3)])
         image = render(texture, centre, camera_rotation(rng))
         noisy_e, noisy_n = x + rng.normal(0, GPS_NOISE), y + rng.normal(0, GPS_NOISE)
         photos.append(jpeg(image, CENTRE[0] + noisy_n / lat_m, CENTRE[1] + noisy_e / lon_m, i))
-    texture.save(Path(tempfile.gettempdir()) / "mapping_check_texture.png")
     return photos
+
+
+# A walk over the plot: along the north side, down the east edge, back along the south side.
+VIDEO_PATH = [(-14.0, 9.0), (14.0, 9.0), (14.0, -9.0), (-14.0, -9.0)]
+
+
+def video_positions() -> list[tuple[float, float]]:
+    """Camera positions, one per video frame, moving at VIDEO_SPEED along VIDEO_PATH."""
+    step = VIDEO_SPEED / VIDEO_FPS
+    points = []
+    for (x0, y0), (x1, y1) in zip(VIDEO_PATH, VIDEO_PATH[1:], strict=False):
+        length = math.hypot(x1 - x0, y1 - y0)
+        for k in range(int(length / step)):
+            points.append((x0 + (x1 - x0) * k * step / length, y0 + (y1 - y0) * k * step / length))
+    return points
+
+
+def encode_video(frames: Path, dest: Path) -> None:
+    """H.264 mp4 from numbered JPEGs, with a start location tag like a phone writes. Uses a local
+    ffmpeg if one works, otherwise the one in the mapper image."""
+    args = [
+        "-v", "error", "-y", "-framerate", str(VIDEO_FPS), "-i", f"{frames}/f%04d.jpg",
+        "-c:v", "libx264", "-crf", "20", "-pix_fmt", "yuv420p",
+        "-metadata", "location=+51.5000-000.1200/", "-movflags", "+faststart",
+    ]  # fmt: skip
+    try:
+        subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True, timeout=10)
+        subprocess.run(["ffmpeg", *args, str(dest)], check=True, timeout=600)
+    except (OSError, subprocess.SubprocessError):
+        root = Path(__file__).resolve().parents[1]
+        subprocess.run(
+            ["docker", "compose", "--profile", "mapping", "run", "--rm", "--no-deps", "-v", f"{frames.parent}:/w",
+             "--entrypoint", "ffmpeg", "mapper", *args[:5], "-i", "/w/frames/f%04d.jpg", *args[7:], "/w/walk.mp4"],
+            check=True, timeout=900, cwd=root,
+        )  # fmt: skip
+
+
+def make_video(rng: np.random.Generator, texture: Image.Image) -> bytes:
+    """A walk-through: overhead frames along VIDEO_PATH, some motion-blurred, no GPS anywhere."""
+    with tempfile.TemporaryDirectory() as tmp:
+        frames = Path(tmp) / "frames"
+        frames.mkdir()
+        for i, (x, y) in enumerate(video_positions(), start=1):
+            centre = np.array([x + rng.normal(0, 0.1), y + rng.normal(0, 0.1), HEIGHT + rng.normal(0, 0.2)])
+            image = render(texture, centre, camera_rotation(rng), VIDEO_FRAME)
+            if i % 5 == 2:  # one frame in five is smeared, as hand-held video often is
+                image = image.filter(ImageFilter.GaussianBlur(4))
+            image.save(frames / f"f{i:04d}.jpg", quality=92)
+        encode_video(frames, Path(tmp) / "walk.mp4")
+        return (Path(tmp) / "walk.mp4").read_bytes()
+
+
+def make_media(rng: np.random.Generator) -> tuple[list[bytes], bytes | None]:
+    texture = make_texture(rng)
+    texture.save(Path(tempfile.gettempdir()) / "mapping_check_texture.png")
+    if SCENARIO == "video":
+        photos = make_photos(rng, texture, [-5, 0, 5], [-4, 0, 4])
+        return photos, make_video(rng, texture)
+    return make_photos(rng, texture, GRID_X, GRID_Y), None
 
 
 # --- driving the API -------------------------------------------------------------------------
@@ -149,7 +221,7 @@ def wait(what: str, fn, timeout: float, every: float = 3):
     sys.exit(f"FAIL: timed out waiting for {what}")
 
 
-def run_pipeline(photos: list[bytes]) -> tuple[dict, dict, str]:
+def run_pipeline(photos: list[bytes], video: bytes | None) -> tuple[dict, dict, dict, str]:
     r = requests.post(
         f"{API}/auth/register",
         json={"email": f"mapcheck{uuid.uuid4().hex[:6]}@example.com", "display_name": "Mapcheck", "password": "password123"},
@@ -161,7 +233,11 @@ def run_pipeline(photos: list[bytes]) -> tuple[dict, dict, str]:
     print(f"allotment {pid}: uploading {len(photos)} photos")
     for i, data in enumerate(photos):
         requests.post(f"{base}/media", files={"file": (f"s{i}.jpg", data, "image/jpeg")}, headers=headers).raise_for_status()
-    wait("photos to be processed", lambda: all(m["status"] == "ready" for m in requests.get(f"{base}/media?limit=500", headers=headers).json()), 300)
+    if video:
+        print(f"uploading a {len(video) / 1e6:.1f} MB video")
+        up = requests.post(f"{base}/media", files={"file": ("walk.mp4", video, "video/mp4")}, headers=headers)
+        up.raise_for_status()
+    wait("uploads to be processed", lambda: all(m["status"] == "ready" for m in requests.get(f"{base}/media?limit=500", headers=headers).json()), 300)
     resp = requests.post(f"{base}/map-jobs", json={"name": "Synthetic", "view": "overhead", "camera_height_m": HEIGHT}, headers=headers)
     resp.raise_for_status()
     job_id, stage = resp.json()["id"], None
@@ -179,9 +255,9 @@ def run_pipeline(photos: list[bytes]) -> tuple[dict, dict, str]:
     if job["status"] != "ready":
         print(job["log"][-3000:])
         sys.exit(f"FAIL: job {job['status']}: {job['error']}")
-    print(f"  used {job['shots_used']} of {job['shots_total']} photos")
+    print(f"  used {job['shots_used']} of {job['shots_total']} images")
     [layer] = requests.get(f"{base}/layers", headers=headers).json()
-    return layer, {"headers": headers, "base": base}, f"http://localhost:8000{layer['tile_url']}"
+    return layer, job, {"headers": headers, "base": base}, f"http://localhost:8000{layer['tile_url']}"
 
 
 # --- checking the result ---------------------------------------------------------------------
@@ -236,63 +312,83 @@ def ncc_search(big: np.ndarray, small: np.ndarray, radius: int) -> tuple[int, in
     return best
 
 
-def check(layer: dict, template: str) -> bool:
+RES = 0.1  # compare at 10 cm per pixel
+
+
+def compare_region(tiles, texture: Image.Image, lon_m: float, lat_m: float, centre, size, margin, scans):
+    """Match a window of the true texture against the map around ``centre`` (metres east, north of
+    the scene centre). Returns (east offset m, north offset m, correlation, ortho, truth, scan
+    results). ``scans`` also tries the window scaled and rotated to expose a wrong scale/rotation."""
+    (ce, cn), (w, h) = centre, size
+    gx = np.arange(ce - (w / 2 + margin), ce + (w / 2 + margin), RES) + RES / 2
+    gy = np.arange(cn + (h / 2 + margin), cn - (h / 2 + margin), -RES) - RES / 2
+    east, north = np.meshgrid(gx, gy)
+    parts = []  # each 10 cm cell is the mean of 2 x 2 layer pixels, to match the averaged truth
+    for ox in (-0.025, 0.025):
+        for oy in (-0.025, 0.025):
+            parts.append(tiles.sample(CENTRE[1] + (east + ox) / lon_m, CENTRE[0] + (north + oy) / lat_m))
+    with np.errstate(all="ignore"):
+        ortho = np.nanmean(np.stack(parts), axis=0)
+    fine = texture.resize((texture.width // 5, texture.height // 5), Image.BOX)  # 5 cm per pixel
+    out_w, out_h = round(w / RES), round(h / RES)
+    k = RES / (TEXTURE_RES * 5)  # source pixels per output pixel
+
+    def truth(scale: float = 1.0, angle: float = 0.0) -> np.ndarray:
+        """The window seen ``scale`` times too big and turned by ``angle`` degrees."""
+        t = math.radians(angle)
+        a, b, d, e = scale * k * math.cos(t), -scale * k * math.sin(t), scale * k * math.sin(t), scale * k * math.cos(t)
+        cx, cy = out_w / 2, out_h / 2
+        tx, ty = fine.width / 2 + ce / (TEXTURE_RES * 5), fine.height / 2 - cn / (TEXTURE_RES * 5)
+        coeffs = (a, b, tx - (a * cx + b * cy), d, e, ty - (d * cx + e * cy))
+        return np.asarray(fine.transform((out_w, out_h), Image.AFFINE, coeffs, Image.BILINEAR), float)
+
+    radius = round(margin / RES)
+    dx, dy, score = ncc_search(ortho, truth(), radius)
+    found = {}
+    if scans:
+        found["scales"] = {s_: ncc_search(ortho, truth(scale=s_), radius)[2] for s_ in (0.96, 0.98, 0.99, 1.0, 1.01, 1.02, 1.04)}
+        found["angles"] = {a_: ncc_search(ortho, truth(angle=a_), radius)[2] for a_ in (-2.0, -1.0, 0.0, 1.0, 2.0)}
+    return dx * RES, -dy * RES, score, ortho[radius : radius + out_h, radius : radius + out_w], truth(), found
+
+
+def check(layer: dict, template: str, job: dict) -> bool:
     lat_m, lon_m = metres_per_degree(CENTRE[0])
     west, south, east, north = layer["bounds"]
     width_m, height_m = (east - west) * lon_m, (north - south) * lat_m
     off_e, off_n = ((west + east) / 2 - CENTRE[1]) * lon_m, ((south + north) / 2 - CENTRE[0]) * lat_m
+    print(f"scenario {SCENARIO}, GPS noise {GPS_NOISE} m")
     print(f"layer {width_m:.1f} x {height_m:.1f} m, centred {off_e:+.1f} m E / {off_n:+.1f} m N of the scene centre")
     print(f"zoom {layer['min_zoom']}-{layer['max_zoom']}, {layer['tile_count']} tiles")
     ok = True
-    # covered area: the camera grid is 20 x 16 m and each photo sees 15 x 11 m of ground
-    if not (28 <= width_m <= 40 and 22 <= height_m <= 32):
-        print("FAIL: layer size is not what the camera layout should produce (about 35 x 27 m)")
+    if SCENARIO == "video":
+        # photos alone would give about 25 x 19 m; the video frames reach about 43 x 29 m
+        sizes = (38 <= width_m <= 48, 26 <= height_m <= 34)
+        wanted = "about 43 x 29 m, so the video frames were placed"
+        if job["shots_used"] < 0.85 * job["shots_total"]:
+            print(f"FAIL: only {job['shots_used']} of {job['shots_total']} images were placed")
+            ok = False
+    else:
+        sizes = (28 <= width_m <= 40, 22 <= height_m <= 32)  # a 20 x 16 m camera grid, 15 x 11 m views
+        wanted = "about 35 x 27 m"
+    if not all(sizes):
+        print(f"FAIL: layer size is not what the camera layout should produce ({wanted})")
         ok = False
     if math.hypot(off_e, off_n) > 4:
         print("FAIL: layer is not centred on the scene")
         ok = False
 
     texture = Image.open(Path(tempfile.gettempdir()) / "mapping_check_texture.png").convert("L")
-    res = 0.1  # compare at 10 cm per pixel
-    truth_w, truth_h = 12.0, 8.0
-    margin = 4.0  # metres of search either way
     tiles = Tiles(template, layer["max_zoom"])
-    gx = (np.arange(-(truth_w / 2 + margin), truth_w / 2 + margin, res) + res / 2)
-    gy = (np.arange(truth_h / 2 + margin, -(truth_h / 2 + margin), -res) - res / 2)
-    east, north = np.meshgrid(gx, gy)
-    # sample each 10 cm cell as the mean of a 2 x 2 grid of layer pixels to match the averaged truth
-    parts = []
-    for ox in (-0.025, 0.025):
-        for oy in (-0.025, 0.025):
-            parts.append(tiles.sample(CENTRE[1] + (east + ox) / lon_m, CENTRE[0] + (north + oy) / lat_m))
-    ortho = np.nanmean(np.stack(parts), axis=0)
-    fine = texture.resize((texture.width // 5, texture.height // 5), Image.BOX)  # 5 cm per pixel
-    out_w, out_h = round(truth_w / res), round(truth_h / res)
-    k = res / (TEXTURE_RES * 5)  # source pixels per output pixel
-
-    def truth(scale: float = 1.0, angle: float = 0.0) -> np.ndarray:
-        """The scene seen through a window ``scale`` times too big, turned by ``angle`` degrees."""
-        t = math.radians(angle)
-        a, b, d, e = scale * k * math.cos(t), -scale * k * math.sin(t), scale * k * math.sin(t), scale * k * math.cos(t)
-        cx, cy = out_w / 2, out_h / 2
-        tx, ty = fine.width / 2, fine.height / 2
-        coeffs = (a, b, tx - (a * cx + b * cy), d, e, ty - (d * cx + e * cy))
-        return np.asarray(fine.transform((out_w, out_h), Image.AFFINE, coeffs, Image.BILINEAR), float)
-
-    radius = round(margin / res)
-    dx, dy, score = ncc_search(ortho, truth(), radius)
-    print(f"GPS noise {GPS_NOISE} m")
-    print(f"best match at {dx * res:+.1f} m E / {-dy * res:+.1f} m N, correlation {score:.2f}")
-    scales = {s_: ncc_search(ortho, truth(scale=s_), radius)[2] for s_ in (0.96, 0.98, 0.99, 1.0, 1.01, 1.02, 1.04)}
-    angles = {a_: ncc_search(ortho, truth(angle=a_), radius)[2] for a_ in (-2.0, -1.0, 0.0, 1.0, 2.0)}
-    print("scale scan:   " + "  ".join(f"{s_:.2f}->{v:.2f}" for s_, v in scales.items()))
-    print("rotation scan:" + "  ".join(f"{a_:+.0f}deg->{v:.2f}" for a_, v in angles.items()))
-    best_scale, best_angle = max(scales, key=scales.get), max(angles, key=angles.get)
-    side = np.hstack([np.nan_to_num(ortho[radius : radius + out_h, radius : radius + out_w], nan=0.0), truth()])
+    de, dn, score, ortho, truth, found = compare_region(tiles, texture, lon_m, lat_m, (0, 0), (12.0, 8.0), 4.0, scans=True)
+    print(f"middle of the plot: best match at {de:+.1f} m E / {dn:+.1f} m N, correlation {score:.2f}")
+    print("  scale scan:   " + "  ".join(f"{s_:.2f}->{v:.2f}" for s_, v in found["scales"].items()))
+    print("  rotation scan:" + "  ".join(f"{a_:+.0f}deg->{v:.2f}" for a_, v in found["angles"].items()))
+    best_scale, best_angle = max(found["scales"], key=found["scales"].get), max(found["angles"], key=found["angles"].get)
+    side = np.hstack([np.nan_to_num(ortho, nan=0.0), truth])
     Image.fromarray(side.astype("uint8")).resize((side.shape[1] * 4, side.shape[0] * 4), Image.NEAREST).save(
         Path(tempfile.gettempdir()) / "mapping_check_result.png"
     )
-    print(f"side-by-side (map | truth): {Path(tempfile.gettempdir()) / 'mapping_check_result.png'}")
+    print(f"  side-by-side (map | truth): {Path(tempfile.gettempdir()) / 'mapping_check_result.png'}")
     if abs(best_scale - 1.0) > 0.011 or abs(best_angle) > 1.0:
         print(f"FAIL: the map looks scaled by {best_scale} or rotated by {best_angle} degrees")
         ok = False
@@ -301,18 +397,34 @@ def check(layer: dict, template: str) -> bool:
     if score < 0.5:
         print("FAIL: the map does not match the scene")
         ok = False
-    if math.hypot(dx, dy) * res > 4:
+    if math.hypot(de, dn) > 4:
         print("FAIL: the map is displaced by more than the GPS noise allows")
         ok = False
+
+    if SCENARIO == "video":
+        # A strip north of anything the photos cover (they end at about +9.6 m): only video frames
+        # drew it, and they had no GPS, so this is where the matching to the photos is tested.
+        de, dn, score, ortho, truth, _ = compare_region(tiles, texture, lon_m, lat_m, (0, 11.6), (16.0, 2.6), 1.2, scans=False)
+        print(f"video-only strip:   best match at {de:+.1f} m E / {dn:+.1f} m N, correlation {score:.2f}")
+        side = np.hstack([np.nan_to_num(ortho, nan=0.0), truth])
+        Image.fromarray(side.astype("uint8")).resize((side.shape[1] * 4, side.shape[0] * 4), Image.NEAREST).save(
+            Path(tempfile.gettempdir()) / "mapping_check_video_strip.png"
+        )
+        if score < 0.4:
+            print("FAIL: the part of the map drawn from video does not match the scene")
+            ok = False
+        if math.hypot(de, dn) > 1.2:
+            print("FAIL: the video part is displaced relative to the true position")
+            ok = False
     return ok
 
 
 def main() -> None:
     rng = np.random.default_rng(7)
     print("rendering the synthetic scene")
-    photos = make_photos(rng)
-    layer, ctx, template = run_pipeline(photos)
-    ok = check(layer, template)
+    photos, video = make_media(rng)
+    layer, job, ctx, template = run_pipeline(photos, video)
+    ok = check(layer, template, job)
     if os.environ.get("KEEP"):
         print(f"kept allotment: {ctx['base']}")
     else:
