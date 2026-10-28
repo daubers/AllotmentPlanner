@@ -7,7 +7,14 @@ class Config:
         "DATABASE_URL", "postgresql+psycopg://allotment:allotment@db:5432/allotment"
     )
     REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
-    S3_ENDPOINT_URL = os.environ.get("S3_ENDPOINT_URL", "http://minio:9000")
+    STORAGE_BACKEND = os.environ.get("STORAGE_BACKEND", "file")  # "file" or "s3"
+    MEDIA_ROOT = os.environ.get("MEDIA_ROOT", "/data/media")
+    S3_ENDPOINT_URL = os.environ.get("S3_ENDPOINT_URL")  # None = AWS
+    S3_BUCKET = os.environ.get("S3_BUCKET", "allotment-media")
+    S3_ACCESS_KEY = os.environ.get("S3_ACCESS_KEY")
+    S3_SECRET_KEY = os.environ.get("S3_SECRET_KEY")
+    MAX_CONTENT_LENGTH = int(os.environ.get("MAX_UPLOAD_MB", "200")) * 1024 * 1024
+    MEDIA_URL_TTL_SECONDS = 3600
     OTEL_EXPORTER_OTLP_ENDPOINT = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-only-insecure-secret-change-me-in-prod")
@@ -32,5 +39,8 @@ def _test_database_url() -> str:
 
 class TestConfig(Config):
     TESTING = True
+    STORAGE_BACKEND = "file"
+    CELERY_ALWAYS_EAGER = True
+    MAX_CONTENT_LENGTH = 5 * 1024 * 1024
     SQLALCHEMY_DATABASE_URI = _test_database_url()
     OTEL_EXPORTER_OTLP_ENDPOINT = None

@@ -930,6 +930,263 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/allotments/{allotment_id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    kind?: "photo" | "video";
+                    feature_id?: number;
+                    task_id?: number;
+                    /** @description On or after this date */
+                    taken_from?: string;
+                    /** @description On or before this date */
+                    taken_to?: string;
+                    order?: "asc" | "desc";
+                    limit?: number;
+                    offset?: number;
+                };
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Media"][];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        /** Upload a photo or video. Time, GPS, size and thumbnail are read in the background. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": components["schemas"]["MediaUploadForm"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Media"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/media/{media_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                media_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    media_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Media"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    media_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    media_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MediaPatch"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Media"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/media/{media_id}/reprocess": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                media_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Queue processing again, e.g. after a failure or if the broker was down at upload. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    media_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Media"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/media/{media_id}/{variant}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                media_id: number;
+                variant: "file" | "thumb";
+            };
+            cookie?: never;
+        };
+        /** The file or its thumbnail. Authorised by the signed ``t`` token from the media JSON. */
+        get: {
+            parameters: {
+                query: {
+                    t: string;
+                };
+                header?: never;
+                path: {
+                    media_id: number;
+                    variant: "file" | "thumb";
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1150,6 +1407,56 @@ export interface components {
             /** @description The whole map, for the sketch */
             features?: components["schemas"]["Feature"][];
             members?: components["schemas"]["TodoMember"][];
+        };
+        Media: {
+            id?: number;
+            kind?: string;
+            filename?: string;
+            content_type?: string;
+            size_bytes?: number;
+            width?: number | null;
+            height?: number | null;
+            duration_s?: number | null;
+            /** Format: date-time */
+            taken_at?: string;
+            taken_at_source?: string;
+            lat?: number | null;
+            lng?: number | null;
+            heading?: number | null;
+            feature_id?: number | null;
+            task_id?: number | null;
+            caption?: string;
+            status?: string;
+            error?: string | null;
+            /** @description Signed, short-lived link to the file */
+            url?: string;
+            thumb_url?: string | null;
+            uploaded_by?: number | null;
+            /** Format: date-time */
+            created_at?: string;
+        };
+        MediaUploadForm: {
+            /**
+             * Format: binary
+             * @default null
+             */
+            file?: string | null;
+            /** @default null */
+            feature_id?: number | null;
+            /** @default null */
+            task_id?: number | null;
+            /** @default  */
+            caption?: string;
+        };
+        MediaPatch: {
+            caption?: string;
+            feature_id?: number | null;
+            task_id?: number | null;
+            /** Format: date-time */
+            taken_at?: string;
+            lat?: number | null;
+            lng?: number | null;
+            heading?: number | null;
         };
     };
     responses: {

@@ -178,3 +178,57 @@ class TodoSchema(Schema):
         fields.Nested(FeatureSchema), metadata={"description": "The whole map, for the sketch"}
     )
     members = fields.List(fields.Nested(TodoMemberSchema))
+
+
+class MediaUploadFormSchema(Schema):
+    # Documented here for OpenAPI; the view reads the actual file from request.files.
+    file = fields.Raw(load_default=None, metadata={"type": "string", "format": "binary"})
+    feature_id = fields.Integer(load_default=None)
+    task_id = fields.Integer(load_default=None)
+    caption = fields.String(load_default="", validate=validate.Length(max=500))
+
+
+class MediaQuerySchema(Schema):
+    kind = fields.String(validate=validate.OneOf(["photo", "video"]))
+    feature_id = fields.Integer()
+    task_id = fields.Integer()
+    taken_from = fields.Date(metadata={"description": "On or after this date"})
+    taken_to = fields.Date(metadata={"description": "On or before this date"})
+    order = fields.String(load_default="desc", validate=validate.OneOf(["asc", "desc"]))
+    limit = fields.Integer(load_default=100, validate=validate.Range(min=1, max=500))
+    offset = fields.Integer(load_default=0, validate=validate.Range(min=0))
+
+
+class MediaPatchSchema(Schema):
+    caption = fields.String(validate=validate.Length(max=500))
+    feature_id = fields.Integer(allow_none=True)
+    task_id = fields.Integer(allow_none=True)
+    taken_at = fields.DateTime()
+    lat = fields.Float(allow_none=True, validate=validate.Range(min=-90, max=90))
+    lng = fields.Float(allow_none=True, validate=validate.Range(min=-180, max=180))
+    heading = fields.Float(allow_none=True, validate=validate.Range(min=0, max=360))
+
+
+class MediaSchema(Schema):
+    id = fields.Integer()
+    kind = fields.String()
+    filename = fields.String()
+    content_type = fields.String()
+    size_bytes = fields.Integer()
+    width = fields.Integer(allow_none=True)
+    height = fields.Integer(allow_none=True)
+    duration_s = fields.Float(allow_none=True)
+    taken_at = fields.DateTime()
+    taken_at_source = fields.String()
+    lat = fields.Float(allow_none=True)
+    lng = fields.Float(allow_none=True)
+    heading = fields.Float(allow_none=True)
+    feature_id = fields.Integer(allow_none=True)
+    task_id = fields.Integer(allow_none=True)
+    caption = fields.String()
+    status = fields.String()
+    error = fields.String(allow_none=True)
+    url = fields.String(metadata={"description": "Signed, short-lived link to the file"})
+    thumb_url = fields.String(allow_none=True)
+    uploaded_by = fields.Integer(allow_none=True)
+    created_at = fields.DateTime()

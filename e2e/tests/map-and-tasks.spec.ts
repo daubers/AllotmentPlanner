@@ -84,5 +84,41 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await page.reload();
   await expect(page.getByRole("button", { name: "Bed 1" })).toBeVisible();
 
+  // Photos: upload two EXIF-dated photos attached to Bed 1 (processed by the Celery worker),
+  // check the timeline, the lightbox metadata, the feature filter and the before/after slider.
+  await page.getByRole("link", { name: "Photos" }).click();
+  await page.getByLabel("Attach new uploads to").selectOption({ label: "Bed 1" });
+  await page.getByLabel("Choose photos or videos").setInputFiles([
+    "fixtures/bed-day1.jpg",
+    "fixtures/bed-day2.jpg",
+    "fixtures/not-a-photo.jpg",
+  ]);
+  await expect(page.getByText("✕ not-a-photo.jpg")).toContainText("Unsupported file type");
+  await expect(page.getByText("✓ bed-day1.jpg")).toBeVisible();
+  await expect(page.getByText("✓ bed-day2.jpg")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Tuesday 3 November 2026/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Tuesday 27 October 2026/ })).toBeVisible();
+  const thumbs = page.locator(".tile img");
+  await expect(thumbs).toHaveCount(2); // appear once the worker has made thumbnails
+  await expect.poll(() => thumbs.first().evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth)).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: /Open bed-day1.jpg/ }).click();
+  const box = page.locator("dialog.lightbox");
+  await expect(box.getByText("51.50000, -0.12000")).toBeVisible(); // GPS read from the EXIF
+  await expect(box.getByText("from the camera")).toBeVisible();
+  await expect(box.getByText(/facing E/)).toBeVisible();
+  await box.getByLabel("Caption").fill("Bare soil, before planting");
+  await box.getByLabel("Caption").blur();
+  await expect(page.getByRole("button", { name: /Open Bare soil, before planting/ })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(box).toHaveCount(0); // Escape closes (unmounts) the lightbox
+
+  await page.getByLabel("Filter by feature").selectOption({ label: "Bed 1" });
+  await expect(thumbs).toHaveCount(2);
+  await page.getByRole("button", { name: "Compare over time" }).click();
+  await expect(page.getByLabel("Before and after comparison")).toBeVisible();
+  await page.getByLabel("Slide between before and after").fill("30");
+  await page.screenshot({ path: "test-results/photos.png" });
+
   expect(errors).toEqual([]);
 });

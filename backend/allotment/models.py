@@ -138,3 +138,43 @@ class Task(db.Model):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, onupdate=_now
     )
+
+
+class Media(db.Model):
+    """An uploaded photo or video, with the metadata pulled from the file itself."""
+
+    __tablename__ = "media"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    uploaded_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    kind: Mapped[str] = mapped_column(String(10))  # photo | video
+    filename: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(100))
+    size_bytes: Mapped[int] = mapped_column(default=0)
+    storage_key: Mapped[str] = mapped_column(String(300))
+    thumb_key: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    width: Mapped[int | None] = mapped_column(nullable=True)
+    height: Mapped[int | None] = mapped_column(nullable=True)
+    duration_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    taken_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, default=_now)
+    taken_at_source: Mapped[str] = mapped_column(
+        String(10), default="upload"
+    )  # exif | upload | manual
+    lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lng: Mapped[float | None] = mapped_column(Float, nullable=True)
+    heading: Mapped[float | None] = mapped_column(Float, nullable=True)
+    feature_id: Mapped[int | None] = mapped_column(
+        ForeignKey("map_features.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    task_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    caption: Mapped[str] = mapped_column(String(500), default="")
+    status: Mapped[str] = mapped_column(String(10), default="pending")  # pending | ready | failed
+    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

@@ -4,7 +4,7 @@ from flask_smorest import Blueprint, abort
 
 from .. import events
 from ..extensions import db
-from ..models import Allotment, Membership, Role, User
+from ..models import Allotment, Media, Membership, Role, User
 from ..schemas import (
     AllotmentCreateSchema,
     AllotmentSchema,
@@ -14,6 +14,7 @@ from ..schemas import (
     MemberUpdateSchema,
 )
 from ..security import current_user, require_role
+from ..storage import safe_delete
 
 blp = Blueprint(
     "allotments", __name__, url_prefix="/api/v1/allotments", description="Allotments and members"
@@ -95,8 +96,14 @@ class AllotmentDetail(MethodView):
     @blp.response(204)
     def delete(self, allotment, membership):
         allotment_id = allotment.id
+        keys = [
+            key
+            for m in db.session.query(Media).filter_by(allotment_id=allotment_id)
+            for key in (m.storage_key, m.thumb_key)
+        ]
         db.session.delete(allotment)
         db.session.commit()
+        safe_delete(*keys)
         events.emit("allotment.deleted", actor_id=membership.user_id, allotment_id=allotment_id)
 
 

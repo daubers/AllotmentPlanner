@@ -3,7 +3,8 @@ from flask_jwt_extended import JWTManager
 from flask_smorest import Api
 
 from . import events, health, models  # noqa: F401 - models register with SQLAlchemy metadata
-from .api import allotments, auth, features, tasks, todo
+from .api import allotments, auth, features, media, tasks, todo
+from .celery_app import celery
 from .config import Config
 from .extensions import db, migrate
 from .logging import configure_logging, init_request_logging
@@ -16,6 +17,8 @@ def create_app(config: type = Config) -> Flask:
     app.config.from_object(config)
 
     configure_logging(app.config["LOG_LEVEL"])
+    celery.conf.task_always_eager = app.config.get("CELERY_ALWAYS_EAGER", False)
+    celery.conf.task_eager_propagates = True
     db.init_app(app)
     migrate.init_app(app, db)
     JWTManager(app)
@@ -25,6 +28,8 @@ def create_app(config: type = Config) -> Flask:
     api.register_blueprint(features.blp)
     api.register_blueprint(tasks.blp)
     api.register_blueprint(todo.blp)
+    api.register_blueprint(media.blp)
+    api.register_blueprint(media.files_blp)
 
     init_request_logging(app)
     init_metrics(app)

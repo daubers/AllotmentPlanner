@@ -1,6 +1,7 @@
 FROM python:3.13-slim AS base
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+# ffmpeg/ffprobe: video metadata and thumbnails (used by the Celery worker)
+RUN apt-get update && apt-get install -y --no-install-recommends curl ffmpeg && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY pyproject.toml ./
 COPY allotment ./allotment
@@ -9,7 +10,8 @@ EXPOSE 8000
 # Published image: no dev extras, no autoreload.
 FROM base AS prod
 RUN pip install --no-cache-dir .
-RUN useradd --system --no-create-home allotment
+RUN useradd --system --no-create-home allotment \
+ && mkdir -p /data/media && chown allotment /data/media
 USER allotment
 CMD ["gunicorn", "-b", "0.0.0.0:8000", "allotment:create_app()"]
 
