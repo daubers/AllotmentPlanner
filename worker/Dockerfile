@@ -2,9 +2,13 @@
 # tiles). Build context is ./backend:  docker build -f worker/Dockerfile backend
 #
 # OpenSfM lives in its own virtualenv and is run as a subprocess, so its pinned numpy/OpenCV never
-# touch the app's environment. It has no published image or wheel, so it is built from a pinned
-# commit (slow the first time: expect 15-30 minutes; later builds reuse the cached layers).
-FROM ubuntu:24.04
+# touch the app's environment. It has no published image or wheel, so it is compiled from a pinned
+# commit in a build stage; the final image carries only the result and the libraries it needs.
+# Layers are kept deliberately small (several RUN/COPY steps, not one): registries behind a
+# reverse proxy often cap the size of a single blob upload.
+
+# --- build: compilers and -dev packages never reach the final image ---------------------------
+FROM ubuntu:24.04 AS build
 
 ARG DEBIAN_FRONTEND=noninteractive
 # mapillary/OpenSfM master as of 2026-10-21 (v0.5.2 development)
@@ -12,9 +16,9 @@ ARG OPENSFM_REF=65571c8ae9ac6a1d0bcd3fdc1ea5fff97b1b5611
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        build-essential ca-certificates cmake curl ffmpeg gdal-bin git \
-        libceres-dev libeigen3-dev libopencv-dev libpq5 \
-        python3 python3-dev python3-gdal python3-pip python3-venv \
+        build-essential ca-certificates cmake git \
+        libceres-dev libeigen3-dev libopencv-dev \
+        python3 python3-dev python3-pip python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 # Keep the compiler from using more memory than a laptop-sized Docker VM has.
@@ -26,6 +30,37 @@ RUN git init -q /opt/OpenSfM \
     && git -C /opt/OpenSfM submodule update -q --init --recursive --depth 1 \
     && python3 -m venv /opt/opensfm-venv \
     && /opt/opensfm-venv/bin/pip install --no-cache-dir /opt/OpenSfM
+
+# Which Ubuntu packages provide the shared libraries the compiled extensions link against
+# (readlink: dpkg knows the real /usr/lib path, not the /lib alias that ldd prints).
+RUN find /opt/opensfm-venv/lib -name '*.so' -path '*opensfm*' -print0 \
+    | xargs -0 ldd 2>/dev/null | awk '/=> \//{print $3}' | sort -u \
+    | xargs readlink -f | sort -u \
+    | xargs dpkg -S 2>/dev/null | grep -E '^[a-z0-9][a-z0-9+.-]*(:[a-z0-9]+)?: /' | cut -d: -f1 | sort -u \
+    > /opt/opensfm-runtime-packages.txt \
+    && cat /opt/opensfm-runtime-packages.txt
+
+# --- runtime ----------------------------------------------------------------------------------
+FROM ubuntu:24.04 AS runtime
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl libpq5 python3 python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends gdal-bin python3-gdal \
+    && rm -rf /var/lib/apt/lists/*
+
+# Libraries the OpenSfM extensions need (OpenCV, Ceres, glog, ...), computed in the build stage.
+COPY --from=build /opt/opensfm-runtime-packages.txt /tmp/opensfm-runtime-packages.txt
+RUN apt-get update \
+    && xargs -a /tmp/opensfm-runtime-packages.txt apt-get install -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/* /tmp/opensfm-runtime-packages.txt
+
+COPY --from=build /opt/opensfm-venv /opt/opensfm-venv
+COPY --from=build /opt/OpenSfM/bin /opt/OpenSfM/bin
 
 # The app, in a separate environment.
 RUN python3 -m venv /opt/app-venv
