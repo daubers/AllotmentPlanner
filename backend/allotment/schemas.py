@@ -327,3 +327,65 @@ class MastodonPostQuerySchema(Schema):
         validate=validate.OneOf(["pending", "sending", "sent", "failed", "skipped"])
     )
     limit = fields.Integer(load_default=30, validate=validate.Range(min=1, max=100))
+
+
+class MapJobInSchema(Schema):
+    name = fields.String(load_default="", validate=validate.Length(max=120))
+    media_ids = fields.List(
+        fields.Integer(),
+        load_default=None,
+        metadata={"description": "Photos/videos to use; default is every ready photo"},
+    )
+    view = fields.String(
+        load_default="oblique",
+        validate=validate.OneOf(["oblique", "overhead"]),
+        metadata={
+            "description": "oblique: hand-held, camera roughly level; overhead: looking down"
+        },
+    )
+    camera_height_m = fields.Float(
+        load_default=1.7,
+        validate=validate.Range(min=0.3, max=120),
+        metadata={"description": "About how high the camera was held above the ground"},
+    )
+
+
+class MapJobSchema(Schema):
+    id = fields.Integer()
+    name = fields.String()
+    status = fields.String()
+    stage = fields.String()
+    view = fields.String()
+    camera_height_m = fields.Float()
+    media_count = fields.Integer()
+    shots_total = fields.Integer(allow_none=True)
+    shots_used = fields.Integer(allow_none=True)
+    error = fields.String(allow_none=True)
+    log = fields.String(metadata={"description": "Tail of the processing log (detail view only)"})
+    layer_id = fields.Integer(allow_none=True)
+    cancel_requested = fields.Boolean()
+    created_at = fields.DateTime()
+    started_at = fields.DateTime(allow_none=True)
+    finished_at = fields.DateTime(allow_none=True)
+
+
+class MapLayerSchema(Schema):
+    id = fields.Integer()
+    name = fields.String()
+    job_id = fields.Integer(allow_none=True)
+    bounds = fields.List(
+        fields.Float(), metadata={"description": "[west, south, east, north] in degrees"}
+    )
+    min_zoom = fields.Integer()
+    max_zoom = fields.Integer()
+    tile_count = fields.Integer()
+    opacity = fields.Float()
+    visible = fields.Boolean()
+    tile_url = fields.String(metadata={"description": "XYZ template with a signed, expiring token"})
+    created_at = fields.DateTime()
+
+
+class MapLayerPatchSchema(Schema):
+    name = fields.String(validate=validate.Length(min=1, max=120))
+    opacity = fields.Float(validate=validate.Range(min=0, max=1))
+    visible = fields.Boolean()

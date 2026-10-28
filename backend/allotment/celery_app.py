@@ -13,6 +13,9 @@ celery.conf.update(
     worker_send_task_events=True,
     task_send_sent_event=True,
     task_default_headers={},
+    # Photogrammetry is heavy and slow, so it has its own queue and worker (the `mapper` service);
+    # the default worker keeps handling thumbnails and Mastodon posts in the meantime.
+    task_routes={"allotment.run_map_job": {"queue": "mapping"}},
     beat_schedule={
         "mastodon-daily-digest": {
             "task": "allotment.mastodon_daily_digest",

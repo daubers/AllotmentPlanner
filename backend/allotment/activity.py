@@ -18,6 +18,7 @@ RECORDED = {
     "feature.updated",
     "feature.deleted",
     "feature.bulk_replaced",
+    "layer.created",
 }
 
 

@@ -45,7 +45,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # Add `worker` (AM-9) here when it is created.
         include:
           - name: allotment-api
             context: backend
@@ -53,6 +52,11 @@ jobs:
           - name: allotment-frontend
             context: frontend
             target: prod
+          # OpenSfM + GDAL mapping worker. The first build compiles OpenSfM (15-30 minutes); the
+          # registry cache below makes later builds quick. `file` is relative to the workspace.
+          - name: allotment-worker
+            context: backend
+            file: worker/Dockerfile
     steps:
       - uses: actions/checkout@v4
 
@@ -87,6 +91,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
           target: ${{ matrix.target }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}

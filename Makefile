@@ -1,4 +1,4 @@
-.PHONY: env up down observability test logs e2e
+.PHONY: env up down observability mapper mapping-check test logs e2e
 
 env:
 	@test -f .env || cp .env.example .env
@@ -6,11 +6,20 @@ env:
 up: env
 	docker compose up --build -d
 
+# The photogrammetry worker (large image, slow first build): needed for "Build map" jobs.
+mapper: env
+	docker compose --profile mapping up --build -d mapper
+
+# Builds a synthetic scene, runs it through the real pipeline and checks the result is in the right
+# place and shape (needs `make up mapper`; takes several minutes).
+mapping-check:
+	python3 scripts/mapping_check.py
+
 observability: env
 	docker compose --profile observability up --build -d
 
 down:
-	docker compose --profile observability down
+	docker compose --profile observability --profile mapping down
 
 test: env
 	docker compose run --rm --no-deps api pytest -q

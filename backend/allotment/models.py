@@ -255,3 +255,62 @@ class MastodonPost(db.Model):
     send_after: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class MapJob(db.Model):
+    """A request to build a georeferenced map layer from photos and video (OpenSfM + GDAL)."""
+
+    __tablename__ = "map_jobs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(120))
+    status: Mapped[str] = mapped_column(
+        String(10), default="queued", index=True
+    )  # queued | running | ready | failed | cancelled
+    stage: Mapped[str] = mapped_column(String(20), default="")
+    media_ids: Mapped[list] = mapped_column(JSON, default=list)
+    view: Mapped[str] = mapped_column(String(10), default="oblique")  # oblique | overhead
+    camera_height_m: Mapped[float] = mapped_column(Float, default=1.7)
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    log: Mapped[str] = mapped_column(Text, default="")
+    shots_total: Mapped[int | None] = mapped_column(nullable=True)
+    shots_used: Mapped[int | None] = mapped_column(nullable=True)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class MapLayer(db.Model):
+    """A generated orthophoto, stored as XYZ tiles and shown over the map."""
+
+    __tablename__ = "map_layers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("map_jobs.id", ondelete="SET NULL"), nullable=True
+    )
+    name: Mapped[str] = mapped_column(String(120))
+    west: Mapped[float] = mapped_column(Float)
+    south: Mapped[float] = mapped_column(Float)
+    east: Mapped[float] = mapped_column(Float)
+    north: Mapped[float] = mapped_column(Float)
+    min_zoom: Mapped[int] = mapped_column()
+    max_zoom: Mapped[int] = mapped_column()
+    tile_count: Mapped[int] = mapped_column(default=0)
+    opacity: Mapped[float] = mapped_column(Float, default=0.85)
+    visible: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    @property
+    def tile_prefix(self) -> str:
+        return f"allotments/{self.allotment_id}/layers/{self.id}/tiles"

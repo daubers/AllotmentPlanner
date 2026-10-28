@@ -55,3 +55,23 @@ def test_file_storage_rejects_path_traversal(tmp_path, source):
     with pytest.raises(ValueError):
         store.put("../escape.bin", source, "application/octet-stream")
     assert not (tmp_path / "escape.bin").exists()
+
+
+def test_get_bytes_returns_none_for_a_missing_object(storage, source):
+    storage.put("t/1/2/3.png", source, "image/png")
+    assert storage.get_bytes("t/1/2/3.png") == DATA
+    assert storage.get_bytes("t/1/2/missing.png") is None
+
+
+def test_delete_prefix_removes_only_that_folder(storage, source):
+    for key in (
+        "layers/1/tiles/0/0/0.png",
+        "layers/1/tiles/1/0/0.png",
+        "layers/10/tiles/0/0/0.png",
+    ):
+        storage.put(key, source, "image/png")
+    storage.delete_prefix("layers/1")
+    assert storage.get_bytes("layers/1/tiles/0/0/0.png") is None
+    assert storage.get_bytes("layers/1/tiles/1/0/0.png") is None
+    assert storage.get_bytes("layers/10/tiles/0/0/0.png") == DATA  # a different layer, same digits
+    storage.delete_prefix("layers/nothing-here")  # a missing prefix is fine

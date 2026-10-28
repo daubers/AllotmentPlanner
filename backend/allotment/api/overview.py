@@ -26,6 +26,7 @@ COUNTERS = {
     "feature.updated": "map_edits",
     "feature.deleted": "map_edits",
     "feature.bulk_replaced": "map_edits",
+    "layer.created": "map_edits",
 }
 FIELDS = ("tasks_done", "tasks_added", "photos_added", "map_edits")
 # A day counts towards a streak if real work happened (planning alone doesn't).
