@@ -232,3 +232,49 @@ class MediaSchema(Schema):
     thumb_url = fields.String(allow_none=True)
     uploaded_by = fields.Integer(allow_none=True)
     created_at = fields.DateTime()
+
+
+class OverviewQuerySchema(Schema):
+    days = fields.Integer(
+        load_default=90,
+        validate=validate.Range(min=7, max=366),
+        metadata={"description": "Length of the daily history window, ending today (UTC)"},
+    )
+    today = fields.Date(metadata={"description": "Treat this as today (UTC); mainly for tests"})
+
+
+class OverviewDaySchema(Schema):
+    date = fields.Date()
+    tasks_done = fields.Integer()
+    tasks_added = fields.Integer()
+    photos_added = fields.Integer()
+    map_edits = fields.Integer()
+    total = fields.Integer()
+
+
+class OverviewCountsSchema(Schema):
+    tasks_done = fields.Integer()
+    tasks_added = fields.Integer()
+    photos_added = fields.Integer()
+    map_edits = fields.Integer()
+    active_days = fields.Integer()
+
+
+class OverviewStreakSchema(Schema):
+    current = fields.Integer(
+        metadata={"description": "Consecutive active days up to today or yesterday"}
+    )
+    longest = fields.Integer()
+
+
+class OverviewSchema(Schema):
+    days = fields.List(fields.Nested(OverviewDaySchema))
+    this_week = fields.Nested(OverviewCountsSchema)
+    last_week = fields.Nested(OverviewCountsSchema)
+    totals = fields.Nested(OverviewCountsSchema)
+    streak = fields.Nested(OverviewStreakSchema)
+    open_tasks = fields.Integer()
+    recent_photos = fields.List(fields.Nested(MediaSchema))
+    recent_done = fields.List(
+        fields.Dict(), metadata={"description": "Latest completed tasks: id, title, completed_at"}
+    )

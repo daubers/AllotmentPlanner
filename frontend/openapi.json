@@ -1275,6 +1275,67 @@
           }
         }
       ]
+    },
+    "/api/v1/allotments/{allotment_id}/overview": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "description": "Length of the daily history window, ending today (UTC)",
+            "schema": {
+              "type": "integer",
+              "default": 90,
+              "minimum": 7,
+              "maximum": 366
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "today",
+            "description": "Treat this as today (UTC); mainly for tests",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Per-day activity counts, weekly comparison, streaks and the newest photos.",
+        "tags": [
+          "overview"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
     }
   },
   "info": {
@@ -1309,6 +1370,10 @@
     {
       "name": "media-files",
       "description": "Signed media downloads"
+    },
+    {
+      "name": "overview",
+      "description": "Progress overview: what got done, and when"
     }
   ],
   "openapi": "3.0.3",
@@ -2067,6 +2132,106 @@
             "minimum": 0.0,
             "maximum": 360.0,
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "OverviewDay": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "tasks_done": {
+            "type": "integer"
+          },
+          "tasks_added": {
+            "type": "integer"
+          },
+          "photos_added": {
+            "type": "integer"
+          },
+          "map_edits": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OverviewCounts": {
+        "type": "object",
+        "properties": {
+          "tasks_done": {
+            "type": "integer"
+          },
+          "tasks_added": {
+            "type": "integer"
+          },
+          "photos_added": {
+            "type": "integer"
+          },
+          "map_edits": {
+            "type": "integer"
+          },
+          "active_days": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OverviewStreak": {
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": "integer",
+            "description": "Consecutive active days up to today or yesterday"
+          },
+          "longest": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Overview": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OverviewDay"
+            }
+          },
+          "this_week": {
+            "$ref": "#/components/schemas/OverviewCounts"
+          },
+          "last_week": {
+            "$ref": "#/components/schemas/OverviewCounts"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/OverviewCounts"
+          },
+          "streak": {
+            "$ref": "#/components/schemas/OverviewStreak"
+          },
+          "open_tasks": {
+            "type": "integer"
+          },
+          "recent_photos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Media"
+            }
+          },
+          "recent_done": {
+            "type": "array",
+            "description": "Latest completed tasks: id, title, completed_at",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
           }
         },
         "additionalProperties": false

@@ -16,7 +16,7 @@ Tickets live in YouTrack project **AM** (Allotment Manager) at pm.daubney.dev. W
 | 4 Tasks pinned to features | AM-4 | Merged (in Review) |
 | 5 Printable daily todo | AM-5 | Merged (in Review) |
 | 6 Media upload, EXIF, timeline | AM-6 | Merged (in Review) |
-| 7 Progress overview | AM-7 | Backlog |
+| 7 Progress overview | AM-7 | Merged (in Review) |
 | 8 Mastodon posting | AM-8 | Backlog |
 | 9 Map from media (OpenSfM) | AM-9 | Backlog |
 | 10 Polish: seed data, e2e, docs | AM-10 | Backlog |
@@ -77,7 +77,7 @@ Vite + React + TS, React Router, TanStack Query, `openapi-typescript` + `openapi
 4. **Tasks**: CRUD, pin to feature, recurrence, Tasks page, map pins. ✅
 5. **Today / print todo**: endpoint + print stylesheet. Done as a client-rendered sheet (SVG plot sketch with numbered pins) printed via the browser; a server-side PDF was dropped as unnecessary. ✅
 6. **Media & timeline**: upload through the API (multipart) into pluggable storage, Celery task for EXIF/GPS/ffprobe metadata and thumbnails, signed short-lived file URLs with Range support for video, feature/task-linked photos, day-grouped timeline, before/after slider. ✅ Not yet: HEIC (rejected with a clear message), manual drag-to-place on the map.
-7. **Progress overview**: `ActivityLog` writes everywhere, aggregation endpoint, dashboard.
+7. **Progress overview**: an event-bus subscriber writes `ActivityLog` rows (task created/completed/reopened, media uploaded, feature changes); `GET /allotments/{id}/overview` aggregates per-day counts (UTC), this/last week, all-time totals, streaks (a day counts if a task was done, a photo added or the map edited; a streak ending yesterday is still alive), latest photos and completed tasks. Dashboard page: headline sentence, stat tiles, heatmap calendar, recent jobs and photos. Only events from now on are logged (no backfill). ✅
 8. **Mastodon**: settings, posting task, event opt-ins, digest.
 9. **Map from media (OpenSfM)**: worker image, `MapJob` pipeline, ortho overlay, manual placement fallback. Adds the `worker` image to CI.
 10. **Polish**: seed data, e2e tests, README/docs.

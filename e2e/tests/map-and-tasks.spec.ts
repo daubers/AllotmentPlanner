@@ -120,5 +120,12 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await page.getByLabel("Slide between before and after").fill("30");
   await page.screenshot({ path: "test-results/photos.png" });
 
+  await page.getByRole("link", { name: "Overview" }).click();
+  await expect(page.getByRole("heading", { name: /This week you .*added 2 photos/ })).toBeVisible();
+  await expect(page.getByText(/1 day in a row/)).toBeVisible();
+  await expect(page.locator(".heatmap .heat.l4")).toHaveCount(1); // today is the busiest (only) day
+  await expect(page.locator(".tile img")).toHaveCount(2); // latest photos
+  await page.screenshot({ path: "test-results/overview.png" });
+
   expect(errors).toEqual([]);
 });
