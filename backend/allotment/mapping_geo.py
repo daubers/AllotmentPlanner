@@ -124,27 +124,44 @@ def load_reconstruction(
 # --- ground plane ---------------------------------------------------------------------------
 
 
-def fit_ground_plane(points: np.ndarray, iterations: int = 4) -> tuple[float, float, float]:
-    """Plane ``z = a*x + b*y + c`` through the lower part of the point cloud.
+def fit_ground_plane(
+    points: np.ndarray,
+    iterations: int = 6,
+    ceiling: float | None = None,
+    max_slope: float = 0.25,
+) -> tuple[float, float, float]:
+    """Plane ``z = a*x + b*y + c`` through the ground in the point cloud.
 
-    Plants, sheds and fences stick up out of the ground, so after each least-squares fit the
-    points well above the plane are dropped and it is fitted again.
+    Plants, sheds and fences stick up out of the ground, so the fit starts from the lowest
+    points and, after each least-squares pass, drops everything well above the plane. Two
+    sanity limits keep it honest on messy data: points above ``ceiling`` (the cameras' height: the
+    ground is below the person holding the camera) are ignored, and a plot is not steep, so a
+    tilt beyond ``max_slope`` (rise over run) is replaced by a level plane.
     """
-    if len(points) < 10:
+    pts = points if ceiling is None else points[points[:, 2] < ceiling]
+    if len(pts) < 10:
         raise ReconstructionError("Too few reconstructed points to find the ground")
-    pts = points
+    keep = pts[:, 2] <= np.percentile(pts[:, 2], 40)
     a = b = 0.0
-    c = float(np.percentile(points[:, 2], 30))
-    keep = np.ones(len(pts), dtype=bool)
+    c = float(np.median(pts[keep, 2]))
     for _ in range(iterations):
-        design = np.c_[pts[keep, 0], pts[keep, 1], np.ones(keep.sum())]
-        a, b, c = np.linalg.lstsq(design, pts[keep, 2], rcond=None)[0]
-        residual = pts[:, 2] - (a * pts[:, 0] + b * pts[:, 1] + c)
-        spread = max(float(np.median(np.abs(residual[keep]))) * 1.4826, 0.02)
-        keep = residual < 1.0 * spread  # drop everything above the ground
         if keep.sum() < 10:
             break
+        design = np.c_[pts[keep, 0], pts[keep, 1], np.ones(keep.sum())]
+        a, b, c = np.linalg.lstsq(design, pts[keep, 2], rcond=None)[0]
+        if math.hypot(a, b) > max_slope:
+            a = b = 0.0
+            c = float(np.median(pts[keep, 2]))
+        residual = pts[:, 2] - (a * pts[:, 0] + b * pts[:, 1] + c)
+        spread = max(float(np.median(np.abs(residual[keep]))) * 1.4826, 0.03)
+        keep = (residual < spread) & (residual > -2.5 * spread)
     return float(a), float(b), float(c)
+
+
+def ground_plane_for(rec: Reconstruction) -> tuple[float, float, float]:
+    """The ground under a reconstruction's cameras: points above the cameras can't be ground."""
+    ceiling = float(np.median([s.centre[2] for s in rec.shots])) if rec.shots else None
+    return fit_ground_plane(rec.points, ceiling=ceiling)
 
 
 # --- projecting photos onto the ground -------------------------------------------------------
@@ -378,3 +395,36 @@ def compass_yaw(
     if agreement < min_agreement:
         return None
     return float(math.atan2(sin, cos)), agreement
+
+
+def camera_up(rec: Reconstruction) -> np.ndarray:
+    """The average direction of the top of the photos, as a unit vector: for upright photos looking
+    round in all directions, that is straight up."""
+    up = -np.mean([s.rotation[1] for s in rec.shots], axis=0)  # image "down" is rotation row 1
+    return up / np.linalg.norm(up)
+
+
+def level(rec: Reconstruction, max_tilt_deg: float = 25.0) -> tuple[Reconstruction, float]:
+    """Stand a reconstruction upright if its vertical is badly off (OpenSfM only aligns the vertical
+    well when GPS or an orientation prior pins it down). Returns the reconstruction and the angle in
+    degrees it was turned (0 when it was fine). Small tilts are left alone: photos all looking the
+    same way are tilted by their pitch, so the average-up estimate is not exact."""
+    up = camera_up(rec)
+    angle = math.degrees(math.acos(float(np.clip(up[2], -1.0, 1.0))))
+    if angle <= max_tilt_deg:
+        return rec, 0.0
+    axis = np.cross(up, [0.0, 0.0, 1.0])
+    axis /= np.linalg.norm(axis)
+    turn = rodrigues(axis * math.radians(angle))  # takes ``up`` onto +z
+    centres = np.array([s.centre for s in rec.shots])
+    origin = centres.mean(axis=0)
+
+    def move(points: np.ndarray) -> np.ndarray:
+        return (np.atleast_2d(points) - origin) @ turn.T + origin
+
+    shots = []
+    for shot in rec.shots:
+        rotation = shot.rotation @ turn.T
+        shots.append(Shot(shot.name, rotation, -rotation @ move(shot.centre)[0], shot.camera))
+    points = move(rec.points) if len(rec.points) else rec.points
+    return Reconstruction(rec.reference, shots, points), angle

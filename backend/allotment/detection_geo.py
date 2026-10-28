@@ -103,7 +103,19 @@ def footprint_from_mask(
     pixels = contact_points(mask)
     if pixels is None:
         return None
-    hits = ground_hits(shot, plane, pixels * scale, max_range)
+    return footprint_from_pixels(shot, plane, pixels * scale, score, shape, max_range)
+
+
+def footprint_from_pixels(
+    shot: Shot,
+    plane: tuple[float, float, float],
+    pixels: np.ndarray,
+    score: float,
+    shape: str,
+    max_range: float = MAX_RANGE_M,
+) -> Footprint | None:
+    """The same from the contact pixels (camera pixels) alone, so a mask need not be kept."""
+    hits = ground_hits(shot, plane, pixels, max_range)
     ok = ~np.isnan(hits).any(axis=1)
     if ok.sum() < MIN_CONTACT_POINTS:
         return None
@@ -133,6 +145,49 @@ def footprint_from_mask(
     return Footprint(
         float(centre[0]), float(centre[1]), width, depth, angle, distance, float(score)
     )
+
+
+def scaled(f: Footprint, factor: float) -> Footprint:
+    """The footprint with every length multiplied by ``factor`` (positions about the origin)."""
+    return Footprint(
+        f.x * factor,
+        f.y * factor,
+        f.width * factor,
+        f.depth * factor,
+        f.angle,
+        f.distance * factor,
+        f.score,
+    )
+
+
+def contact_ground_points(
+    shot: Shot,
+    plane: tuple[float, float, float],
+    mask: np.ndarray,
+    scale: float = 1.0,
+    max_range: float = MAX_RANGE_M,
+    limit: int = 12,
+) -> np.ndarray:
+    """Ground positions (east, north) along the foot of a mask, at most ``limit`` of them spread
+    along it: used for fences and posts, where it is the line on the ground that matters."""
+    pixels = contact_points(mask)
+    if pixels is None:
+        return np.zeros((0, 2))
+    return ground_points_from_pixels(shot, plane, pixels * scale, max_range, limit)
+
+
+def ground_points_from_pixels(
+    shot: Shot,
+    plane: tuple[float, float, float],
+    pixels: np.ndarray,
+    max_range: float = MAX_RANGE_M,
+    limit: int = 12,
+) -> np.ndarray:
+    hits = ground_hits(shot, plane, pixels, max_range)
+    ok = hits[~np.isnan(hits).any(axis=1)][:, :2]
+    if len(ok) > limit:
+        ok = ok[np.linspace(0, len(ok) - 1, limit).astype(int)]
+    return ok
 
 
 def _same_object(a: FusedObject, o: Observation) -> bool:

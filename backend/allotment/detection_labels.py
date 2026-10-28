@@ -11,6 +11,9 @@ class ObjectType:
     prompts: tuple[str, ...]  # phrases the detector is asked to find
     min_score: float
     width_m: tuple[float, float] = (0.2, 10.0)  # plausible size across, for sanity checks
+    # "object": becomes a map feature. "post"/"fence": not shown themselves; their positions on
+    # the ground are used to work out the plot's outline.
+    role: str = "object"
 
 
 # Tuned on a real, overgrown plot: "greenhouse" fires on bare ground unless held to a higher bar,
@@ -28,16 +31,26 @@ TYPES: tuple[ObjectType, ...] = (
     ObjectType("Raised bed", "bed", "rect", ("raised bed",), 0.35, (0.5, 10.0)),
 )
 
+# The plot's edge: fence posts give points, fences give their foot as a line of points. Their
+# bars are low because a stray detection costs little: the line fit ignores outliers.
+BOUNDARY_TYPES: tuple[ObjectType, ...] = (
+    ObjectType("Fence post", "boundary", "point", ("fence post", "wooden post"), 0.28, role="post"),
+    ObjectType(
+        "Fence", "boundary", "line", ("fence", "wire fence", "mesh fence"), 0.30, role="fence"
+    ),
+)
+ALL_TYPES = TYPES + BOUNDARY_TYPES
+
 # Anything covering more of the photo than this is a misfire (the ground, the sky), not an object.
 MAX_MASK_FRACTION = 0.35
 
 
-def prompt_text(types: tuple[ObjectType, ...] = TYPES) -> str:
+def prompt_text(types: tuple[ObjectType, ...] = ALL_TYPES) -> str:
     """The text given to the detector: every phrase, each ending in a full stop."""
     return " ".join(f"{p}." for t in types for p in t.prompts)
 
 
-def type_for_phrase(phrase: str, types: tuple[ObjectType, ...] = TYPES) -> ObjectType | None:
+def type_for_phrase(phrase: str, types: tuple[ObjectType, ...] = ALL_TYPES) -> ObjectType | None:
     """The object type a detected phrase belongs to (the longest matching prompt wins)."""
     text = phrase.lower().strip()
     best: tuple[int, ObjectType] | None = None

@@ -327,4 +327,7 @@ def run_map_job(job_id: int) -> str:
             log.exception("map_job_crashed")
             return finish("failed", f"Unexpected error: {exc.__class__.__name__}")
         finally:
-            shutil.rmtree(work, ignore_errors=True)
+            if not os.environ.get(
+                "MAPPING_KEEP_WORK"
+            ):  # set it to inspect a run's files afterwards
+                shutil.rmtree(work, ignore_errors=True)
