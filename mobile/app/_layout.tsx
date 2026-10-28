@@ -1,6 +1,6 @@
 import { Redirect, Stack, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { AppProvider, useApp } from "../src/app/AppProvider";
+import { AppProvider, useApp } from "../src/state/AppProvider";
 
 function Gate() {
   const { signedIn } = useApp();

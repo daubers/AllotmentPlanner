@@ -5,7 +5,7 @@ import { DeviceMotion } from "expo-sensors";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useApp, useQueueState } from "../src/app/AppProvider";
+import { useApp, useQueueState } from "../src/state/AppProvider";
 import {
   MIN_PHOTOS_FOR_MAP,
   SECTORS,
