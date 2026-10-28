@@ -1,0 +1,25 @@
+<!doctype html><meta charset="utf-8"><title>Logo options</title>
+<style>
+ body{margin:0;padding:28px;background:#e4e8e2;font:16px -apple-system,Helvetica,Arial,sans-serif;color:#13201a}
+ h1{font-size:22px;margin:0 0 20px}
+ .row{display:flex;gap:28px;align-items:flex-end;margin-bottom:34px;flex-wrap:wrap}
+ .cell{display:flex;flex-direction:column;gap:6px;align-items:center;font-size:13px}
+ .name{font-weight:700;font-size:15px;width:100%}
+ .lock{display:flex;align-items:center;gap:14px;font-weight:800;font-size:34px;letter-spacing:-.5px;background:#f1f4ee;padding:14px 22px;border-radius:16px}
+ .lock.dark{background:#0e1310;color:#eef3ee}
+ img{display:block}
+ .bar{display:flex;align-items:center;gap:8px;background:#fff;border-radius:10px;padding:6px 12px;font-size:13px}
+</style>
+<h1>Allotment: logo options</h1>
+<script>
+const opts=[["A","Seedling","option-a-sprout.svg"],["B","Map pin","option-b-pin.svg"],["C","Plot plan","option-c-plot.svg"],["D","Sun and rows","option-d-rows.svg"]];
+for(const [k,n,f] of opts){document.write(`<div class="row"><div class="name">${k}. ${n}</div>
+<div class="cell"><img src="${f}" width="200" height="200">200</div>
+<div class="cell"><img src="${f}" width="96" height="96">96</div>
+<div class="cell"><img src="${f}" width="48" height="48">48</div>
+<div class="cell"><img src="${f}" width="32" height="32">32</div>
+<div class="cell"><img src="${f}" width="16" height="16">16</div>
+<div class="lock"><img src="${f}" width="56" height="56">Allotment</div>
+<div class="lock dark"><img src="${f}" width="56" height="56">Allotment</div>
+<div class="bar"><img src="${f}" width="16" height="16"> Allotment Planner</div></div>`)}
+</script>

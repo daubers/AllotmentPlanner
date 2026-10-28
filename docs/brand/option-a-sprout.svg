@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Allotment: a seedling">
+  <title>Allotment: a seedling</title>
+  <rect width="512" height="512" rx="112" fill="#17653a"/>
+  <path d="M84 404 Q256 332 428 404 L428 440 Q256 484 84 440 Z" fill="#f1f4ee"/>
+  <path d="M256 392 L256 214" stroke="#f1f4ee" stroke-width="22" stroke-linecap="round" fill="none"/>
+  <path d="M256 300 C196 304 150 262 146 198 C214 194 258 238 256 300 Z" fill="#74d492"/>
+  <path d="M256 236 C254 168 298 122 366 118 C370 188 326 238 256 236 Z" fill="#b8efc9"/>
+</svg>
