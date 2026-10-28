@@ -1451,6 +1451,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Limits the browser should respect, so it can explain a problem before sending a file. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Limits"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/allotments/{allotment_id}/map-jobs": {
         parameters: {
             query?: never;
@@ -2137,6 +2174,10 @@ export interface components {
             send_after?: string;
             /** Format: date-time */
             posted_at?: string | null;
+        };
+        Limits: {
+            /** @description Largest accepted upload */
+            max_upload_bytes?: number;
         };
         MapJob: {
             id?: number;

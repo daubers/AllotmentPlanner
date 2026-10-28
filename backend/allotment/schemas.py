@@ -389,3 +389,7 @@ class MapLayerPatchSchema(Schema):
     name = fields.String(validate=validate.Length(min=1, max=120))
     opacity = fields.Float(validate=validate.Range(min=0, max=1))
     visible = fields.Boolean()
+
+
+class LimitsSchema(Schema):
+    max_upload_bytes = fields.Integer(metadata={"description": "Largest accepted upload"})

@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
+import { sendUpload } from "./upload";
 import type { components } from "../api/schema";
 import type { Media } from "./group";
 
@@ -37,17 +38,16 @@ function toFormData(body: Record<string, unknown>): FormData {
 
 export type UploadInput = { file: File; featureId?: number | null; caption?: string };
 
-export async function uploadMedia(allotmentId: number, { file, featureId, caption }: UploadInput): Promise<Media> {
-  const { data, error, response } = await api.POST("/api/v1/allotments/{allotment_id}/media", {
-    params: path(allotmentId),
-    body: { file: file as unknown as string, feature_id: featureId ?? undefined, caption },
-    bodySerializer: (b) => toFormData(b as Record<string, unknown>),
-  });
-  if (!data) {
-    const message = (error as { message?: string } | undefined)?.message;
-    throw new Error(message ?? (response.status === 413 ? "File is too large" : `Upload failed (${response.status})`));
-  }
-  return data;
+/** Upload one file, reporting progress (0 to 1). Large videos take minutes, so this uses XHR:
+ *  fetch can't report upload progress. */
+export function uploadMedia(
+  allotmentId: number,
+  { file, featureId, caption }: UploadInput,
+  onProgress?: (fraction: number) => void,
+  maxBytes?: number,
+): Promise<Media> {
+  const form = toFormData({ file, feature_id: featureId, caption });
+  return sendUpload(`/api/v1/allotments/${allotmentId}/media`, form, { file, onProgress, maxBytes });
 }
 
 export function useMediaActions(allotmentId: number) {

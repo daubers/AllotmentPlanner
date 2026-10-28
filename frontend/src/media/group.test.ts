@@ -3,6 +3,14 @@ import { compass, dayOf, formatDuration, formatSize, groupByDay, mapLink, timeOf
 
 const m = (id: number, taken_at: string, extra: Partial<Media> = {}): Media => ({ id, taken_at, ...extra }) as Media;
 
+describe("formatSize", () => {
+  it("scales through KB, MB and GB", () => {
+    expect(formatSize(500)).toBe("1 KB");
+    expect(formatSize(5.5 * 1024 * 1024)).toBe("5.5 MB");
+    expect(formatSize(3.9 * 1024 ** 3)).toBe("3.9 GB");
+  });
+});
+
 describe("groupByDay", () => {
   const items = [m(1, "2026-10-27T14:03:05+00:00"), m(2, "2026-10-27T09:00:00+00:00"), m(3, "2026-10-01T12:00:00+00:00")];
 

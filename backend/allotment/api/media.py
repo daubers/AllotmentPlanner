@@ -129,6 +129,7 @@ class MediaList(MethodView):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "upload")
             upload.save(path)
+            upload.close()  # drops the multipart spool now, not at the end of the request
             size = os.path.getsize(path)
             if size == 0:
                 abort(422, message="The file is empty")

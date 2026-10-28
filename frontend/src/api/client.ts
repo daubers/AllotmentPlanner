@@ -63,21 +63,32 @@ async function refresh(): Promise<void> {
   }
 }
 
+/** The Authorization header value for a request, refreshing a token that is about to expire. */
+export async function authHeader(): Promise<string | undefined> {
+  if (tokens && secondsLeft(tokens.access_token) < 60) {
+    refreshing ??= refresh().finally(() => (refreshing = null));
+    await refreshing;
+  }
+  return tokens ? `Bearer ${tokens.access_token}` : undefined;
+}
+
+/** Call when the server says the session is no longer valid. */
+export function sessionRejected(): void {
+  if (tokens) {
+    setSession(null);
+    onSessionExpired();
+  }
+}
+
 const auth: Middleware = {
   async onRequest({ request }) {
     if (request.url.includes("/api/v1/auth/") && !request.url.endsWith("/auth/me")) return request;
-    if (tokens && secondsLeft(tokens.access_token) < 60) {
-      refreshing ??= refresh().finally(() => (refreshing = null));
-      await refreshing;
-    }
-    if (tokens) request.headers.set("Authorization", `Bearer ${tokens.access_token}`);
+    const header = await authHeader();
+    if (header) request.headers.set("Authorization", header);
     return request;
   },
   async onResponse({ response }) {
-    if (response.status === 401 && tokens) {
-      setSession(null);
-      onSessionExpired();
-    }
+    if (response.status === 401) sessionRejected();
     return response;
   },
 };
