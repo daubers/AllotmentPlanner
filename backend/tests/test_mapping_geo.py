@@ -182,3 +182,109 @@ def test_load_rejects_unusable_input(tmp_path):
         geo.load_reconstruction(*_write(tmp_path, []))
     with pytest.raises(geo.ReconstructionError, match="camera type"):
         geo.load_reconstruction(*_write(tmp_path, [_recon(3, "fisheye")]))
+
+
+# --- scale and heading when GPS can't fix them ------------------------------------------------
+
+
+def _ring(n=6, radius=2.0, height=1.5, tilt=75.0):
+    """Cameras on a small circle looking outward and a little down: someone turning round."""
+    shots = []
+    for i in range(n):
+        a = 2 * math.pi * i / n
+        centre = np.array([radius * math.cos(a), radius * math.sin(a), height])
+        look = centre + np.array([math.cos(a), math.sin(a), -math.cos(math.radians(tilt))])
+        f = look - centre
+        f /= np.linalg.norm(f)
+        right = np.cross(f, [0, 0, 1.0])
+        right /= np.linalg.norm(right)
+        rotation = np.array([right, np.cross(f, right), f])
+        shots.append(geo.Shot(f"p{i}.jpg", rotation, -rotation @ centre, CAMERA))
+    return shots
+
+
+def _rec(shots):
+    return geo.Reconstruction((51.0, -1.0), shots, np.zeros((0, 3)))
+
+
+def test_camera_heights_are_measured_from_the_ground_plane():
+    rec = _rec(_ring(height=1.5))
+    assert geo.camera_heights(rec, FLAT) == pytest.approx([1.5] * 6)
+    # a plane rising 10% towards the east lifts the ground under each camera
+    heights = geo.camera_heights(rec, (0.1, 0.0, 0.0))
+    assert heights[0] == pytest.approx(1.5 - 0.1 * 2.0)
+
+
+def test_height_scale_fixes_a_reconstruction_that_came_out_five_times_too_big():
+    rec = _rec(_ring(height=7.5))  # really held 1.5 m up
+    assert geo.height_scale(rec, FLAT, 1.5) == pytest.approx(0.2)
+    with pytest.raises(geo.ReconstructionError):
+        geo.height_scale(_rec(_ring(height=-1.0)), FLAT, 1.5)
+
+
+def test_transform_scales_distances_and_keeps_the_picture_consistent():
+    rec = _rec(_ring(height=1.5))
+    yaw = math.radians(30)
+    moved = geo.transform(rec, scale=0.2, yaw=yaw)
+    centre = np.mean([s.centre for s in rec.shots], axis=0)
+    # the ground (z = 0) is part of the world too: it moves to z = 1.5 * (1 - 0.2) = 1.2
+    assert geo.camera_heights(moved, (0.0, 0.0, 1.2)) == pytest.approx([0.3] * 6)
+    assert np.mean([s.centre for s in moved.shots], axis=0) == pytest.approx(
+        centre
+    )  # pivots on the middle
+    before = geo.gps_spread(np.array([s.centre for s in rec.shots]))
+    after = geo.gps_spread(np.array([s.centre for s in moved.shots]))
+    assert after == pytest.approx(0.2 * before)
+    # a ground point must still appear at the same pixel once the world is scaled and turned
+    turn = np.array(
+        [[math.cos(yaw), -math.sin(yaw), 0], [math.sin(yaw), math.cos(yaw), 0], [0, 0, 1]]
+    )
+    point = np.array([[4.0, 0.3, 0.0]])  # in front of the camera at (2, 0) looking east
+    new_point = (point - centre) @ turn.T * 0.2 + centre
+    compared = 0
+    for old_shot, new_shot in zip(rec.shots, moved.shots, strict=True):
+        was = geo.project_points(old_shot, point)
+        if np.isnan(was).any():  # behind this camera
+            continue
+        compared += 1
+        assert geo.project_points(new_shot, new_point) == pytest.approx(was, abs=1e-6)
+    assert compared >= 1
+
+
+def test_turning_the_world_changes_where_cameras_point():
+    rec = _rec(_ring())
+    before = [geo.view_azimuth(s) for s in rec.shots]
+    after = [geo.view_azimuth(s) for s in geo.transform(rec, yaw=math.radians(25)).shots]
+    assert [(b - a) % 360 for b, a in zip(before, after, strict=True)] == pytest.approx([25.0] * 6)
+
+
+def test_compass_headings_give_the_turn_needed():
+    rec = _rec(_ring())
+    truth = 40.0  # the reconstruction is really 40 degrees out
+    headings = {s.name: (geo.view_azimuth(s) - truth) % 360 for s in rec.shots}
+    yaw, agreement = geo.compass_yaw(rec, headings)
+    assert math.degrees(yaw) == pytest.approx(truth, abs=0.01) and agreement == pytest.approx(1.0)
+    fixed = geo.transform(rec, yaw=yaw)
+    assert [geo.view_azimuth(s) for s in fixed.shots] == pytest.approx(
+        [headings[s.name] for s in fixed.shots], abs=0.01
+    )
+
+
+def test_noisy_compass_headings_still_average_out_and_wild_ones_are_refused():
+    rng = np.random.default_rng(4)
+    shots = _ring(n=12)
+    rec = _rec(shots)
+    noisy = {s.name: (geo.view_azimuth(s) - 40 + rng.normal(0, 12)) % 360 for s in shots}
+    yaw, agreement = geo.compass_yaw(rec, noisy)
+    assert math.degrees(yaw) == pytest.approx(40, abs=8) and 0.9 < agreement <= 1.0
+    random_headings = {s.name: float(rng.uniform(0, 360)) for s in shots}
+    assert geo.compass_yaw(rec, random_headings) is None  # no agreement: don't turn anything
+    assert geo.compass_yaw(rec, {shots[0].name: 10.0}) is None  # too few photos with a heading
+    assert geo.compass_yaw(rec, {}) is None
+
+
+def test_gps_spread_distinguishes_standing_still_from_walking_about():
+    standing = np.array([[0, 0, 0], [1.5, 0, 0], [0, 2.0, 0], [-1.0, -1.0, 0]], float)
+    walking = standing * 20
+    assert geo.gps_spread(standing) < 2.0 < 20.0 < geo.gps_spread(walking)
+    assert geo.gps_spread(np.zeros((0, 3))) == 0.0

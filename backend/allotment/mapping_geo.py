@@ -277,3 +277,81 @@ def zoom_for_resolution(ground_metres: float, lat: float, cap: int = 22) -> int:
     """The XYZ zoom whose pixels are about as coarse as the photos' ground resolution."""
     z = math.log2(2 * math.pi * EARTH_RADIUS * math.cos(math.radians(lat)) / 256 / ground_metres)
     return int(min(cap, max(0, round(z))))
+
+
+# --- fixing scale and heading when GPS can't ------------------------------------------------------
+#
+# OpenSfM scales and orients a reconstruction by fitting the camera positions to the photos' GPS.
+# That only works if the cameras are spread far more widely than GPS jitter (a few metres). Photos
+# taken while standing about in one spot give a scale that can be wrong several times over. Two
+# other clues are usually available: how high the camera was held, and the phone's compass.
+
+
+def camera_heights(rec: Reconstruction, plane: tuple[float, float, float]) -> np.ndarray:
+    """Each camera's height above the fitted ground plane, in the reconstruction's units."""
+    a, b, c = plane
+    return np.array([s.centre[2] - (a * s.centre[0] + b * s.centre[1] + c) for s in rec.shots])
+
+
+def gps_spread(positions: np.ndarray) -> float:
+    """Root-mean-square distance of camera positions from their centre (east/north only)."""
+    xy = np.asarray(positions, dtype=float)[:, :2]
+    return float(np.sqrt(((xy - xy.mean(axis=0)) ** 2).sum(axis=1).mean())) if len(xy) else 0.0
+
+
+def transform(
+    rec: Reconstruction, scale: float = 1.0, yaw: float = 0.0, about=None
+) -> Reconstruction:
+    """The reconstruction scaled by ``scale`` and turned ``yaw`` radians anticlockwise (seen from
+    above) about the point ``about`` (default: the middle of the cameras)."""
+    centres = np.array([s.centre for s in rec.shots])
+    origin = np.asarray(about if about is not None else centres.mean(axis=0), dtype=float)
+    c, s_ = math.cos(yaw), math.sin(yaw)
+    turn = np.array([[c, -s_, 0.0], [s_, c, 0.0], [0.0, 0.0, 1.0]])
+
+    def move(points: np.ndarray) -> np.ndarray:
+        return (np.atleast_2d(points) - origin) @ turn.T * scale + origin
+
+    shots = []
+    for shot in rec.shots:
+        new_centre = move(shot.centre)[0]
+        rotation = shot.rotation @ turn.T  # the camera turns with the world
+        shots.append(Shot(shot.name, rotation, -rotation @ new_centre, shot.camera))
+    return Reconstruction(rec.reference, shots, move(rec.points) if len(rec.points) else rec.points)
+
+
+def height_scale(
+    rec: Reconstruction, plane: tuple[float, float, float], stated_height: float
+) -> float:
+    """The factor that makes the median camera height above the ground equal ``stated_height``."""
+    heights = camera_heights(rec, plane)
+    heights = heights[heights > 1e-6]
+    if len(heights) == 0:
+        raise ReconstructionError("The cameras are not above the ground, so the scale can't be set")
+    return float(stated_height / np.median(heights))
+
+
+def view_azimuth(shot: Shot) -> float:
+    """Which way a camera points, degrees clockwise from north (the optical axis on the ground)."""
+    forward = shot.rotation[2]  # the camera's z axis (its viewing direction) in world coordinates
+    return math.degrees(math.atan2(forward[0], forward[1])) % 360
+
+
+def compass_yaw(
+    rec: Reconstruction, headings: dict[str, float], min_photos: int = 4, min_agreement: float = 0.6
+):
+    """How far to turn the reconstruction (radians, anticlockwise) so its cameras point where the
+    phone's compass said. Returns ``(yaw, agreement)`` or None when too few photos have a heading or
+    they disagree too much to trust (agreement is 1.0 for perfect, 0 for random)."""
+    deltas = []
+    for shot in rec.shots:
+        if shot.name in headings:
+            # compass is clockwise from north; a world turn is anticlockwise, so the sign flips
+            deltas.append(math.radians(view_azimuth(shot) - headings[shot.name]))
+    if len(deltas) < min_photos:
+        return None
+    sin, cos = np.mean(np.sin(deltas)), np.mean(np.cos(deltas))
+    agreement = float(math.hypot(sin, cos))
+    if agreement < min_agreement:
+        return None
+    return float(math.atan2(sin, cos)), agreement

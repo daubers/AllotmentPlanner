@@ -203,10 +203,23 @@ def rodrigues_vector(r: np.ndarray) -> list[float]:
     return (axis * theta).tolist()
 
 
-def write_reconstruction(work, shots):
+def write_overrides(work, spread_m, headings=None):
+    """GPS for the photos, about ``spread_m`` metres apart, as dataset preparation writes it."""
+    lat_m, lon_m = geo.metres_per_degree(REF[0])
+    overrides = {}
+    for i, angle in enumerate(np.linspace(0, 2 * math.pi, 6, endpoint=False)):
+        east, north = spread_m * math.cos(angle), spread_m * math.sin(angle)
+        gps = {"latitude": REF[0] + north / lat_m, "longitude": REF[1] + east / lon_m}
+        overrides[f"view{i}.jpg"] = {"gps": gps}
+    (work / "exif_overrides.json").write_text(json.dumps(overrides))
+    (work / "headings.json").write_text(json.dumps(headings or {}))
+
+
+def write_reconstruction(work, shots, spread_m=60.0, ground=None):
     (work / "undistorted" / "images").mkdir(parents=True)
     rng = np.random.default_rng(0)
-    ground = np.c_[rng.uniform(-6, 6, (80, 2)), rng.normal(0, 0.01, 80)]
+    if ground is None:
+        ground = np.c_[rng.uniform(-6, 6, (80, 2)), rng.normal(0, 0.01, 80)]
     camera = {"projection_type": "perspective", "width": 640, "height": 480, "focal": 0.8}
     shot_json = {
         s.name: {
@@ -219,6 +232,7 @@ def write_reconstruction(work, shots):
     points = {str(i): {"coordinates": p.tolist()} for i, p in enumerate(ground)}
     rec = [{"cameras": {"c": camera}, "shots": shot_json, "points": points}]
     (work / "undistorted" / "reconstruction.json").write_text(json.dumps(rec))
+    write_overrides(work, spread_m)
     (work / "reference_lla.json").write_text(
         json.dumps({"latitude": REF[0], "longitude": REF[1], "altitude": 0})
     )
@@ -386,3 +400,31 @@ def test_process_makes_only_what_was_asked_for(job, monkeypatch):
     layer = pipeline.process(j, work)
     assert calls == ["prepare", "reconstruct", "ortho", "tiles"]
     assert layer.visible is False  # the experimental overlay is opt-in
+
+
+def test_a_reconstruction_with_the_wrong_scale_is_fixed_from_the_camera_height(job):
+    """The real failure: photos taken from one spot, so the GPS-derived scale is badly off."""
+    j, work = job
+    j.camera_height_m = 1.6  # RING's cameras are 1.6 m up
+    db.session.commit()
+    rng = np.random.default_rng(1)
+    ground = np.c_[rng.uniform(-6, 6, (80, 2)), rng.normal(0, 0.01, 80)]
+    truth = geo.Reconstruction(REF, list(RING), ground)
+    # the same scene five times too big, scaled about the middle of the cameras like a bad GPS fit
+    wrong = geo.transform(truth, scale=5.0)
+    write_reconstruction(work, wrong.shots, spread_m=2.0, ground=wrong.points)  # GPS bunched up
+    pipeline.detect_objects(j, work, detector=SceneDetector(RING))
+    rows = {s.name: s for s in db.session.query(MapSuggestion).filter_by(job_id=j.id)}
+    assert "scaling by 0.20" in j.log
+    assert metres(*rows["Tree"].geometry["coordinates"]) == pytest.approx((2.0, -2.5), abs=0.45)
+    assert metres(*rows["Water butt"].geometry["coordinates"]) == pytest.approx(
+        (0.5, 0.0), abs=0.35
+    )
+    assert rows["Water butt"].radius_m == pytest.approx(0.4, abs=0.2)  # not 2 m
+
+
+def test_widely_spread_photos_keep_the_gps_scale(job):
+    j, work = job
+    write_reconstruction(work, RING, spread_m=60.0)
+    pipeline.detect_objects(j, work, detector=SceneDetector(RING))
+    assert "keeping the GPS scale" in j.log and "scaling by" not in j.log

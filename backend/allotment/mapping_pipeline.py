@@ -6,6 +6,7 @@ GDAL. The geometry lives in :mod:`mapping_geo`.
 """
 
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -127,6 +128,7 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
     overrides: dict[str, dict] = {}
     geotagged = 0
     frames_total = 0
+    headings: dict[str, float] = {}
 
     for media_id in job.media_ids:
         media = db.session.get(Media, media_id)
@@ -136,6 +138,8 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
             ext = media_meta.extension_for("photo", _head(storage, media.storage_key))
             name = f"m{media.id}{ext}"
             storage.download(media.storage_key, str(images / name))
+            if media.heading is not None:
+                headings[name] = media.heading
             if media.lat is not None and media.lng is not None:
                 geotagged += 1
                 overrides[name] = {
@@ -181,6 +185,7 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
             "to place and scale the map (a video has only one location, which can't)"
         )
     (work / "exif_overrides.json").write_text(json.dumps(overrides))
+    (work / "headings.json").write_text(json.dumps(headings))
     (work / "config.yaml").write_text(yaml.safe_dump(opensfm_config(job, frames_total > 0)))
     return total
 
@@ -289,16 +294,83 @@ class Placed:
     resolution: float
 
 
-def placed_shots(job: MapJob, work: Path) -> tuple[list[Placed], geo.Reconstruction, tuple]:
+GPS_TRUSTED_SPREAD_M = 20.0  # cameras spread wider than this: GPS fixes the scale well enough
+COMPASS_USED_BELOW_M = 15.0  # cameras bunched tighter than this: GPS can't fix the heading
+
+
+def input_gps_spread(work: Path, reference: tuple[float, float]) -> float:
+    """How widely the photos' GPS positions are spread, in metres (0 if there are none)."""
+    overrides = json.loads((work / "exif_overrides.json").read_text())
+    lat_m, lon_m = geo.metres_per_degree(reference[0])
+    points = [
+        (
+            (o["gps"]["longitude"] - reference[1]) * lon_m,
+            (o["gps"]["latitude"] - reference[0]) * lat_m,
+            0.0,
+        )
+        for o in overrides.values()
+        if "gps" in o
+    ]
+    return geo.gps_spread(np.array(points)) if points else 0.0
+
+
+def load_corrected(
+    job: MapJob, work: Path
+) -> tuple[geo.Reconstruction, tuple[float, float, float]]:
+    """The reconstruction with its scale and heading fixed up where GPS alone can't be trusted.
+
+    OpenSfM fits the cameras to the photos' GPS. If the photos were taken from close together
+    (people tend to stand in one spot and turn round) that fit says almost nothing about scale or
+    direction, and a water butt can come out a few centimetres wide. So: when the cameras are
+    bunched, the scale is set from how high the camera was held; and the phone's compass headings,
+    if they agree with each other, set the direction."""
     rec = geo.load_reconstruction(
         str(work / "undistorted" / "reconstruction.json"), str(work / "reference_lla.json")
     )
+    plane = geo.fit_ground_plane(rec.points)
+    spread = input_gps_spread(work, rec.reference)
+    if spread >= GPS_TRUSTED_SPREAD_M:
+        _append_log(
+            job, f"photos are spread over about {spread:.0f} m: keeping the GPS scale and heading"
+        )
+        db.session.commit()  # (a later cancel check refreshes the job and would drop unsaved lines)
+        return rec, plane
+    factor = geo.height_scale(rec, plane, job.camera_height_m)
+    heights = geo.camera_heights(rec, plane)
+    _append_log(
+        job,
+        f"photos are within about {spread:.0f} m of each other, too close for GPS to set the "
+        f"scale: cameras sit {np.median(heights):.2f} m above the ground in the reconstruction "
+        f"but were held about {job.camera_height_m:.1f} m up, so scaling by {factor:.2f}",
+    )
+    rec = geo.transform(rec, scale=factor)
+    headings = (
+        json.loads((work / "headings.json").read_text())
+        if (work / "headings.json").exists()
+        else {}
+    )
+    fix = geo.compass_yaw(rec, headings) if spread < COMPASS_USED_BELOW_M else None
+    if fix:
+        yaw, agreement = fix
+        _append_log(
+            job,
+            f"turning the map {math.degrees(yaw):+.0f} degrees to match the phone compass "
+            f"(agreement {agreement:.2f})",
+        )
+        rec = geo.transform(rec, yaw=yaw)
+    else:
+        _append_log(job, "no usable compass headings: the direction comes from GPS and may be off")
+    db.session.commit()
+    return rec, geo.fit_ground_plane(rec.points)
+
+
+def placed_shots(job: MapJob, work: Path) -> tuple[list[Placed], geo.Reconstruction, tuple]:
+    rec, plane = load_corrected(job, work)
     if len(rec.shots) < MIN_GEOTAGGED:
         raise JobFailed(
             f"Only {len(rec.shots)} of the images could be placed together; "
             "take more photos that overlap each other and show the same ground"
         )
-    plane = geo.fit_ground_plane(rec.points)
     src_dir = work / "ortho" / "src"
     src_dir.mkdir(parents=True)
     placed: list[Placed] = []
@@ -504,10 +576,7 @@ def detect_objects(job: MapJob, work: Path, detector=None) -> int:
     """Find objects in the placed photos, put them on the ground and save them as suggestions
     to review. Returns how many were found."""
     set_stage(job, "detecting")
-    rec = geo.load_reconstruction(
-        str(work / "undistorted" / "reconstruction.json"), str(work / "reference_lla.json")
-    )
-    plane = geo.fit_ground_plane(rec.points)
+    rec, plane = load_corrected(job, work)
     shots = choose_shots(rec.shots, current_app.config["MAPPING_DETECT_MAX_SHOTS"])
     detector = detector or detector_module.get_detector()
     observations: list[detection_geo.Observation] = []
