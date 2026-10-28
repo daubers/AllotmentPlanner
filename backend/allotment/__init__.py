@@ -3,7 +3,8 @@ from flask_jwt_extended import JWTManager
 from flask_smorest import Api
 
 from . import events, health, models  # noqa: F401 - models register with SQLAlchemy metadata
-from .api import allotments, auth, features, media, tasks, todo
+from .activity import record_activity
+from .api import allotments, auth, features, media, overview, tasks, todo
 from .celery_app import celery
 from .config import Config
 from .extensions import db, migrate
@@ -30,6 +31,7 @@ def create_app(config: type = Config) -> Flask:
     api.register_blueprint(todo.blp)
     api.register_blueprint(media.blp)
     api.register_blueprint(media.files_blp)
+    api.register_blueprint(overview.blp)
 
     init_request_logging(app)
     init_metrics(app)
@@ -38,4 +40,5 @@ def create_app(config: type = Config) -> Flask:
 
     events.clear_subscribers()
     events.subscribe(events.WILDCARD, count_event)
+    events.subscribe(events.WILDCARD, record_activity)
     return app

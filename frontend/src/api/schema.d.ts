@@ -1187,6 +1187,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/allotments/{allotment_id}/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        /** Per-day activity counts, weekly comparison, streaks and the newest photos. */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Length of the daily history window, ending today (UTC) */
+                    days?: number;
+                    /** @description Treat this as today (UTC); mainly for tests */
+                    today?: string;
+                };
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Overview"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1457,6 +1504,40 @@ export interface components {
             lat?: number | null;
             lng?: number | null;
             heading?: number | null;
+        };
+        OverviewDay: {
+            /** Format: date */
+            date?: string;
+            tasks_done?: number;
+            tasks_added?: number;
+            photos_added?: number;
+            map_edits?: number;
+            total?: number;
+        };
+        OverviewCounts: {
+            tasks_done?: number;
+            tasks_added?: number;
+            photos_added?: number;
+            map_edits?: number;
+            active_days?: number;
+        };
+        OverviewStreak: {
+            /** @description Consecutive active days up to today or yesterday */
+            current?: number;
+            longest?: number;
+        };
+        Overview: {
+            days?: components["schemas"]["OverviewDay"][];
+            this_week?: components["schemas"]["OverviewCounts"];
+            last_week?: components["schemas"]["OverviewCounts"];
+            totals?: components["schemas"]["OverviewCounts"];
+            streak?: components["schemas"]["OverviewStreak"];
+            open_tasks?: number;
+            recent_photos?: components["schemas"]["Media"][];
+            /** @description Latest completed tasks: id, title, completed_at */
+            recent_done?: {
+                [key: string]: unknown;
+            }[];
         };
     };
     responses: {
