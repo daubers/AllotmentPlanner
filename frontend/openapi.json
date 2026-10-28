@@ -1562,6 +1562,29 @@
         }
       ]
     },
+    "/api/v1/limits": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Limits"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Limits the browser should respect, so it can explain a problem before sending a file.",
+        "tags": [
+          "limits"
+        ]
+      }
+    },
     "/api/v1/allotments/{allotment_id}/map-jobs": {
       "get": {
         "responses": {
@@ -1941,6 +1964,10 @@
     {
       "name": "mastodon",
       "description": "Post allotment activity to a Mastodon account"
+    },
+    {
+      "name": "limits",
+      "description": "Server limits"
     },
     {
       "name": "mapping",
@@ -2934,6 +2961,16 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Limits": {
+        "type": "object",
+        "properties": {
+          "max_upload_bytes": {
+            "type": "integer",
+            "description": "Largest accepted upload"
           }
         },
         "additionalProperties": false

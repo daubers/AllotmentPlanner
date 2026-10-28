@@ -182,3 +182,4 @@ button.danger { background: var(--danger); color: #fff; }
 .tile.pick.picked { outline: 3px solid var(--accent); outline-offset: -3px; }
 .no-gps { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,.6); color: #fff; font-size: .7rem; text-align: center; padding: .1rem; }
 .job-log { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: .5rem; font-size: .75rem; max-height: 14rem; overflow: auto; white-space: pre-wrap; margin: .4rem 0 0; }
+.upload-status progress { display: block; width: 100%; max-width: 24rem; height: .5rem; margin-top: .2rem; accent-color: var(--accent); }

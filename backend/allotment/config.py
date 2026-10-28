@@ -13,7 +13,10 @@ class Config:
     S3_BUCKET = os.environ.get("S3_BUCKET", "allotment-media")
     S3_ACCESS_KEY = os.environ.get("S3_ACCESS_KEY")
     S3_SECRET_KEY = os.environ.get("S3_SECRET_KEY")
-    MAX_CONTENT_LENGTH = int(os.environ.get("MAX_UPLOAD_MB", "200")) * 1024 * 1024
+    # Big enough for a GoPro chapter (they split at 4 GB). Keep the frontend's nginx
+    # `client_max_body_size` (frontend/nginx.conf) at least this large.
+    MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "4096"))
+    MAX_CONTENT_LENGTH = MAX_UPLOAD_MB * 1024 * 1024
     MEDIA_URL_TTL_SECONDS = 3600
     # Encrypts stored third-party tokens (Fernet key material is derived from this).
     # Falls back to JWT_SECRET_KEY; set it separately so rotating one doesn't break the other.

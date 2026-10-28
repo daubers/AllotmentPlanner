@@ -1,13 +1,15 @@
 import { useRef, useState } from "react";
 import CompareSlider from "../media/CompareSlider";
-import { dayOf, formatDuration, groupByDay, type Media } from "../media/group";
+import { dayOf, formatDuration, formatSize, groupByDay, type Media } from "../media/group";
 import { uploadMedia, useMedia, useMediaActions, type MediaFilters } from "../media/hooks";
+import { useUploadLimit } from "../media/limits";
+import { checkFileSize } from "../media/upload";
 import Lightbox from "../media/Lightbox";
 import { longDate } from "../tasks/today";
 import { useFeatureOptions } from "../tasks/hooks";
 import { useAllotment } from "./AllotmentLayout";
 
-type Upload = { name: string; state: "uploading" | "done" | "error"; message?: string };
+type Upload = { name: string; size: number; state: "uploading" | "done" | "error"; progress?: number; message?: string };
 
 export default function PhotosPage() {
   const { id, canEdit } = useAllotment();
@@ -16,6 +18,7 @@ export default function PhotosPage() {
   const features = useFeatureOptions(id);
   const actions = useMediaActions(id);
   const [uploads, setUploads] = useState<Upload[]>([]);
+  const maxBytes = useUploadLimit();
   const [attachTo, setAttachTo] = useState<number | "">("");
   const [openId, setOpenId] = useState<number | null>(null);
   const [comparing, setComparing] = useState(false);
@@ -33,14 +36,19 @@ export default function PhotosPage() {
   async function onFiles(files: FileList | null) {
     if (!files?.length) return;
     const list = [...files];
-    setUploads(list.map((f) => ({ name: f.name, state: "uploading" })));
+    setUploads(list.map((f) => ({ name: f.name, size: f.size, state: "uploading", progress: 0 })));
     for (const [i, file] of list.entries()) {
-      const set = (u: Upload) => setUploads((all) => all.map((x, j) => (j === i ? u : x)));
+      const set = (u: Partial<Upload>) => setUploads((all) => all.map((x, j) => (j === i ? { ...x, ...u } : x)));
+      const tooBig = checkFileSize(file, maxBytes); // say so now, rather than send gigabytes to be refused
+      if (tooBig) {
+        set({ state: "error", message: tooBig });
+        continue;
+      }
       try {
-        await uploadMedia(id, { file, featureId: attachTo === "" ? null : attachTo });
-        set({ name: file.name, state: "done" });
+        await uploadMedia(id, { file, featureId: attachTo === "" ? null : attachTo }, (progress) => set({ progress }), maxBytes);
+        set({ state: "done", progress: 1 });
       } catch (err) {
-        set({ name: file.name, state: "error", message: (err as Error).message });
+        set({ state: "error", message: (err as Error).message });
       }
     }
     actions.refresh();
@@ -80,7 +88,10 @@ export default function PhotosPage() {
             <ul className="upload-status" aria-live="polite">
               {uploads.map((u, i) => (
                 <li key={i} className={u.state}>
-                  {u.state === "uploading" ? "⏳" : u.state === "done" ? "✓" : "✕"} {u.name}{u.message && ` — ${u.message}`}
+                  {u.state === "uploading" ? "⏳" : u.state === "done" ? "✓" : "✕"} {u.name}
+                  {u.state === "uploading" && u.size > 1024 * 1024 && ` — ${Math.round((u.progress ?? 0) * 100)}% of ${formatSize(u.size)}`}
+                  {u.message && ` — ${u.message}`}
+                  {u.state === "uploading" && u.size > 1024 * 1024 && <progress value={u.progress ?? 0} max={1} aria-label={`Uploading ${u.name}`} />}
                 </li>
               ))}
             </ul>

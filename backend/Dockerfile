@@ -13,10 +13,13 @@ RUN pip install --no-cache-dir .
 RUN useradd --system --no-create-home allotment \
  && mkdir -p /data/media && chown allotment /data/media
 USER allotment
-CMD ["gunicorn", "-b", "0.0.0.0:8000", "allotment:create_app()"]
+# One process (the in-process Prometheus counters stay accurate) with threads, so a long upload
+# or video stream occupies one thread instead of the whole server, and isn't killed by the
+# worker timeout (which only watches the process's heartbeat in the threaded worker).
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "--worker-class", "gthread", "--threads", "8", "--timeout", "120", "allotment:create_app()"]
 
 # Local development and test image (default for compose).
 FROM base AS dev
 RUN pip install --no-cache-dir -e ".[dev]"
 COPY tests ./tests
-CMD ["gunicorn", "-b", "0.0.0.0:8000", "--reload", "allotment:create_app()"]
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "--worker-class", "gthread", "--threads", "8", "--timeout", "120", "--reload", "allotment:create_app()"]
