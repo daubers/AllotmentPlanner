@@ -51,6 +51,9 @@ def job_to_dict(job: MapJob, layer_id: int | None = None, detail: bool = False) 
         "view": job.view,
         "camera_height_m": job.camera_height_m,
         "media_count": len(job.media_ids or []),
+        "detect_objects": job.detect_objects,
+        "overlay": job.overlay,
+        "objects_found": job.objects_found,
         "shots_total": job.shots_total,
         "shots_used": job.shots_used,
         "error": job.error,
@@ -111,10 +114,14 @@ class MapJobList(MethodView):
     @blp.arguments(MapJobInSchema)
     @blp.response(202, MapJobSchema)
     def post(self, data, allotment, membership):
-        """Queue a map build from photos and videos.
+        """Queue a build from photos and videos: recognised objects, the photo overlay, or both.
 
         Needs about 5+ overlapping images (a video counts as the frames sampled from it, about
         one a second) and 3+ photos with a location, which place and scale the map."""
+        if not data["detect_objects"] and not data["overlay"]:
+            abort(
+                422, message="Choose at least one thing to make: recognised objects or the overlay"
+            )
         if (
             db.session.query(MapJob)
             .filter(MapJob.allotment_id == allotment.id, MapJob.status.in_(ACTIVE))
@@ -168,6 +175,8 @@ class MapJobList(MethodView):
             media_ids=[m.id for m in media],
             view=data["view"],
             camera_height_m=data["camera_height_m"],
+            detect_objects=data["detect_objects"],
+            overlay=data["overlay"],
             created_by=membership.user_id,
         )
         db.session.add(job)

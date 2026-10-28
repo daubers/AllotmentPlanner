@@ -1,5 +1,7 @@
 from marshmallow import Schema, fields, validate
 
+from .models import FeatureKind
+
 ROLES = ["viewer", "editor", "owner"]
 
 
@@ -348,6 +350,18 @@ class MapJobInSchema(Schema):
         validate=validate.Range(min=0.3, max=120),
         metadata={"description": "About how high the camera was held above the ground"},
     )
+    detect_objects = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "Recognise beds, trees, sheds etc. and propose them as map shapes"
+        },
+    )
+    overlay = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "Also build the stitched photo overlay (experimental; best from above)"
+        },
+    )
 
 
 class MapJobSchema(Schema):
@@ -358,6 +372,9 @@ class MapJobSchema(Schema):
     view = fields.String()
     camera_height_m = fields.Float()
     media_count = fields.Integer()
+    detect_objects = fields.Boolean()
+    overlay = fields.Boolean()
+    objects_found = fields.Integer(allow_none=True)
     shots_total = fields.Integer(allow_none=True)
     shots_used = fields.Integer(allow_none=True)
     error = fields.String(allow_none=True)
@@ -393,3 +410,31 @@ class MapLayerPatchSchema(Schema):
 
 class LimitsSchema(Schema):
     max_upload_bytes = fields.Integer(metadata={"description": "Largest accepted upload"})
+
+
+class SuggestionSchema(Schema):
+    id = fields.Integer()
+    job_id = fields.Integer(allow_none=True)
+    kind = fields.String()
+    name = fields.String()
+    geometry = fields.Dict(metadata={"description": "GeoJSON Point (with radius_m) or Polygon"})
+    radius_m = fields.Float(allow_none=True)
+    confidence = fields.Float()
+    views = fields.Integer(metadata={"description": "How many photos showed it"})
+    status = fields.String()
+    feature_id = fields.Integer(allow_none=True)
+
+
+class SuggestionQuerySchema(Schema):
+    status = fields.String(
+        load_default="pending", validate=validate.OneOf(["pending", "accepted", "dismissed"])
+    )
+
+
+class SuggestionPatchSchema(Schema):
+    name = fields.String(validate=validate.Length(min=1, max=120))
+    kind = fields.String(validate=validate.OneOf([k.value for k in FeatureKind]))
+
+
+class SuggestionIdsSchema(Schema):
+    ids = fields.List(fields.Integer(), required=True, validate=validate.Length(min=1, max=200))

@@ -31,6 +31,8 @@ class Config:
     MAPPING_VIDEO_FRAMES_PER_SECOND = float(os.environ.get("MAPPING_VIDEO_FPS", "1"))
     MAPPING_MAX_FRAMES_PER_VIDEO = int(os.environ.get("MAPPING_MAX_FRAMES_PER_VIDEO", "60"))
     MAPPING_TIMEOUT_SECONDS = int(os.environ.get("MAPPING_TIMEOUT_SECONDS", "7200"))
+    # Photos looked at for objects (about 15 s each on a CPU); video frames fill any spare room.
+    MAPPING_DETECT_MAX_SHOTS = int(os.environ.get("MAPPING_DETECT_MAX_SHOTS", "40"))
     MAPPING_TILE_TOKEN_TTL_SECONDS = 6 * 3600
     OTEL_EXPORTER_OTLP_ENDPOINT = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")

@@ -21,11 +21,12 @@ import yaml
 from flask import current_app
 from PIL import Image
 
+from . import detection_geo, media_meta
+from . import detector as detector_module
 from . import mapping_geo as geo
-from . import media_meta
 from .extensions import db
 from .mapping_video import video_frame_rate
-from .models import MapJob, MapLayer, Media
+from .models import MapJob, MapLayer, MapSuggestion, Media
 from .storage import get_storage
 
 log = structlog.get_logger(__name__)
@@ -475,18 +476,119 @@ def store_layer(job: MapJob, tiles: Path, bounds, min_zoom: int, max_zoom: int) 
     return layer
 
 
-def process(job: MapJob, work: Path) -> MapLayer:
-    """The whole pipeline for one job. Raises JobFailed / JobCancelled."""
+# --- 5. recognising objects -------------------------------------------------------------------
+
+
+def choose_shots(shots: list[geo.Shot], limit: int) -> list[geo.Shot]:
+    """Which photos to look at: all the real photos if they fit, else an even spread of them;
+    video frames only fill whatever room is left (they are many and near-duplicates)."""
+    photos = [s for s in shots if not s.name.startswith("v")]
+    frames = [s for s in shots if s.name.startswith("v")]
+
+    def spread(items: list[geo.Shot], n: int) -> list[geo.Shot]:
+        if n <= 0 or not items:
+            return []
+        if len(items) <= n:
+            return items
+        return [items[int(i * len(items) / n)] for i in range(n)]
+
+    chosen = spread(photos, limit)
+    return chosen + spread(frames, limit - len(chosen))
+
+
+def suggestion_name(label: str, number: int, total: int) -> str:
+    return f"{label} {number}" if total > 1 else label
+
+
+def detect_objects(job: MapJob, work: Path, detector=None) -> int:
+    """Find objects in the placed photos, put them on the ground and save them as suggestions
+    to review. Returns how many were found."""
+    set_stage(job, "detecting")
+    rec = geo.load_reconstruction(
+        str(work / "undistorted" / "reconstruction.json"), str(work / "reference_lla.json")
+    )
+    plane = geo.fit_ground_plane(rec.points)
+    shots = choose_shots(rec.shots, current_app.config["MAPPING_DETECT_MAX_SHOTS"])
+    detector = detector or detector_module.get_detector()
+    observations: list[detection_geo.Observation] = []
+    for n, shot in enumerate(shots, start=1):
+        check_cancelled(job)
+        path = work / "undistorted" / "images" / shot.name
+        if not path.exists():
+            continue
+        with Image.open(path) as image:
+            found = detector.detect(image)
+        for d in found:
+            fp = detection_geo.footprint_from_mask(
+                shot, plane, d.mask, d.score, d.type.shape, scale=d.scale
+            )
+            if fp:
+                observations.append(
+                    detection_geo.Observation(d.type.name, d.type.kind, d.type.shape, fp, shot.name)
+                )
+        _append_log(job, f"looked at photo {n} of {len(shots)}: {len(found)} objects")
+        db.session.commit()
+    fused = detection_geo.fuse(observations)
+    # Suggestions from an earlier run are replaced by this one.
+    db.session.query(MapSuggestion).filter_by(
+        allotment_id=job.allotment_id, status="pending"
+    ).update({"status": "dismissed"})
+    totals: dict[str, int] = {}
+    for g in fused:
+        totals[g.label] = totals.get(g.label, 0) + 1
+    counters: dict[str, int] = {}
+    for g in fused:
+        counters[g.label] = counters.get(g.label, 0) + 1
+        ring = detection_geo.outline(g)
+        lon, lat = geo.enu_to_lonlat(
+            np.array([p[0] for p in ring]), np.array([p[1] for p in ring]), rec.reference
+        )
+        if g.shape == "circle":
+            clon, clat = geo.enu_to_lonlat(g.x, g.y, rec.reference)
+            geometry = {"type": "Point", "coordinates": [float(clon), float(clat)]}
+            radius = round(max(g.width, g.depth) / 2, 2)
+        else:
+            coords = [[float(a), float(b)] for a, b in zip(lon, lat, strict=True)]
+            geometry = {"type": "Polygon", "coordinates": [[*coords, coords[0]]]}
+            radius = None
+        db.session.add(
+            MapSuggestion(
+                allotment_id=job.allotment_id,
+                job_id=job.id,
+                kind=g.kind,
+                name=suggestion_name(g.label, counters[g.label], totals[g.label]),
+                geometry=geometry,
+                radius_m=radius,
+                confidence=g.confidence,
+                views=g.views,
+            )
+        )
+    job.objects_found = len(fused)
+    db.session.commit()
+    return len(fused)
+
+
+def process(job: MapJob, work: Path) -> MapLayer | None:
+    """The whole pipeline for one job. Raises JobFailed / JobCancelled. Returns the photo overlay
+    layer if one was asked for."""
     set_stage(job, "preparing")
     job.shots_total = prepare_dataset(job, work)
     db.session.commit()
     reconstruct(job, work)
     check_cancelled(job)
-    tif, bounds, resolution, lat_mid = build_orthophoto(job, work)
-    max_zoom = geo.zoom_for_resolution(resolution, lat_mid)
-    min_zoom = max(10, max_zoom - 6)
-    tiles = make_tiles(job, work, tif, min_zoom, max_zoom)
-    check_cancelled(job)
-    layer = store_layer(job, tiles, bounds, min_zoom, max_zoom)
+    if job.detect_objects:
+        detect_objects(job, work)
+        check_cancelled(job)
+    layer = None
+    if job.overlay:
+        tif, bounds, resolution, lat_mid = build_orthophoto(job, work)
+        max_zoom = geo.zoom_for_resolution(resolution, lat_mid)
+        min_zoom = max(10, max_zoom - 6)
+        tiles = make_tiles(job, work, tif, min_zoom, max_zoom)
+        check_cancelled(job)
+        layer = store_layer(job, tiles, bounds, min_zoom, max_zoom)
+        layer.visible = (
+            False  # experimental, and a mess for hand-held photos: opt in on the Layers page
+        )
     job.finished_at = datetime.now(UTC)
     return layer

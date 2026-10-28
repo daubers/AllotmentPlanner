@@ -274,6 +274,10 @@ class MapJob(db.Model):
     media_ids: Mapped[list] = mapped_column(JSON, default=list)
     view: Mapped[str] = mapped_column(String(10), default="oblique")  # oblique | overhead
     camera_height_m: Mapped[float] = mapped_column(Float, default=1.7)
+    # What to produce: recognised objects (suggestions to review) and/or the stitched photo overlay.
+    detect_objects: Mapped[bool] = mapped_column(Boolean, default=True, server_default="false")
+    overlay: Mapped[bool] = mapped_column(Boolean, default=False, server_default="true")
+    objects_found: Mapped[int | None] = mapped_column(nullable=True)
     cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     error: Mapped[str | None] = mapped_column(String(500), nullable=True)
     log: Mapped[str] = mapped_column(Text, default="")
@@ -314,3 +318,30 @@ class MapLayer(db.Model):
     @property
     def tile_prefix(self) -> str:
         return f"allotments/{self.allotment_id}/layers/{self.id}/tiles"
+
+
+class MapSuggestion(db.Model):
+    """Something the detector found, waiting for a person to accept it as a map feature."""
+
+    __tablename__ = "map_suggestions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("map_jobs.id", ondelete="SET NULL"), nullable=True
+    )
+    kind: Mapped[str] = mapped_column(String(20))  # FeatureKind value
+    name: Mapped[str] = mapped_column(String(120))
+    geometry: Mapped[dict] = mapped_column(JSON)  # GeoJSON: a Point (with radius_m) or a Polygon
+    radius_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    views: Mapped[int] = mapped_column(default=1)  # how many photos saw it
+    status: Mapped[str] = mapped_column(
+        String(10), default="pending", index=True
+    )  # pending | accepted | dismissed
+    feature_id: Mapped[int | None] = mapped_column(
+        ForeignKey("map_features.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

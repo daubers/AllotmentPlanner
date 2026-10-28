@@ -4,7 +4,19 @@ from flask_smorest import Api
 
 from . import events, health, mastodon_posts, models  # noqa: F401 - models register with SQLAlchemy
 from .activity import record_activity
-from .api import allotments, auth, features, limits, mapping, mastodon, media, overview, tasks, todo
+from .api import (
+    allotments,
+    auth,
+    features,
+    limits,
+    mapping,
+    mastodon,
+    media,
+    overview,
+    suggestions,
+    tasks,
+    todo,
+)
 from .celery_app import celery
 from .config import Config
 from .extensions import db, migrate
@@ -34,6 +46,7 @@ def create_app(config: type = Config) -> Flask:
     api.register_blueprint(overview.blp)
     api.register_blueprint(mastodon.blp)
     api.register_blueprint(limits.blp)
+    api.register_blueprint(suggestions.blp)
     api.register_blueprint(mapping.blp)
     api.register_blueprint(mapping.tiles_blp)
 
