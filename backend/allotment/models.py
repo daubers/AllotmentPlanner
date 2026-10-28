@@ -2,7 +2,17 @@ import enum
 from datetime import UTC, date, datetime
 
 from geoalchemy2 import Geometry
-from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .extensions import db
@@ -196,3 +206,52 @@ class ActivityLog(db.Model):
     subject: Mapped[dict] = mapped_column(JSON, default=dict)
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, default=_now)
+
+
+class MastodonAccount(db.Model):
+    """The Mastodon account an allotment posts to. The token is stored encrypted."""
+
+    __tablename__ = "mastodon_accounts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), unique=True
+    )
+    instance_url: Mapped[str] = mapped_column(String(300))
+    token_encrypted: Mapped[str] = mapped_column(Text)
+    handle: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    visibility: Mapped[str] = mapped_column(String(10), default="unlisted")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    on_task_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    on_photos: Mapped[bool] = mapped_column(Boolean, default=False)
+    daily_digest: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
+
+
+class MastodonPost(db.Model):
+    """An outgoing status: queued, sent or failed, with the error so it can be retried."""
+
+    __tablename__ = "mastodon_posts"
+    __table_args__ = (UniqueConstraint("allotment_id", "kind", "digest_date"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(10))  # task | photos | digest | test
+    text: Mapped[str] = mapped_column(Text)
+    media_ids: Mapped[list] = mapped_column(JSON, default=list)  # our Media ids, not Mastodon's
+    digest_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(10), default="pending", index=True
+    )  # pending | sending | sent | failed | skipped
+    attempts: Mapped[int] = mapped_column(default=0)
+    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    remote_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(String(36))
+    send_after: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

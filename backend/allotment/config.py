@@ -15,6 +15,14 @@ class Config:
     S3_SECRET_KEY = os.environ.get("S3_SECRET_KEY")
     MAX_CONTENT_LENGTH = int(os.environ.get("MAX_UPLOAD_MB", "200")) * 1024 * 1024
     MEDIA_URL_TTL_SECONDS = 3600
+    # Encrypts stored third-party tokens (Fernet key material is derived from this).
+    # Falls back to JWT_SECRET_KEY; set it separately so rotating one doesn't break the other.
+    TOKEN_ENCRYPTION_KEY = os.environ.get("TOKEN_ENCRYPTION_KEY")
+    # Mastodon: allow http/private-network instances (local dev only), batching of photo posts
+    # (seconds to wait so a burst of uploads becomes one post) and when the daily digest goes out.
+    FEDIVERSE_ALLOW_PRIVATE_HOSTS = os.environ.get("FEDIVERSE_ALLOW_PRIVATE_HOSTS") == "1"
+    MASTODON_PHOTO_BATCH_SECONDS = int(os.environ.get("MASTODON_PHOTO_BATCH_SECONDS", "180"))
+    MASTODON_DIGEST_HOUR_UTC = int(os.environ.get("MASTODON_DIGEST_HOUR_UTC", "19"))
     OTEL_EXPORTER_OTLP_ENDPOINT = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-only-insecure-secret-change-me-in-prod")
@@ -44,3 +52,5 @@ class TestConfig(Config):
     MAX_CONTENT_LENGTH = 5 * 1024 * 1024
     SQLALCHEMY_DATABASE_URI = _test_database_url()
     OTEL_EXPORTER_OTLP_ENDPOINT = None
+    FEDIVERSE_ALLOW_PRIVATE_HOSTS = True  # tests mock HTTP; a dedicated test covers the block
+    MASTODON_PHOTO_BATCH_SECONDS = 0

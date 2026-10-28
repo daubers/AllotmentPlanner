@@ -10,6 +10,9 @@ HTTP_LATENCY = Histogram(
     "allotment_http_request_seconds", "HTTP request latency", ["method", "route"]
 )
 DOMAIN_EVENTS = Counter("allotment_domain_events_total", "Domain events emitted", ["type"])
+MASTODON_POSTS = Counter(
+    "allotment_mastodon_posts_total", "Mastodon post outcomes", ["kind", "result"]
+)
 
 
 def count_event(event) -> None:

@@ -2,14 +2,18 @@
 
 import os
 import tempfile
+from datetime import UTC, datetime, timedelta
 
 import structlog
 from flask import current_app, has_app_context
 
 from . import events, media_meta
 from .celery_app import celery
+from .crypto import decrypt
 from .extensions import db
-from .models import Media
+from .fediverse import MastodonClient, MastodonError
+from .metrics import MASTODON_POSTS
+from .models import Allotment, MastodonAccount, MastodonPost, Media
 from .storage import get_storage
 
 log = structlog.get_logger(__name__)
@@ -96,3 +100,165 @@ def process_media(media_id: int) -> str:
             payload={"has_gps": media.lat is not None, "kind": media.kind},
         )
         return "ready"
+
+
+MASTODON_MAX_ATTEMPTS = 5
+
+
+def _backoff(attempts: int) -> int:
+    return min(30 * 4**attempts, 1800)  # 30s, 2m, 8m, 32m (capped at 30m)
+
+
+def _finish_post(post: MastodonPost, status: str, error: str | None = None, **fields) -> None:
+    post.status, post.error = status, (error[:500] if error else None)
+    for key, value in fields.items():
+        setattr(post, key, value)
+    db.session.commit()
+    MASTODON_POSTS.labels(post.kind, status).inc()
+    events.emit(
+        "mastodon.posted" if status == "sent" else f"mastodon.{status}",
+        allotment_id=post.allotment_id,
+        subject={"post_id": post.id},
+        payload={"kind": post.kind, "error": post.error},
+    )
+
+
+def _upload_photos(client, post: MastodonPost, storage, tmp: str) -> list[str]:
+    remote_ids = []
+    for index, media_id in enumerate(post.media_ids):
+        media = db.session.get(Media, media_id)
+        if media is None or media.kind != "photo":
+            continue  # deleted since queueing: post the rest
+        source, share = os.path.join(tmp, f"src{index}"), os.path.join(tmp, f"share{index}.jpg")
+        storage.download(media.storage_key, source)
+        media_meta.make_share_copy(source, share)
+        remote_ids.append(
+            client.upload_media(share, f"photo{index}.jpg", "image/jpeg", media.caption)
+        )
+    return remote_ids
+
+
+@celery.task(name="allotment.send_mastodon_post")
+def send_mastodon_post(post_id: int) -> str:
+    """Send one queued post. Transient failures reschedule themselves with backoff."""
+    with _app().app_context():
+        # Claim the row so a duplicate delivery can't post twice.
+        now = datetime.now(UTC)
+        claimed = (
+            db.session.query(MastodonPost)
+            .filter(
+                MastodonPost.id == post_id,
+                MastodonPost.status == "pending",
+                MastodonPost.send_after <= now + timedelta(seconds=1),
+            )
+            .update({"status": "sending"}, synchronize_session=False)
+        )
+        db.session.commit()
+        if not claimed:
+            return "skipped"
+        post = db.session.get(MastodonPost, post_id)
+        structlog.contextvars.bind_contextvars(post_id=post_id, allotment_id=post.allotment_id)
+        account = (
+            db.session.query(MastodonAccount)
+            .filter_by(allotment_id=post.allotment_id)
+            .one_or_none()
+        )
+        if account is None:
+            _finish_post(post, "skipped", "Mastodon is no longer connected for this allotment")
+            return "skipped"
+        try:
+            client = MastodonClient(account.instance_url, decrypt(account.token_encrypted))
+            remote_ids: list[str] = []
+            if post.media_ids:
+                with tempfile.TemporaryDirectory() as tmp:
+                    remote_ids = _upload_photos(client, post, get_storage(), tmp)
+            visibility = "direct" if post.kind == "test" else account.visibility
+            status = client.create_status(post.text, visibility, remote_ids, post.idempotency_key)
+        except (MastodonError, ValueError) as exc:
+            permanent = isinstance(exc, ValueError) or exc.permanent
+            post.attempts += 1
+            if permanent or post.attempts >= MASTODON_MAX_ATTEMPTS:
+                log.warning("mastodon_post_failed", error=str(exc), attempts=post.attempts)
+                _finish_post(post, "failed", str(exc))
+                return "failed"
+            delay = _backoff(post.attempts - 1)
+            post.send_after = datetime.now(UTC) + timedelta(seconds=delay)
+            _finish_post_retry(post, str(exc))
+            send_mastodon_post.apply_async(args=[post_id], countdown=delay)
+            return "retrying"
+        except Exception as exc:  # noqa: BLE001 - never leave a row stuck in "sending"
+            log.exception("mastodon_post_crashed")
+            post.attempts += 1
+            _finish_post(post, "failed", f"Unexpected error: {exc.__class__.__name__}")
+            return "failed"
+        post.attempts += 1
+        log.info("mastodon_posted", kind=post.kind, media=len(remote_ids))
+        _finish_post(post, "sent", None, remote_url=status.get("url"), posted_at=datetime.now(UTC))
+        return "sent"
+
+
+def _finish_post_retry(post: MastodonPost, error: str) -> None:
+    post.status, post.error = "pending", error[:500]
+    db.session.commit()
+    MASTODON_POSTS.labels(post.kind, "retry").inc()
+    log.warning("mastodon_post_retry", error=error, attempts=post.attempts)
+
+
+@celery.task(name="allotment.mastodon_daily_digest")
+def mastodon_daily_digest() -> int:
+    """Once a day, post a summary for each allotment that opted in and did something today."""
+    from .api.overview import build_overview
+    from .mastodon_posts import digest_text, enqueue, new_post
+
+    queued = 0
+    with _app().app_context():
+        today = datetime.now(UTC).date()
+        accounts = (
+            db.session.query(MastodonAccount).filter_by(enabled=True, daily_digest=True).all()
+        )
+        for account in accounts:
+            already = (
+                db.session.query(MastodonPost)
+                .filter_by(allotment_id=account.allotment_id, kind="digest", digest_date=today)
+                .first()
+            )
+            if already:
+                continue
+            allotment = db.session.get(Allotment, account.allotment_id)
+            overview = build_overview(allotment, 7, today)
+            text = digest_text(overview["days"][-1], overview["streak"]["current"])
+            if text is None:
+                continue
+            post = new_post(account.allotment_id, "digest", text, digest_date=today)
+            db.session.commit()
+            enqueue(post)
+            queued += 1
+    return queued
+
+
+@celery.task(name="allotment.mastodon_sweep")
+def mastodon_sweep() -> int:
+    """Safety net: re-queue posts whose delayed task was lost (e.g. a Redis flush) or whose
+    worker died mid-send."""
+    with _app().app_context():
+        now = datetime.now(UTC)
+        stuck = (
+            db.session.query(MastodonPost)
+            .filter(
+                (
+                    (MastodonPost.status == "pending")
+                    & (MastodonPost.send_after < now - timedelta(minutes=5))
+                )
+                | (
+                    (MastodonPost.status == "sending")
+                    & (MastodonPost.created_at < now - timedelta(minutes=15))
+                    & (MastodonPost.send_after < now - timedelta(minutes=15))
+                )
+            )
+            .all()
+        )
+        for post in stuck:
+            post.status = "pending"
+            db.session.commit()
+            send_mastodon_post.apply_async(args=[post.id])
+        return len(stuck)

@@ -113,6 +113,17 @@ def make_photo_thumbnail(path: str, dest: str) -> None:
         img.convert("RGB").save(dest, "JPEG", quality=82)
 
 
+SHARE_MAX_PX = 2560
+
+
+def make_share_copy(path: str, dest: str) -> None:
+    """A web-sized JPEG for posting elsewhere. Re-encoding drops EXIF, so GPS never leaves."""
+    with Image.open(path) as img:
+        img = ImageOps.exif_transpose(img)
+        img.thumbnail((SHARE_MAX_PX, SHARE_MAX_PX))
+        img.convert("RGB").save(dest, "JPEG", quality=85)
+
+
 _ISO6709 = re.compile(r"^([+-]\d+(?:\.\d+)?)([+-]\d+(?:\.\d+)?)")
 
 
