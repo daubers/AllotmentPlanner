@@ -55,6 +55,25 @@ services:
     <<: *backend
     command: celery -A allotment.celery_app:celery worker -l INFO -E
 
+  # Photogrammetry (OpenSfM + GDAL). Off by default because its image is large and the first build
+  # takes a while. Start it with `make mapper` to let "Build map" jobs run; they queue until then.
+  mapper:
+    profiles: [mapping]
+    build:
+      context: ./backend
+      dockerfile: ../worker/Dockerfile
+    env_file: .env
+    # The dev api/worker run as root and own the shared media volume, so the mapper must too to
+    # write tiles there. (The published images all use the same unprivileged user.)
+    user: root
+    volumes:
+      - ./backend/allotment:/app/allotment
+      - media:/data/media
+      - mapping:/data/mapping
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
   beat:
     <<: *backend
     command: celery -A allotment.celery_app:celery beat -l INFO
@@ -89,3 +108,4 @@ services:
 volumes:
   pgdata:
   media:
+  mapping:

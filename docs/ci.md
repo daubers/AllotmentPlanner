@@ -12,7 +12,9 @@ An `act_runner` labelled `ubuntu-latest` with access to the Docker socket (neede
 - `REGISTRY_TOKEN`: a personal access token with `write:package`. The automatic `GITEA_TOKEN` usually cannot push packages.
 
 ## Image tags
-Pushed to `<gitea-host>/<owner>/allotment-api`: `sha-<short>`, the branch name, `latest` on `main`, and `X.Y.Z` / `X.Y` for tags like `v0.1.0`.
+Three images are pushed to `<gitea-host>/<owner>/`: `allotment-api`, `allotment-frontend` and `allotment-worker` (the OpenSfM + GDAL mapping worker). Each gets `sha-<short>`, the branch name, `latest` on `main`, and `X.Y.Z` / `X.Y` for tags like `v0.1.0`.
+
+The worker image compiles OpenSfM from a pinned commit, which takes 15-30 minutes the first time and needs roughly 4 GB of RAM on the runner. The registry build cache (`:buildcache`) keeps later builds to a couple of minutes unless the Dockerfile's OpenSfM layers change. The mapping pipeline itself is checked locally with `make mapping-check`, not in CI, because it needs that image.
 Release with `git tag v0.1.0 && git push origin v0.1.0`.
 
 ## Local equivalents
