@@ -37,6 +37,7 @@ Tickets live in YouTrack project **AM** (Allotment Manager) at pm.daubney.dev. W
 | 22 Suggested tasks and overview | AM-43 | Backlog |
 | 23 Mobile: library, trays, bed plantings | AM-44 | Backlog |
 | CI: Gitea Actions | AM-11 | Merged (in Review) |
+| README, production compose, automatic migrations | AM-45 | Merged (in Review) |
 
 ## Repo layout (monorepo)
 ```

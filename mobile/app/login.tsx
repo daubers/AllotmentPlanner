@@ -42,7 +42,7 @@ export default function Login() {
             <View style={{ gap: space.lg }}>
               <Field
                 label="Server address"
-                helper="Where your Allotment server is, e.g. plot.example.com or 192.168.1.5:8080"
+                helper="Where your Allotment server is, e.g. plot.example.com or 192.168.1.5:8000"
                 value={server}
                 onChangeText={setServer}
                 autoCapitalize="none"

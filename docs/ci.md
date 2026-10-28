@@ -2,7 +2,7 @@
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `.gitea/workflows/test.yml` | every push and PR | ruff lint and format check, pytest with coverage, `docker compose config` validation |
+| `.gitea/workflows/test.yml` | every push and PR | ruff lint and format check, pytest with coverage, frontend and phone app checks, `docker compose config` validation of the dev and production (`make prod-config`) files |
 | `.gitea/workflows/build.yml` | push to `main`, tags `v*` | repeats pytest, then builds the `prod` image target and pushes it to the Gitea container registry |
 
 ## Runner requirements
@@ -32,3 +32,6 @@ prints the Today sheet, and uploads EXIF-dated photos (processed by the real Cel
 timeline and before/after slider. It needs the `worker` service running (`make e2e` starts the stack).
 Running it in CI needs the job to reach a Docker daemon with bind-mountable paths; that is planned
 with the polish phase (AM-10). Test users are named `e2e-*@example.com`.
+
+## Deploying what CI builds
+`deploy/docker-compose.prod.yml` runs these images; the README's "Deployment" section is the walk-through (settings, first start, TLS, backups, upgrades). The `api` image contains the database migrations, and a one-shot `migrate` service runs `flask db upgrade` before anything else starts.

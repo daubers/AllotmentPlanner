@@ -5,6 +5,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ffmpeg && 
 WORKDIR /app
 COPY pyproject.toml ./
 COPY allotment ./allotment
+# Database migrations: run by the compose `migrate` service (flask db upgrade) before the app starts.
+COPY migrations ./migrations
+ENV FLASK_APP=allotment:create_app
 EXPOSE 8000
 
 # Published image: no dev extras, no autoreload.

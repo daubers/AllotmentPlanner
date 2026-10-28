@@ -1,10 +1,21 @@
-.PHONY: env up down observability mapper mapping-check test logs e2e
+.PHONY: env up down observability mapper mapping-check test logs e2e migrate prod-config
 
 env:
 	@test -f .env || cp .env.example .env
 
 up: env
 	docker compose up --build -d
+
+# Apply database migrations by hand (`make up` already does this on every start).
+migrate: env
+	docker compose run --rm migrate
+
+# Check the production compose file against the example settings. Uses a temporary deploy/.env
+# if there is none, and never removes one that was already there.
+prod-config:
+	@created=0; test -f deploy/.env || { cp deploy/.env.production.example deploy/.env; created=1; }; \
+	docker compose -f deploy/docker-compose.prod.yml --profile mapping config -q; r=$$?; \
+	if [ $$created = 1 ]; then rm deploy/.env; fi; exit $$r
 
 # The photogrammetry worker (large image, slow first build): needed for "Build map" jobs.
 mapper: env

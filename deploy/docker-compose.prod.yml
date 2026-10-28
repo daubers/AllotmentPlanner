@@ -1,0 +1,135 @@
+# Production stack: runs the images the CI `build` workflow publishes (see docs/ci.md).
+#
+#   cp .env.production.example .env      # then edit it: passwords, secrets, where the images are
+#   docker login git.daubney.dev          # a token with read:package
+#   docker compose up -d
+#
+# The web app and the API are both served on HTTP_PORT (nginx proxies /api to the API); put a TLS
+# reverse proxy in front of that one port. Nothing else is published. See the README, "Deployment".
+#
+# Add `--profile mapping` to also run the photo-mapping worker (a large image, 4 GB of RAM or more).
+
+name: allotment
+
+x-image: &registry ${REGISTRY:-git.daubney.dev/matt}
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql+psycopg://allotment:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/allotment
+  REDIS_URL: redis://redis:6379/0
+  JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in .env (32 or more random characters)}
+  TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+  FLASK_APP: allotment:create_app
+  STORAGE_BACKEND: ${STORAGE_BACKEND:-file}
+  MEDIA_ROOT: /data/media
+  MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-4096}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  # The apps run as an unprivileged user with no home folder.
+  HOME: /tmp
+
+x-app: &app
+  image: ${REGISTRY:-git.daubney.dev/matt}/allotment-api:${TAG:-latest}
+  # One fixed user for every container that touches the shared data volumes, whichever image it is.
+  user: "10001:10001"
+  env_file: .env
+  environment: *app-env
+  restart: unless-stopped
+  depends_on:
+    db: {condition: service_healthy}
+    redis: {condition: service_healthy}
+    migrate: {condition: service_completed_successfully}
+    volumes-init: {condition: service_completed_successfully}
+  volumes:
+    - media:/data/media
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: allotment
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: allotment
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      # -h makes it check over the network: during first-time setup Postgres answers only on its socket.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U allotment"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  # Makes the data volumes writable by the apps' user (the images are built with different users).
+  volumes-init:
+    image: busybox:1.37
+    user: root
+    command: ["sh", "-c", "mkdir -p /data/media /data/mapping /data/models && chown -R 10001:10001 /data"]
+    volumes:
+      - media:/data/media
+      - mapping:/data/mapping
+      - models:/data/models
+    restart: "no"
+
+  # Brings the database schema up to date and exits. Everything else waits for it.
+  migrate:
+    image: ${REGISTRY:-git.daubney.dev/matt}/allotment-api:${TAG:-latest}
+    user: "10001:10001"
+    env_file: .env
+    environment: *app-env
+    command: ["flask", "db", "upgrade"]
+    depends_on:
+      db: {condition: service_healthy}
+    restart: "no"
+
+  api:
+    <<: *app
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8000/readyz"]
+      interval: 10s
+      retries: 10
+
+  # Thumbnails, photo metadata, Mastodon posts.
+  worker:
+    <<: *app
+    command: ["celery", "-A", "allotment.celery_app:celery", "worker", "-l", "INFO"]
+
+  # Scheduled work: the Mastodon digest and the sweeper that re-queues lost posts.
+  beat:
+    <<: *app
+    command: ["celery", "-A", "allotment.celery_app:celery", "beat", "-l", "INFO", "-s", "/tmp/celerybeat-schedule"]
+
+  frontend:
+    image: ${REGISTRY:-git.daubney.dev/matt}/allotment-frontend:${TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      api: {condition: service_healthy}
+    ports: ["${HTTP_PORT:-8080}:80"]
+
+  # Builds maps from photos and video, and recognises objects in them. Optional and heavy.
+  mapper:
+    profiles: [mapping]
+    image: ${REGISTRY:-git.daubney.dev/matt}/allotment-worker:${TAG:-latest}
+    user: "10001:10001"
+    env_file: .env
+    environment: *app-env
+    restart: unless-stopped
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+      volumes-init: {condition: service_completed_successfully}
+    volumes:
+      - media:/data/media
+      - mapping:/data/mapping
+      - models:/data/models  # recognition models (about 1.3 GB), downloaded on first use
+
+volumes:
+  pgdata:
+  media:
+  mapping:
+  models:

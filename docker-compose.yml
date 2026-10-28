@@ -10,6 +10,7 @@ x-backend: &backend
   depends_on:
     db: {condition: service_healthy}
     redis: {condition: service_healthy}
+    migrate: {condition: service_completed_successfully}
 
 services:
   db:
@@ -21,7 +22,8 @@ services:
     volumes: [pgdata:/var/lib/postgresql/data]
     ports: ["5432:5432"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U allotment"]
+      # -h makes it check over the network: during first-time setup Postgres answers only on its socket.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U allotment"]
       interval: 5s
       retries: 10
 
@@ -31,6 +33,21 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       retries: 10
+
+  # Brings the database schema up to date, then exits. Everything that uses the database waits for
+  # it, so `docker compose up` after a pull never meets a schema that is behind the code.
+  migrate:
+    build:
+      context: ./backend
+      target: dev
+    env_file: .env
+    command: flask db upgrade
+    volumes:
+      - ./backend/allotment:/app/allotment
+      - ./backend/migrations:/app/migrations
+    depends_on:
+      db: {condition: service_healthy}
+    restart: "no"
 
   api:
     <<: *backend
@@ -74,6 +91,7 @@ services:
     depends_on:
       db: {condition: service_healthy}
       redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
 
   beat:
     <<: *backend
