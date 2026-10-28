@@ -1,7 +1,7 @@
 # Allotment Planner: Implementation Plan
 
 ## Context
-A multi-user app to map an allotment, plan and log work as tasks pinned to map features, print a daily todo list, upload progress photos with a historical timeline, post activity to a Mastodon account, and show a progress overview ("feel good" dashboard).
+A multi-user app to map an allotment, plan and log work as tasks pinned to map features, print a daily todo list, upload progress photos with a historical timeline, post activity to a Mastodon account, and show a progress overview ("feel good" dashboard). A measuring checklist, filled in on site, corrects the drawn map to real-world dimensions.
 
 Decisions: Leaflet + Geoman map editor; OpenSfM + GDAL for photo/video → orthomap; ActivityPub via posting to an existing Mastodon account through its API; multi-user with roles. Stack: Flask / Celery / Postgres (PostGIS) with OpenAPI; TypeScript + React frontend. Docker compose for test instances; Gitea Actions for CI (see [ci.md](ci.md)).
 
@@ -20,14 +20,15 @@ Tickets live in YouTrack project **AM** (Allotment Manager) at pm.daubney.dev. W
 | 8 Mastodon posting | AM-8 | Backlog |
 | 9 Map from media (OpenSfM) | AM-9 | Backlog |
 | 10 Polish: seed data, e2e, docs | AM-10 | Backlog |
+| 11 Measuring checklist (map accuracy) | AM-17 | Backlog |
 | CI: Gitea Actions | AM-11 | Merged (in Review) |
 
 ## Repo layout (monorepo)
 ```
 backend/            Flask app (allotment/...), alembic migrations, tests, Dockerfile (dev + prod targets)
   allotment/{api,models,schemas,security,events,...}
-frontend/           Vite + React + TS, generated API client, Dockerfile   (not yet created)
-worker/             Celery worker image (backend code + OpenSfM + GDAL)   (not yet created)
+frontend/           Vite + React + TS, generated API client, Dockerfile
+worker/             Celery worker image (backend code + OpenSfM + GDAL)   (not yet created; AM-9)
 .gitea/workflows/   test.yml, build.yml
 docker-compose.yml  dev stack, with an `observability` profile
 docs/ , .env.example, Makefile
@@ -41,23 +42,26 @@ docs/ , .env.example, Makefile
 - **Storage**: `allotment/storage.py` with two backends behind one interface: plain files on a shared Docker volume (default; used by compose and tests) or any S3-compatible service (`STORAGE_BACKEND=s3`, tested against moto). MinIO was dropped: its container images are no longer published. Orthomaps will be stored as COG GeoTIFF + XYZ tiles.
 
 ### Data model
-`User`, `Allotment`, `Membership(user, allotment, role)` (done). Planned: `MapFeature` (allotment, kind: bed/path/shed/tree/etc., geometry incl. polygon/point/line, circle as point + `radius_m`, name, style jsonb), `MapLayer` (generated ortho: status, source job, bounds, tile URL), `Task` (title, description, status todo/doing/done, due date, priority, recurrence, assignee, optional `feature_id`, optional point geometry, completed_at/by), `Media` (kind photo/video, storage key, EXIF taken_at, lat/lng, heading, optional `feature_id`/`task_id`, caption), `MapJob` (input media, status, OpenSfM log, output layer), `ActivityLog` (event type, actor, subject refs, timestamp: feeds overview and Mastodon), `MastodonAccount` (instance URL, encrypted token, per-allotment, visibility).
+`User`, `Allotment`, `Membership(user, allotment, role)` (done). Planned: `MapFeature` (allotment, kind: bed/path/shed/tree/etc., geometry incl. polygon/point/line, circle as point + `radius_m`, name, style jsonb), `MapLayer` (generated ortho: status, source job, bounds, tile URL), `Task` (title, description, status todo/doing/done, due date, priority, recurrence, assignee, optional `feature_id`, optional point geometry, completed_at/by), `Media` (kind photo/video, storage key, EXIF taken_at, lat/lng, heading, optional `feature_id`/`task_id`, caption), `MapJob` (input media, status, OpenSfM log, output layer), `ActivityLog` (event type, actor, subject refs, timestamp: feeds overview and Mastodon), `MastodonAccount` (instance URL, encrypted token, per-allotment, visibility), `Measurement` (allotment, kind edge|diagonal|radius|custom, endpoint A/B as feature + corner index, `value_m`, note, skipped, stale, measured_by/at) and `Allotment.length_unit` (`m`|`cm`|`ft_in`; values are always stored in metres).
 
 ### API (all under `/api/v1`)
 Done: auth (register/login/refresh/me), allotments + members.
-Planned: features (CRUD, GeoJSON in/out, bulk `PUT` of a FeatureCollection), tasks (CRUD, filter by date/feature/status, complete/uncomplete), media (presigned upload + register, list by feature/date), map-jobs (create from media ids, poll status), layers, timeline (media by date for compare), overview (per-day/week counts of tasks done, photos added, features changed + streak), printable todo (`GET /todo?date=` → HTML/PDF), Mastodon settings + test post.
+Planned: features (CRUD, GeoJSON in/out, bulk `PUT` of a FeatureCollection), tasks (CRUD, filter by date/feature/status, complete/uncomplete), media (presigned upload + register, list by feature/date), map-jobs (create from media ids, poll status), layers, timeline (media by date for compare), overview (per-day/week counts of tasks done, photos added, features changed + streak), printable todo (`GET /todo?date=` → HTML/PDF), Mastodon settings + test post, measurements (`GET` list with the drawn length of each item, `PATCH` value/note/skip, `POST` a custom corner-to-corner distance, `POST /sync` to generate or refresh the checklist, `POST /fit?preview=true|false` to preview or apply the corrected geometry).
 
 ### Key flows
 - **Map from media**: user uploads photos/videos → Celery extracts EXIF GPS/heading/time (piexif/exifread; ffmpeg samples video frames, `ffprobe` location tags) → `MapJob` runs OpenSfM with GPS priors → GDAL (`gdalwarp`/`gdal2tiles`) orthoprojects to a georeferenced GeoTIFF + tiles → `MapLayer` shown as an overlay. Media without GPS can be placed manually by dragging on the map. The user then traces features over the layer (Geoman).
 - **Daily todo**: print-optimised HTML (`@media print`) listing due/overdue tasks grouped by bed, with a small map snapshot; WeasyPrint as optional PDF endpoint.
 - **Mastodon**: on task complete / photo upload / milestone, a Celery task posts a status (with media) using `Mastodon.py`; opt-in per event type, with a daily-digest option.
 - **Progress overview**: aggregate `ActivityLog` by day/week; heatmap calendar, streak, "this week you completed N tasks", newest progress photos.
+- **Measuring checklist** (phase 11): items are generated from the drawn features: a polygon with n corners gets its n edges plus a fan of n-3 diagonals from corner 1 (2n-3 distances fix a shape exactly), a line gets one item per segment, a circle one radius item. Sync is idempotent: unmeasured items whose corners vanished are deleted, measured ones are kept and flagged stale. **Fit**: project lon/lat to local metres about the allotment centroid, then Gauss-Newton least squares (numpy) per connected group of features, minimising `|p_i - p_j| - d` plus a weak prior toward the drawn positions, which pins translation, rotation and mirroring to what was drawn. The result reports residuals before and after, flags probable mismeasurements (residual over 0.15 m), says how many more measurements an under-determined shape needs, and goes through the existing feature validation (e.g. no self-intersection) before anything is written. Preview never writes; apply is one transaction.
 
 ## Frontend design
-Vite + React + TS, React Router, TanStack Query, `openapi-typescript` + `openapi-fetch` generated client (`npm run gen:api`), Leaflet via `react-leaflet` + `@geoman-io/leaflet-geoman-free`. Pages: Login, Allotment switcher, **Map** (editor with feature list, task pins, overlay layers, media markers), **Tasks**, **Today** (printable), **Timeline** (photo history with date slider/compare), **Overview**, **Media upload**, **Settings** (members, Mastodon). Tests: Vitest + Testing Library; Playwright e2e against the compose stack.
+Vite + React + TS, React Router, TanStack Query, `openapi-typescript` + `openapi-fetch` generated client (`npm run gen:api`), Leaflet via `react-leaflet` + `@geoman-io/leaflet-geoman-free`. Pages: Login, Allotment switcher, **Map** (editor with feature list, task pins, overlay layers, media markers), **Tasks**, **Today** (printable), **Timeline** (photo history with date slider/compare), **Overview**, **Media upload**, **Settings** (members, Mastodon), **Measure** (phase 11). Tests: Vitest + Testing Library; Playwright e2e against the compose stack.
+
+**Measure page** (mobile first, used on site): checklist grouped by feature with progress ("7 / 12 measured"); each row has a number input with a unit, notes and skip; a numbered-corner sketch (reusing `map/sketch.ts`) highlights the item being measured; "Apply to map" opens a preview of drawn against corrected shape with residuals, recheck warnings and what is still needed. A tolerant unit parser/formatter accepts `3.2`, `320cm`, `10ft 6in` and `10'6"`, shown per the allotment's `length_unit`. Phone fixes it needs: wrap the tab bar (a sixth tab overflows), `100dvh` for the shell, `inputmode="decimal"` on number fields, 44px touch targets.
 
 ## Observability and hooks (cross-cutting)
-- **Domain event bus**: `emit(event_type, ...)` in `allotment/events.py`. Every state change goes through it. Subscribers: `ActivityLog` writer, Mastodon publisher, metrics counter, structured log line. New behaviour (webhooks, notifications) is added by registering a subscriber. Optional per-allotment outbound webhook subscriber.
+- **Domain event bus**: `emit(event_type, ...)` in `allotment/events.py`. Every state change goes through it. Subscribers: `ActivityLog` writer, Mastodon publisher, metrics counter, structured log line. New behaviour (webhooks, notifications) is added by registering a subscriber. Optional per-allotment outbound webhook subscriber. Measuring adds `measurement.recorded`, `measurement.synced` and `measurements.applied`; the last is recorded in `ActivityLog` and counts as a map edit on the overview.
 - **Structured logging**: `structlog` JSON logs in api, worker and beat; `request_id` returned as `X-Request-ID` and propagated into Celery tasks.
 - **Metrics**: `/metrics` (Prometheus): HTTP rate/latency by route, domain-event counts; planned Celery task counts/durations, map-job duration, Mastodon post success/failure, DB pool stats.
 - **Tracing**: OpenTelemetry (Flask, SQLAlchemy, Celery, Redis, requests) via OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; frontend will add `traceparent`.
@@ -68,7 +72,7 @@ Vite + React + TS, React Router, TanStack Query, `openapi-typescript` + `openapi
 - **Tests**: events asserted per operation; smoke test for `/metrics`, `/healthz`, `/readyz` and request-ID propagation into a Celery task.
 
 ## Docker
-`docker-compose.yml`: `db` (postgis), `redis`, `api`, `worker`, `beat`, `flower`, plus `prometheus`/`grafana`/`jaeger` under the `observability` profile. `.env.example`, `Makefile` (`up`, `down`, `test`, `observability`, `logs`). Planned: `frontend` service, `flask seed-demo`, a compose test overlay. Risk: OpenSfM builds are slow; use a multi-stage worker Dockerfile with pinned versions, built separately so the rest of the stack starts quickly.
+`docker-compose.yml`: `db` (postgis), `redis`, `api`, `worker`, `beat`, `flower`, plus `prometheus`/`grafana`/`jaeger` under the `observability` profile. `.env.example`, `Makefile` (`up`, `down`, `test`, `observability`, `logs`). `frontend` and the shared `media` volume are in the stack. Planned: `flask seed-demo`, a compose test overlay. Risk: OpenSfM builds are slow; use a multi-stage worker Dockerfile with pinned versions, built separately so the rest of the stack starts quickly.
 
 ## Phases
 1. **Scaffold & Docker**: repo, backend skeleton, event bus, logging, metrics, health, tracing, compose stack. ✅
@@ -81,9 +85,11 @@ Vite + React + TS, React Router, TanStack Query, `openapi-typescript` + `openapi
 8. **Mastodon**: settings, posting task, event opt-ins, digest.
 9. **Map from media (OpenSfM)**: worker image, `MapJob` pipeline, ortho overlay, manual placement fallback. Adds the `worker` image to CI.
 10. **Polish**: seed data, e2e tests, README/docs.
+11. **Measuring checklist** (AM-17): `Measurement` model + `length_unit`, checklist generation from features, least-squares fit with preview/apply, Measure page with units and corner sketch, phone layout fixes. Depends only on map features (AM-3), so it can start at any point. Not in scope: corner numbers drawn on the Leaflet map, a printable paper checklist, GPS-assisted measuring, anchoring scale/rotation to surveyed points.
 
 ## Verification
 - Backend: `pytest` (API tests; Celery eager; Mastodon mocked; OpenSfM pipeline on a small sample set marked slow); PostGIS-backed tests once geometry models land.
 - Frontend: `vitest`, `tsc --noEmit`; Playwright e2e: register → create allotment → draw bed → add task pinned to bed → complete it → upload photo → see it in timeline and overview → print todo renders.
 - `docker compose up --build` from a clean checkout reaches healthy; `http://localhost:8000/api/docs` and `http://localhost:5173` load; `flask seed-demo` populates a demo.
 - OpenAPI: generated TS client regenerates with no diff in CI.
+- Measuring: solver unit tests (a skewed rectangle fits exactly to 10 x 5 from edges plus one diagonal; a trapezoid; one bad measurement is flagged `recheck` with small residuals elsewhere; an under-determined shape reports its missing constraints; no mirror flip; circle radius), sync idempotence and stale handling, role tests (viewer 403 on writes, non-member 404, preview writes nothing, an invalid fit returns 422 and changes nothing), unit-parser tests, and an e2e step: draw a slightly wrong bed, measure, preview, apply, check its size on the map.
