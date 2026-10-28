@@ -298,6 +298,12 @@ GPS_TRUSTED_SPREAD_M = 20.0  # cameras spread wider than this: GPS fixes the sca
 COMPASS_USED_BELOW_M = 15.0  # cameras bunched tighter than this: GPS can't fix the heading
 
 
+def located_names(work: Path) -> set[str]:
+    """File names of the images given a GPS position (the photos with a location)."""
+    overrides = json.loads((work / "exif_overrides.json").read_text())
+    return {name for name, o in overrides.items() if "gps" in o}
+
+
 def input_gps_spread(work: Path, reference: tuple[float, float]) -> float:
     """How widely the photos' GPS positions are spread, in metres (0 if there are none)."""
     overrides = json.loads((work / "exif_overrides.json").read_text())
@@ -325,7 +331,9 @@ def load_corrected(
     bunched, the scale is set from how high the camera was held; and the phone's compass headings,
     if they agree with each other, set the direction."""
     rec = geo.load_reconstruction(
-        str(work / "undistorted" / "reconstruction.json"), str(work / "reference_lla.json")
+        str(work / "undistorted" / "reconstruction.json"),
+        str(work / "reference_lla.json"),
+        located=located_names(work),
     )
     plane = geo.fit_ground_plane(rec.points)
     spread = input_gps_spread(work, rec.reference)
@@ -589,7 +597,13 @@ def detect_objects(job: MapJob, work: Path, detector=None) -> int:
             found = detector.detect(image)
         for d in found:
             fp = detection_geo.footprint_from_mask(
-                shot, plane, d.mask, d.score, d.type.shape, scale=d.scale
+                shot,
+                plane,
+                d.mask,
+                d.score,
+                d.type.shape,
+                scale=d.scale,
+                max_range=current_app.config["MAPPING_DETECT_MAX_RANGE_M"],
             )
             if fp:
                 observations.append(
@@ -597,7 +611,9 @@ def detect_objects(job: MapJob, work: Path, detector=None) -> int:
                 )
         _append_log(job, f"looked at photo {n} of {len(shots)}: {len(found)} objects")
         db.session.commit()
-    fused = detection_geo.fuse(observations)
+    merged = detection_geo.fuse(observations)
+    fused = [g for g in merged if detection_geo.worth_keeping(g)]
+    _append_log(job, f"{len(merged)} candidates, {len(fused)} kept after dropping likely noise")
     # Suggestions from an earlier run are replaced by this one.
     db.session.query(MapSuggestion).filter_by(
         allotment_id=job.allotment_id, status="pending"

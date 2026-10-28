@@ -186,3 +186,29 @@ def test_a_narrow_object_still_gets_enough_contact_points():
     thin = np.zeros((480, 640), bool)
     thin[200:280, 300:302] = True  # two columns: too little to measure
     assert dg.contact_points(thin) is None
+
+
+def _fused(label, width, views, confidence, shape="circle"):
+    return dg.FusedObject(label, "water", shape, 0, 0, width, width, 0.0, confidence, views)
+
+
+def test_implausible_sizes_and_lone_weak_detections_are_dropped():
+    assert dg.worth_keeping(_fused("Water butt", 0.8, 3, 0.5))
+    assert not dg.worth_keeping(
+        _fused("Water butt", 4.0, 5, 0.9)
+    )  # no water butt is four metres wide
+    assert not dg.worth_keeping(_fused("Water butt", 0.1, 5, 0.9))  # nor ten centimetres
+    assert not dg.worth_keeping(_fused("Water butt", 0.8, 1, 0.3))  # seen once, not confident
+    assert dg.worth_keeping(
+        _fused("Water butt", 0.8, 1, 0.6)
+    )  # seen once, but the detector was sure
+    assert dg.worth_keeping(
+        _fused("Something new", 9.0, 2, 0.2)
+    )  # unknown types aren't size-checked
+
+
+def test_far_objects_are_ignored_when_a_range_is_given():
+    shot = RING[0]
+    mask = render_mask(shot, OBJECTS["water butt"][2])  # about 6 m away
+    assert dg.footprint_from_mask(shot, FLAT, mask, 0.9, "circle", max_range=15) is not None
+    assert dg.footprint_from_mask(shot, FLAT, mask, 0.9, "circle", max_range=4) is None

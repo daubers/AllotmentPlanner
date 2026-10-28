@@ -1,0 +1,66 @@
+import { describe, expect, it } from "vitest";
+import { confidenceWord, mergeTicks, seenIn, shapeOf, suggestionBox, tickedByDefault, type Suggestion } from "./model";
+
+const s = (id: number, extra: Partial<Suggestion> = {}): Suggestion => ({ id, confidence: 0.7, views: 3, ...extra }) as Suggestion;
+
+describe("confidenceWord", () => {
+  it("puts scores into words", () => {
+    expect(confidenceWord(0.8)).toBe("likely");
+    expect(confidenceWord(0.45)).toBe("possible");
+    expect(confidenceWord(0.2)).toBe("unsure");
+    expect(confidenceWord(undefined)).toBe("unsure");
+  });
+});
+
+describe("tickedByDefault", () => {
+  it("ticks reasonably sure detections only", () => {
+    expect(tickedByDefault(s(1, { confidence: 0.4 }))).toBe(true);
+    expect(tickedByDefault(s(1, { confidence: 0.39 }))).toBe(false);
+  });
+});
+
+describe("seenIn", () => {
+  it("is grammatical", () => {
+    expect(seenIn({ views: 1 })).toBe("seen in 1 photo");
+    expect(seenIn({ views: 4 })).toBe("seen in 4 photos");
+  });
+});
+
+describe("shapeOf", () => {
+  it("turns a point and radius into a circle, swapping to lat/lng", () => {
+    expect(shapeOf({ geometry: { type: "Point", coordinates: [-0.12, 51.5] }, radius_m: 0.4 })).toEqual({ type: "circle", centre: [51.5, -0.12], radius: 0.4 });
+  });
+  it("turns a closed polygon into an open ring in lat/lng order", () => {
+    const g = { type: "Polygon", coordinates: [[[0, 1], [2, 1], [2, 3], [0, 3], [0, 1]]] };
+    expect(shapeOf({ geometry: g, radius_m: null })).toEqual({ type: "polygon", ring: [[1, 0], [1, 2], [3, 2], [3, 0]] });
+  });
+  it("copes with nothing usable", () => {
+    expect(shapeOf({ geometry: { type: "LineString" }, radius_m: null })).toBeNull();
+    expect(shapeOf({ geometry: undefined, radius_m: null })).toBeNull();
+  });
+});
+
+describe("mergeTicks", () => {
+  it("ticks new confident ones, keeps the person's choices for ones already seen", () => {
+    const list = [s(1), s(2, { confidence: 0.2 }), s(3), s(4)];
+    const kept = mergeTicks(new Set([1]), new Set([1, 3]), list); // person ticked 1, unticked 3; 2 and 4 are new
+    expect([...kept].sort()).toEqual([1, 4]);
+  });
+  it("drops ticks for suggestions that are gone", () => {
+    expect([...mergeTicks(new Set([9]), new Set([9]), [s(1)])]).toEqual([1]);
+  });
+});
+
+describe("suggestionBox", () => {
+  it("surrounds a circle by about its radius", () => {
+    const [[s0, w0], [n0, e0]] = suggestionBox({ geometry: { type: "Point", coordinates: [-1, 52] }, radius_m: 111 })!;
+    expect(n0 - s0).toBeCloseTo(0.002, 4); // 111 m either way, in degrees of latitude
+    expect(e0 - w0).toBeGreaterThan(0.002); // degrees of longitude are shorter, so more of them
+    expect((s0 + n0) / 2).toBeCloseTo(52, 6);
+  });
+  it("is the extent of a polygon", () => {
+    const g = { type: "Polygon", coordinates: [[[0, 1], [2, 1], [2, 3], [0, 3], [0, 1]]] };
+    expect(suggestionBox({ geometry: g, radius_m: null })).toEqual([[1, 0], [3, 2]]);
+  });
+  it("has none for what it can't draw", () => expect(suggestionBox({ geometry: { type: "LineString" }, radius_m: null })).toBeNull());
+});

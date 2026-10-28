@@ -67,12 +67,25 @@ RUN python3 -m venv /opt/app-venv
 COPY . /app
 RUN /opt/app-venv/bin/pip install --no-cache-dir /app
 
+# Object recognition (Grounding DINO + SAM through transformers), CPU only. torch's wheel is one
+# big file, so it goes in a layer of its own; its smaller dependencies follow in another. The
+# models themselves are NOT baked in (hundreds of MB of weights in one layer would be refused by
+# the registry's proxy): they download into /data/models the first time a job needs them.
+# (torch's own tests and C++ headers are about 180 MB that inference never touches.)
+RUN /opt/app-venv/bin/pip install --no-cache-dir --no-deps torch torchvision \
+    --index-url https://download.pytorch.org/whl/cpu \
+    && rm -rf /opt/app-venv/lib/python3.12/site-packages/torch/test \
+              /opt/app-venv/lib/python3.12/site-packages/torch/include
+RUN /opt/app-venv/bin/pip install --no-cache-dir torch torchvision scipy "transformers>=4.45" \
+    --extra-index-url https://download.pytorch.org/whl/cpu
+
 ENV PATH="/opt/app-venv/bin:$PATH" \
+    HF_HOME=/data/models \
     OPENSFM_PYTHON=/opt/opensfm-venv/bin/python \
     OPENSFM_MAIN=/opt/OpenSfM/bin/opensfm_main.py \
     MAPPING_WORK_DIR=/data/mapping
 
-RUN useradd --create-home allotment && mkdir -p /data/media /data/mapping \
+RUN useradd --create-home allotment && mkdir -p /data/media /data/mapping /data/models \
     && chown -R allotment /data
 USER allotment
 WORKDIR /app

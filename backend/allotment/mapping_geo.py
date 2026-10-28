@@ -67,15 +67,38 @@ def rodrigues(rvec) -> np.ndarray:
     return np.eye(3) + math.sin(theta) * kx + (1 - math.cos(theta)) * (kx @ kx)
 
 
-def load_reconstruction(reconstruction_json: str, reference_json: str) -> Reconstruction:
-    """The biggest reconstruction in OpenSfM's (undistorted) output, with perspective cameras."""
+def load_reconstruction(
+    reconstruction_json: str,
+    reference_json: str,
+    located: set[str] | None = None,
+    min_located: int = 3,
+) -> Reconstruction:
+    """One reconstruction from OpenSfM's output, with perspective cameras.
+
+    OpenSfM often returns several separate pieces. Only a piece containing located photos
+    (``located`` is the set of their file names) is lined up with the real world: the others have
+    an arbitrary "up" and position. So the piece with the most located photos wins, and at least
+    ``min_located`` are required; without ``located`` the biggest piece is used."""
     with open(reconstruction_json) as f:
         reconstructions = json.load(f)
     with open(reference_json) as f:
         ref = json.load(f)
     if not reconstructions:
         raise ReconstructionError("OpenSfM could not reconstruct any of the photos")
-    best = max(reconstructions, key=lambda r: len(r.get("shots", {})))
+    if located is None:
+        best = max(reconstructions, key=lambda r: len(r.get("shots", {})))
+    else:
+        best = max(
+            reconstructions,
+            key=lambda r: (len(located & set(r.get("shots", {}))), len(r.get("shots", {}))),
+        )
+        n = len(located & set(best.get("shots", {})))
+        if n < min_located:
+            raise ReconstructionError(
+                f"Only {n} of the photos with a location could be linked together; at least "
+                f"{min_located} are needed to place the map. Take photos that overlap each other "
+                "and show the same ground"
+            )
     cameras = {}
     for cid, c in best["cameras"].items():
         if c.get("projection_type") != "perspective":

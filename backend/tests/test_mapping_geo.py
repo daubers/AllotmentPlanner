@@ -288,3 +288,28 @@ def test_gps_spread_distinguishes_standing_still_from_walking_about():
     walking = standing * 20
     assert geo.gps_spread(standing) < 2.0 < 20.0 < geo.gps_spread(walking)
     assert geo.gps_spread(np.zeros((0, 3))) == 0.0
+
+
+def _piece(names):
+    camera = {"projection_type": "perspective", "width": 4000, "height": 3000, "focal": 0.8}
+    shot = {"rotation": [0, 0, 0], "translation": [0, 0, 5], "camera": "c"}
+    return {"cameras": {"c": camera}, "shots": {n: shot for n in names}, "points": {}}
+
+
+def test_the_piece_with_the_located_photos_wins_over_a_bigger_unlocated_one(tmp_path):
+    frames = [f"v1_{i:04d}.jpg" for i in range(30)]  # a big piece made only of video frames
+    photos = ["m1.jpg", "m2.jpg", "m3.jpg", "m4.jpg"]  # a smaller one holding located photos
+    rec, ref = _write(tmp_path, [_piece(frames), _piece(photos + frames[:3])])
+    result = geo.load_reconstruction(rec, ref, located=set(photos))
+    assert sorted(s.name for s in result.shots) == sorted(photos + frames[:3])
+    assert len(geo.load_reconstruction(rec, ref).shots) == 30  # without a preference: the biggest
+
+
+def test_too_few_located_photos_in_any_piece_is_a_clear_error(tmp_path):
+    big = _piece(["m1.jpg", "m2.jpg"] + [f"v_{i}.jpg" for i in range(9)])
+    rec, ref = _write(tmp_path, [big, _piece(["m3.jpg", "m4.jpg"])])
+    located = {"m1.jpg", "m2.jpg", "m3.jpg", "m4.jpg"}
+    with pytest.raises(geo.ReconstructionError, match="Only 2 of the photos with a location"):
+        geo.load_reconstruction(rec, ref, located=located)
+    relaxed = geo.load_reconstruction(rec, ref, located=located, min_located=2)
+    assert len(relaxed.shots) == 11

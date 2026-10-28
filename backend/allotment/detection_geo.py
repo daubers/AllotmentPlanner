@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from .detection_labels import width_is_plausible
 from .mapping_geo import Shot, ground_hits
 
 MAX_RANGE_M = 25.0  # ignore anything further away: its position is too uncertain to be useful
@@ -203,3 +204,11 @@ def outline(g: FusedObject, steps: int = 24) -> list[tuple[float, float]]:
         (-g.width / 2, g.depth / 2),
     ]
     return [(g.x + dx * c - dy * s, g.y + dx * s + dy * c) for dx, dy in corners]
+
+
+def worth_keeping(g: FusedObject, solo_confidence: float = 0.45) -> bool:
+    """Drop what is probably noise: a size the type can't have, or something only one photo
+    showed unless the detector was fairly sure of it."""
+    if not width_is_plausible(g.label, max(g.width, g.depth if g.shape == "circle" else 0)):
+        return False
+    return g.views >= 2 or g.confidence >= solo_confidence

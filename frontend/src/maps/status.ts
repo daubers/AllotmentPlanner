@@ -12,6 +12,7 @@ const STAGES: Record<string, string> = {
   features: "Finding details in each photo",
   matching: "Matching photos to each other",
   reconstructing: "Working out where each photo was taken",
+  detecting: "Looking for beds, trees, sheds and more in the photos",
   orthophoto: "Laying the photos onto the ground",
   tiling: "Making map tiles",
   saving: "Saving the map",
@@ -29,11 +30,12 @@ export function jobSummary(job: MapJob): { label: string; tone: "ok" | "wait" | 
       const step = STAGES[job.stage ?? ""] ?? "Working";
       return { label: job.cancel_requested ? "Stopping…" : `${step}…`, tone: "wait" };
     }
-    case "ready":
-      return {
-        label: job.shots_used != null && job.shots_total != null ? `Done: used ${job.shots_used} of ${job.shots_total} photos` : "Done",
-        tone: "ok",
-      };
+    case "ready": {
+      const parts: string[] = [];
+      if (job.detect_objects) parts.push(job.objects_found ? `found ${job.objects_found} ${job.objects_found === 1 ? "object" : "objects"} to review` : "found no objects");
+      if (job.overlay) parts.push(job.shots_used != null && job.shots_total != null ? `overlay used ${job.shots_used} of ${job.shots_total} photos` : "overlay built");
+      return { label: `Done: ${parts.join("; ") || "finished"}`, tone: "ok" };
+    }
     case "cancelled":
       return { label: "Cancelled", tone: "wait" };
     default:
@@ -88,10 +90,10 @@ export const layerBox = (l: Pick<MapLayer, "bounds">): Box => {
   return [[south, west], [north, east]];
 };
 
-/** Where the map should open: everything drawn plus every visible photo layer, or null if the
- *  allotment has neither (the caller then falls back to the person's location). */
-export function initialView(drawn: Box | null | undefined, layers: MapLayer[] | undefined): Box | null {
-  const boxes = [...(drawn ? [drawn] : []), ...layersToShow(layers).map(layerBox)];
+/** Where the map should open: everything drawn, every visible photo layer and anything waiting
+ *  for review (`extra`), or null if the allotment has none of them (the caller then falls back to the person's location). */
+export function initialView(drawn: Box | null | undefined, layers: MapLayer[] | undefined, extra: Box[] = []): Box | null {
+  const boxes = [...(drawn ? [drawn] : []), ...layersToShow(layers).map(layerBox), ...extra];
   if (!boxes.length) return null;
   return [
     [Math.min(...boxes.map((b) => b[0][0])), Math.min(...boxes.map((b) => b[0][1]))],

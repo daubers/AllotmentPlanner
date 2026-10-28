@@ -86,7 +86,7 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
 
   // Photos: upload two EXIF-dated photos attached to Bed 1 (processed by the Celery worker),
   // check the timeline, the lightbox metadata, the feature filter and the before/after slider.
-  await page.getByRole("link", { name: "Photos" }).click();
+  await page.getByRole("link", { name: "Photos", exact: true }).click();
   await page.getByLabel("Attach new uploads to").selectOption({ label: "Bed 1" });
   await page.getByLabel("Choose photos or videos").setInputFiles([
     "fixtures/bed-day1.jpg",
@@ -127,12 +127,12 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await expect(page.locator(".tile img")).toHaveCount(2); // latest photos
   await page.screenshot({ path: "test-results/overview.png" });
 
-  await page.getByRole("link", { name: "Layers" }).click();
-  await expect(page.getByRole("heading", { name: "Map layers" })).toBeVisible();
-  await expect(page.getByText("No layers yet.")).toBeVisible();
+  await page.getByRole("link", { name: "From photos" }).click();
+  await expect(page.getByRole("heading", { name: "From your photos" })).toBeVisible();
+  await expect(page.getByText(/None built\./)).toBeVisible();
   await expect(page.getByText(/2 photos \(2 with a location\): about 2 images in all\./)).toBeVisible();
   await expect(page.getByText(/Pick at least 5 photos/)).toBeVisible(); // not enough to build a map yet
-  await expect(page.getByRole("button", { name: "Build map" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Start" })).toBeDisabled();
   await page.screenshot({ path: "test-results/layers.png", fullPage: true });
 
   await page.getByRole("link", { name: "Settings" }).click();
@@ -145,7 +145,7 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await page.screenshot({ path: "test-results/settings.png" });
 
   // A video: uploaded like a photo, shown with its length, playable, and offered to the map builder.
-  await page.getByRole("link", { name: "Photos" }).click();
+  await page.getByRole("link", { name: "Photos", exact: true }).click();
   await page.getByLabel("Choose photos or videos").setInputFiles("fixtures/walk.mp4");
   await expect(page.getByText("✓ walk.mp4")).toBeVisible();
   await expect(page.locator(".tile-badge")).toContainText("0:03");
@@ -155,7 +155,7 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThanOrEqual(1);
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => Math.round(v.duration))).toBe(3);
   await page.keyboard.press("Escape");
-  await page.getByRole("link", { name: "Layers" }).click();
+  await page.getByRole("link", { name: "From photos" }).click();
   await expect(page.getByText(/2 photos \(2 with a location\), 1 video: about 5 images in all\./)).toBeVisible();
   await expect(page.getByText(/Videos are sampled about once a second/)).toBeVisible();
 
