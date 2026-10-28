@@ -152,7 +152,11 @@ def test_signed_links(client, plot, app):
     b = upload(client, plot, make_png()).json
     path, token = a["url"].split("?t=")
     assert client.get(path).status_code == 403  # no token
-    assert client.get(path + "?t=" + token[:-2] + "xx").status_code == 403  # tampered
+    # Change the first character of the signature. (Changing the last one is flaky: it carries
+    # unused bits, so the altered link can decode to the same signature and still be accepted.)
+    body, signature = token.rsplit(".", 1)
+    forged = ("A" if signature[0] != "A" else "B") + signature[1:]
+    assert client.get(f"{path}?t={body}.{forged}").status_code == 403  # tampered
     other = path.replace(f"/{a['id']}/", f"/{b['id']}/")
     assert client.get(other + "?t=" + token).status_code == 404  # token is for a different file
     app.config["MEDIA_URL_TTL_SECONDS"] = -1
