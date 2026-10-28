@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useApp, useQueueState } from "../src/app/AppProvider";
+import { useApp, useQueueState } from "../src/state/AppProvider";
 import type { Job } from "../src/queue/queue";
 import { makeStyles, usePalette } from "../src/ui/theme";
 

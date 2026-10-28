@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useApp } from "../src/app/AppProvider";
+import { useApp } from "../src/state/AppProvider";
 import { LoginError } from "../src/auth/session";
 import { makeStyles, usePalette } from "../src/ui/theme";
 
