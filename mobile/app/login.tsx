@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LoginError } from "../src/auth/session";
 import { useApp } from "../src/state/AppProvider";
 import { Banner, Button, Card, Field, T } from "../src/ui/kit";
+import { Logo } from "../src/ui/Logo";
 import { space, usePalette } from "../src/ui/theme";
 
 export default function Login() {
@@ -33,6 +34,7 @@ export default function Login() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.xl, flexGrow: 1, justifyContent: "center" }} keyboardShouldPersistTaps="handled">
           <View style={{ gap: space.xs }}>
+            <Logo size={72} />
             <T kind="display" accessibilityRole="header">
               Allotment
             </T>

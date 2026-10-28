@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/brand/logo.svg" width="96" alt="Allotment Planner logo: a map pin with a seedling"></p>
+
 # Allotment Planner
 
 Plan and log the work on an allotment: draw the plot on a map, pin tasks to beds, print the day's list, keep a photo history, post progress to Mastodon, and get a "look what we did" overview. A phone app records photos with their GPS and compass, helps build a map from them, and corrects the drawn plot to real sizes from tape-measure readings.

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <mask id="hole">
+      <rect width="512" height="512" fill="#fff"/>
+      <circle cx="256" cy="226" r="86" fill="#000"/>
+    </mask>
+  </defs>
+  <g transform="translate(256 256) scale(0.66) translate(-256 -269)">
+    <path d="M256 448 C256 448 120 328 120 226 A136 136 0 0 1 392 226 C392 328 256 448 256 448 Z" fill="#000" mask="url(#hole)"/>
+    <path d="M256 276 L256 196" stroke="#000" stroke-width="16" stroke-linecap="round" fill="none"/>
+    <path d="M256 236 C220 238 192 214 190 176 C230 174 258 198 256 236 Z" fill="#000"/>
+    <path d="M256 204 C256 176 272 160 300 158 C302 186 284 204 256 204 Z" fill="#000"/>
+  </g>
+</svg>
