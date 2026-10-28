@@ -14,7 +14,7 @@ An `act_runner` labelled `ubuntu-latest` with access to the Docker socket (neede
 ## Image tags
 Three images are pushed to `<gitea-host>/<owner>/`: `allotment-api`, `allotment-frontend` and `allotment-worker` (the OpenSfM + GDAL mapping worker). Each gets `sha-<short>`, the branch name, `latest` on `main`, and `X.Y.Z` / `X.Y` for tags like `v0.1.0`.
 
-The worker image compiles OpenSfM from a pinned commit, which takes 15-30 minutes the first time and needs roughly 4 GB of RAM on the runner. The registry build cache (`:buildcache`) keeps later builds to a couple of minutes unless the Dockerfile's OpenSfM layers change. The mapping pipeline itself is checked locally with `make mapping-check`, not in CI, because it needs that image.
+The worker image compiles OpenSfM from a pinned commit in a build stage (about 5 minutes on the runner, every time, and roughly 4 GB of RAM). Its layers are deliberately small and its cache is exported with `mode=min`: the registry sits behind an nginx that answers `413 Request Entity Too Large` to blobs above somewhere between 164 MB and 498 MB (compressed), so the build stage's large layers must never be uploaded. If you raise `client_max_body_size` on that nginx, the worker can use `mode=max` like the others and skip the recompile. The mapping pipeline itself is checked locally with `make mapping-check`, not in CI, because it needs that image.
 Release with `git tag v0.1.0 && git push origin v0.1.0`.
 
 ## Local equivalents

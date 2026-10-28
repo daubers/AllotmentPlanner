@@ -52,11 +52,14 @@ jobs:
           - name: allotment-frontend
             context: frontend
             target: prod
-          # OpenSfM + GDAL mapping worker. The first build compiles OpenSfM (15-30 minutes); the
-          # registry cache below makes later builds quick. `file` is relative to the workspace.
+          # OpenSfM + GDAL mapping worker. OpenSfM is compiled from source in a build stage
+          # (about 5 minutes on the runner, every build). Cache mode `min` exports only the final
+          # image's layers: with `max` the build stage's multi-hundred-MB layers are uploaded too,
+          # and the registry's reverse proxy rejects them with 413. `file` is workspace-relative.
           - name: allotment-worker
             context: backend
             file: worker/Dockerfile
+            cache_mode: min
     steps:
       - uses: actions/checkout@v4
 
@@ -97,4 +100,4 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${{ steps.reg.outputs.image }}:buildcache
-          cache-to: type=registry,ref=${{ steps.reg.outputs.image }}:buildcache,mode=max
+          cache-to: type=registry,ref=${{ steps.reg.outputs.image }}:buildcache,mode=${{ matrix.cache_mode || 'max' }}
