@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 import structlog
 from flask import current_app
+from sqlalchemy import text
 from sqlalchemy.orm.attributes import flag_modified
 
 from .events import Event
@@ -68,6 +69,11 @@ def on_media_processed(event: Event) -> None:
     if not active_account(event.allotment_id, flag="on_photos"):
         return
     media_id = event.subject["media_id"]
+    # The worker processes uploads in parallel; without this two photos can both see "no open
+    # batch" and each start a post. The lock lasts until the commit below.
+    db.session.execute(
+        text("SELECT pg_advisory_xact_lock(2, :allotment)"), {"allotment": event.allotment_id}
+    )
     now = _now()
     collecting = (
         db.session.query(MastodonPost)
