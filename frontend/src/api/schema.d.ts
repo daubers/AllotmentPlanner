@@ -1234,6 +1234,223 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/allotments/{allotment_id}/mastodon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MastodonSettings"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        /** Connect or update the account. The token is checked against the instance first. */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MastodonSettingsIn"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MastodonSettings"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        post?: never;
+        /** Disconnect. Queued posts are dropped; the history stays. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/mastodon/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Queue a test status. It is sent as 'direct' (only the account itself sees it). */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MastodonPost"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/mastodon/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    status?: "pending" | "sending" | "sent" | "failed" | "skipped";
+                    limit?: number;
+                };
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MastodonPost"][];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/mastodon/posts/{post_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Try a failed post again (or one stuck in 'sending' for over 15 minutes). */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    post_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MastodonPost"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1538,6 +1755,54 @@ export interface components {
             recent_done?: {
                 [key: string]: unknown;
             }[];
+        };
+        MastodonSettings: {
+            configured?: boolean;
+            instance_url?: string | null;
+            handle?: string | null;
+            token_set?: boolean;
+            visibility?: string;
+            enabled?: boolean;
+            on_task_completed?: boolean;
+            on_photos?: boolean;
+            daily_digest?: boolean;
+        };
+        MastodonSettingsIn: {
+            instance_url: string;
+            /**
+             * @description Needed when connecting or changing instance; never returned
+             * @default null
+             */
+            access_token?: string | null;
+            /**
+             * @default unlisted
+             * @enum {string}
+             */
+            visibility?: "public" | "unlisted" | "private";
+            /** @default false */
+            enabled?: boolean;
+            /** @default false */
+            on_task_completed?: boolean;
+            /** @default false */
+            on_photos?: boolean;
+            /** @default false */
+            daily_digest?: boolean;
+        };
+        MastodonPost: {
+            id?: number;
+            kind?: string;
+            text?: string;
+            media_count?: number;
+            status?: string;
+            attempts?: number;
+            error?: string | null;
+            remote_url?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            send_after?: string;
+            /** Format: date-time */
+            posted_at?: string | null;
         };
     };
     responses: {

@@ -278,3 +278,52 @@ class OverviewSchema(Schema):
     recent_done = fields.List(
         fields.Dict(), metadata={"description": "Latest completed tasks: id, title, completed_at"}
     )
+
+
+class MastodonSettingsInSchema(Schema):
+    instance_url = fields.String(required=True, validate=validate.Length(min=1, max=300))
+    access_token = fields.String(
+        load_default=None,
+        validate=validate.Length(min=10, max=500),
+        metadata={"description": "Needed when connecting or changing instance; never returned"},
+    )
+    visibility = fields.String(
+        load_default="unlisted", validate=validate.OneOf(["public", "unlisted", "private"])
+    )
+    enabled = fields.Boolean(load_default=False)
+    on_task_completed = fields.Boolean(load_default=False)
+    on_photos = fields.Boolean(load_default=False)
+    daily_digest = fields.Boolean(load_default=False)
+
+
+class MastodonSettingsSchema(Schema):
+    configured = fields.Boolean()
+    instance_url = fields.String(allow_none=True)
+    handle = fields.String(allow_none=True)
+    token_set = fields.Boolean()
+    visibility = fields.String()
+    enabled = fields.Boolean()
+    on_task_completed = fields.Boolean()
+    on_photos = fields.Boolean()
+    daily_digest = fields.Boolean()
+
+
+class MastodonPostSchema(Schema):
+    id = fields.Integer()
+    kind = fields.String()
+    text = fields.String()
+    media_count = fields.Integer()
+    status = fields.String()
+    attempts = fields.Integer()
+    error = fields.String(allow_none=True)
+    remote_url = fields.String(allow_none=True)
+    created_at = fields.DateTime()
+    send_after = fields.DateTime()
+    posted_at = fields.DateTime(allow_none=True)
+
+
+class MastodonPostQuerySchema(Schema):
+    status = fields.String(
+        validate=validate.OneOf(["pending", "sending", "sent", "failed", "skipped"])
+    )
+    limit = fields.Integer(load_default=30, validate=validate.Range(min=1, max=100))

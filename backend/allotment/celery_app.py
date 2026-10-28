@@ -1,5 +1,6 @@
 import structlog
 from celery import Celery, signals
+from celery.schedules import crontab
 
 from .config import Config
 from .logging import configure_logging
@@ -12,6 +13,13 @@ celery.conf.update(
     worker_send_task_events=True,
     task_send_sent_event=True,
     task_default_headers={},
+    beat_schedule={
+        "mastodon-daily-digest": {
+            "task": "allotment.mastodon_daily_digest",
+            "schedule": crontab(hour=Config.MASTODON_DIGEST_HOUR_UTC, minute=0),
+        },
+        "mastodon-sweep": {"task": "allotment.mastodon_sweep", "schedule": 300.0},
+    },
 )
 
 

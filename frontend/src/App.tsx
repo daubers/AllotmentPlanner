@@ -6,6 +6,7 @@ import Allotments from "./pages/Allotments";
 import Login from "./pages/Login";
 import OverviewPage from "./pages/OverviewPage";
 import PhotosPage from "./pages/PhotosPage";
+import SettingsPage from "./pages/SettingsPage";
 import TasksPage from "./pages/TasksPage";
 import TodayPage from "./pages/TodayPage";
 
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="today" element={<TodayPage />} />
           <Route path="photos" element={<PhotosPage />} />
           <Route path="overview" element={<OverviewPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

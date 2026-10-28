@@ -1336,6 +1336,231 @@
           }
         }
       ]
+    },
+    "/api/v1/allotments/{allotment_id}/mastodon": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MastodonSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "mastodon"
+        ]
+      },
+      "put": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MastodonSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MastodonSettingsIn"
+              }
+            }
+          }
+        },
+        "summary": "Connect or update the account. The token is checked against the instance first.",
+        "tags": [
+          "mastodon"
+        ]
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Disconnect. Queued posts are dropped; the history stays.",
+        "tags": [
+          "mastodon"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/mastodon/test": {
+      "post": {
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MastodonPost"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Queue a test status. It is sent as 'direct' (only the account itself sees it).",
+        "tags": [
+          "mastodon"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/mastodon/posts": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "sending",
+                "sent",
+                "failed",
+                "skipped"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 30,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MastodonPost"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "mastodon"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/mastodon/posts/{post_id}/retry": {
+      "post": {
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MastodonPost"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Try a failed post again (or one stuck in 'sending' for over 15 minutes).",
+        "tags": [
+          "mastodon"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "post_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
     }
   },
   "info": {
@@ -1374,6 +1599,10 @@
     {
       "name": "overview",
       "description": "Progress overview: what got done, and when"
+    },
+    {
+      "name": "mastodon",
+      "description": "Post allotment activity to a Mastodon account"
     }
   ],
   "openapi": "3.0.3",
@@ -2232,6 +2461,133 @@
               "type": "object",
               "additionalProperties": {}
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "MastodonSettings": {
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "instance_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "handle": {
+            "type": "string",
+            "nullable": true
+          },
+          "token_set": {
+            "type": "boolean"
+          },
+          "visibility": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "on_task_completed": {
+            "type": "boolean"
+          },
+          "on_photos": {
+            "type": "boolean"
+          },
+          "daily_digest": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MastodonSettingsIn": {
+        "type": "object",
+        "properties": {
+          "instance_url": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "access_token": {
+            "type": "string",
+            "default": null,
+            "minLength": 10,
+            "maxLength": 500,
+            "description": "Needed when connecting or changing instance; never returned",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "default": "unlisted",
+            "enum": [
+              "public",
+              "unlisted",
+              "private"
+            ]
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "on_task_completed": {
+            "type": "boolean",
+            "default": false
+          },
+          "on_photos": {
+            "type": "boolean",
+            "default": false
+          },
+          "daily_digest": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "instance_url"
+        ],
+        "additionalProperties": false
+      },
+      "MastodonPost": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "media_count": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "remote_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "send_after": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "posted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           }
         },
         "additionalProperties": false

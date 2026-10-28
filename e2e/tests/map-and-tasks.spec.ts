@@ -127,5 +127,14 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await expect(page.locator(".tile img")).toHaveCount(2); // latest photos
   await page.screenshot({ path: "test-results/overview.png" });
 
+  await page.getByRole("link", { name: "Settings" }).click();
+  await expect(page.getByRole("heading", { name: "Mastodon" })).toBeVisible();
+  await expect(page.getByText("Nothing posted yet.")).toBeVisible();
+  await page.getByLabel("Instance").fill("https://127.0.0.1");
+  await page.getByLabel("Access token").fill("not-a-real-token-123");
+  await page.getByRole("button", { name: "Connect" }).click();
+  await expect(page.getByRole("alert")).toContainText("private network"); // the SSRF guard, end to end
+  await page.screenshot({ path: "test-results/settings.png" });
+
   expect(errors).toEqual([]);
 });
