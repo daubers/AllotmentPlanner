@@ -10,6 +10,9 @@ import type { Task } from "../tasks/group";
 import { useLayers } from "../maps/hooks";
 import { initialView, layersToShow, type Box } from "../maps/status";
 import { useTaskActions, useTasks } from "../tasks/hooks";
+import { useSuggestions } from "../suggestions/hooks";
+import { suggestionBox, type Suggestion } from "../suggestions/model";
+import { SuggestionShapes, SuggestionsPanel } from "./Suggestions";
 import { pinGroups, pinPopup } from "./pins";
 import {
   featureToLayer,
@@ -49,20 +52,21 @@ function PhotoLayers({ allotmentId }: { allotmentId: number }) {
   );
 }
 
-/** Opens the map on the plot: the drawn shapes and any visible photo layers together. Only when
+/** Opens the map on the plot: the drawn shapes, visible photo layers and suggestions waiting for review together. Only when
  *  the allotment has neither does it fall back to where the person is. Runs once per visit, so it
  *  never fights the person panning around. */
-function InitialView({ drawn, allotmentId }: { drawn: Box | null | undefined; allotmentId: number }) {
+function InitialView({ drawn, allotmentId, suggestions }: { drawn: Box | null | undefined; allotmentId: number; suggestions: { pending: boolean; data: Suggestion[] | undefined } }) {
   const map = useMap();
   const layers = useLayers(allotmentId);
   const done = useRef(false);
   useEffect(() => {
-    if (done.current || drawn === undefined || layers.isPending) return; // wait for both to load
+    if (done.current || drawn === undefined || layers.isPending || suggestions.pending) return; // wait for all to load
     done.current = true;
-    const view = initialView(drawn, layers.data);
+    const waiting = (suggestions.data ?? []).map(suggestionBox).filter((b): b is Box => b !== null);
+    const view = initialView(drawn, layers.data, waiting);
     if (view) map.fitBounds(view, { padding: [24, 24], maxZoom: 21 });
     else navigator.geolocation?.getCurrentPosition((p) => map.setView([p.coords.latitude, p.coords.longitude], 19));
-  }, [map, drawn, layers.isPending, layers.data]);
+  }, [map, drawn, layers.isPending, layers.data, suggestions.pending, suggestions.data]);
   return null;
 }
 
@@ -89,7 +93,7 @@ function Editor({ allotmentId, canEdit, group, onItems, onBounds, onSelect, regi
   onItems(items: Item[]): void;
   onBounds(bounds: Box | null): void;
   onSelect(id: number | null): void;
-  registerActions(a: { update(id: number, props: Partial<FeatureProps>): void; remove(id: number): void; focus(id: number): void }): void;
+  registerActions(a: { update(id: number, props: Partial<FeatureProps>): void; remove(id: number): void; focus(id: number): void; add(features: (GeoJSONFeature & { id: number })[]): void }): void;
 }) {
   const map = useMap();
   const meta = useRef(new Map<number, Item>());
@@ -192,6 +196,13 @@ function Editor({ allotmentId, canEdit, group, onItems, onBounds, onSelect, regi
         publish();
         onSelect(null);
       },
+      add(features) {
+        for (const f of features) {
+          track(f);
+          attach(featureToLayer(f) as LayerWithId, f.id);
+        }
+        publish();
+      },
       focus(id) {
         const layer = find(id) as (L.Layer & { getBounds?(): L.LatLngBounds; getLatLng?(): L.LatLng }) | undefined;
         if (layer?.getBounds) map.fitBounds(layer.getBounds().pad(0.5));
@@ -216,6 +227,9 @@ function Editor({ allotmentId, canEdit, group, onItems, onBounds, onSelect, regi
 export default function MapEditor({ allotmentId, canEdit }: Props) {
   const [items, setItems] = useState<Item[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
+  const suggestions = useSuggestions(allotmentId, canEdit);
+  const [ticked, setTicked] = useState<Set<number>>(new Set());
+  const [focusedSuggestion, setFocusedSuggestion] = useState<number | null>(null);
   const actions = useRef<Parameters<Parameters<typeof Editor>[0]["registerActions"]>[0] | null>(null);
   const current = items.find((i) => i.id === selected);
   const group = useRef(L.featureGroup());
@@ -236,7 +250,8 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
           </LayersControl.BaseLayer>
         </LayersControl>
         <PhotoLayers allotmentId={allotmentId} />
-        <InitialView drawn={drawnBounds} allotmentId={allotmentId} />
+        <SuggestionShapes suggestions={suggestions.data ?? []} ticked={ticked} focused={focusedSuggestion} />
+        <InitialView drawn={drawnBounds} allotmentId={allotmentId} suggestions={{ pending: canEdit && suggestions.isPending, data: suggestions.data }} />
         <TaskPins group={group} tasks={tasks.data ?? []} version={items} />
         <Editor
           group={group}
@@ -250,6 +265,17 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
       </MapContainer>
 
       <aside className="panel">
+        {canEdit && (
+          <SuggestionsPanel
+            allotmentId={allotmentId}
+            suggestions={suggestions.data ?? []}
+            ticked={ticked}
+            setTicked={setTicked}
+            focused={focusedSuggestion}
+            setFocused={setFocusedSuggestion}
+            onAccepted={(features) => actions.current?.add(features as Parameters<NonNullable<typeof actions.current>["add"]>[0])}
+          />
+        )}
         <h2>Map features</h2>
         {!canEdit && <p className="muted">View only: ask an owner for editor access to draw.</p>}
         {items.length === 0 && <p className="muted">{canEdit ? "Use the toolbar on the map to draw a bed, path, tree…" : "Nothing drawn yet."}</p>}

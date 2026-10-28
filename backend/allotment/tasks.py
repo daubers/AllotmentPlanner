@@ -291,7 +291,7 @@ def run_map_job(job_id: int) -> str:
                 actor_id=job.created_by,
                 allotment_id=job.allotment_id,
                 subject={"map_job_id": job.id},
-                payload={"error": job.error},
+                payload={"error": job.error, "objects": job.objects_found},
             )
             return status
 
@@ -305,14 +305,15 @@ def run_map_job(job_id: int) -> str:
         try:
             layer = pipeline.process(job, work)
             db.session.commit()
-            events.emit(
-                "layer.created",
-                actor_id=job.created_by,
-                allotment_id=job.allotment_id,
-                subject={"layer_id": layer.id, "map_job_id": job.id},
-                payload={"tiles": layer.tile_count},
-            )
-            log.info("map_job_done", tiles=layer.tile_count)
+            if layer is not None:
+                events.emit(
+                    "layer.created",
+                    actor_id=job.created_by,
+                    allotment_id=job.allotment_id,
+                    subject={"layer_id": layer.id, "map_job_id": job.id},
+                    payload={"tiles": layer.tile_count},
+                )
+            log.info("map_job_done", objects=job.objects_found, overlay=layer is not None)
             return finish("ready")
         except pipeline.JobCancelled:
             db.session.rollback()

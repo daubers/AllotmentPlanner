@@ -12,8 +12,15 @@ describe("jobSummary", () => {
     expect(jobSummary(job({ status: "running", stage: "mystery" })).label).toBe("Working…");
   });
   it("shows a cancel in progress", () => expect(jobSummary(job({ status: "running", stage: "tiling", cancel_requested: true })).label).toBe("Stopping…"));
-  it("reports how many photos made it into the map", () => {
-    expect(jobSummary(job({ status: "ready", shots_used: 22, shots_total: 25 }))).toEqual({ label: "Done: used 22 of 25 photos", tone: "ok" });
+  it("reports what a finished job produced", () => {
+    expect(jobSummary(job({ status: "ready", detect_objects: true, objects_found: 7, overlay: false }))).toEqual({ label: "Done: found 7 objects to review", tone: "ok" });
+    expect(jobSummary(job({ status: "ready", detect_objects: true, objects_found: 1 })).label).toBe("Done: found 1 object to review");
+    expect(jobSummary(job({ status: "ready", detect_objects: true, objects_found: 0 })).label).toBe("Done: found no objects");
+    expect(jobSummary(job({ status: "ready", detect_objects: false, overlay: true, shots_used: 22, shots_total: 25 })).label).toBe("Done: overlay used 22 of 25 photos");
+    expect(jobSummary(job({ status: "ready", detect_objects: true, objects_found: 3, overlay: true, shots_used: 5, shots_total: 9 })).label).toBe("Done: found 3 objects to review; overlay used 5 of 9 photos");
+  });
+  it("names the recognition stage", () => {
+    expect(jobSummary(job({ status: "running", stage: "detecting" })).label).toBe("Looking for beds, trees, sheds and more in the photos…");
   });
   it("shows the failure reason", () => {
     expect(jobSummary(job({ status: "failed", error: "Only 2 of the images have a location" }))).toEqual({
@@ -112,6 +119,10 @@ describe("initialView", () => {
   it("ignores hidden layers", () => {
     expect(initialView(null, [layer(1, [0, 0, 1, 1], false)])).toBeNull();
     expect(initialView([[1, 1], [2, 2]], [layer(1, [50, 50, 51, 51], false)])).toEqual([[1, 1], [2, 2]]);
+  });
+  it("includes suggestions waiting for review, even with nothing else", () => {
+    expect(initialView(null, [], [[[1, 1], [2, 2]]])).toEqual([[1, 1], [2, 2]]);
+    expect(initialView([[0, 0], [1, 1]], [], [[[5, 5], [6, 6]]])).toEqual([[0, 0], [6, 6]]);
   });
   it("converts a layer's [west, south, east, north] to a Leaflet box", () => {
     expect(layerBox({ bounds: [-1, 2, 3, 4] })).toEqual([[2, -1], [4, 3]]);

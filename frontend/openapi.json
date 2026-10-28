@@ -1585,6 +1585,207 @@
         ]
       }
     },
+    "/api/v1/allotments/{allotment_id}/suggestions": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "default": "pending",
+              "enum": [
+                "pending",
+                "accepted",
+                "dismissed"
+              ]
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Suggestion"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "suggestions"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/suggestions/{suggestion_id}": {
+      "patch": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Suggestion"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestionPatch"
+              }
+            }
+          }
+        },
+        "summary": "Rename a suggestion or change what kind of thing it is before accepting it.",
+        "tags": [
+          "suggestions"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "suggestion_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/suggestions/accept": {
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Feature"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestionIds"
+              }
+            }
+          }
+        },
+        "summary": "Turn suggestions into map features. All or nothing: if one is invalid none are added.",
+        "tags": [
+          "suggestions"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/suggestions/dismiss": {
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestionIds"
+              }
+            }
+          }
+        },
+        "summary": "Throw suggestions away (accepted ones are left alone: they are already on the map).",
+        "tags": [
+          "suggestions"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
     "/api/v1/allotments/{allotment_id}/map-jobs": {
       "get": {
         "responses": {
@@ -1638,7 +1839,7 @@
             }
           }
         },
-        "summary": "Queue a map build from photos and videos.",
+        "summary": "Queue a build from photos and videos: recognised objects, the photo overlay, or both.",
         "description": "Needs about 5+ overlapping images (a video counts as the frames sampled from it, about\none a second) and 3+ photos with a location, which place and scale the map.",
         "tags": [
           "mapping"
@@ -1968,6 +2169,10 @@
     {
       "name": "limits",
       "description": "Server limits"
+    },
+    {
+      "name": "suggestions",
+      "description": "Objects recognised in photos, waiting to be accepted as map features"
     },
     {
       "name": "mapping",
@@ -2975,6 +3180,89 @@
         },
         "additionalProperties": false
       },
+      "Suggestion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "job_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "geometry": {
+            "type": "object",
+            "description": "GeoJSON Point (with radius_m) or Polygon",
+            "additionalProperties": {}
+          },
+          "radius_m": {
+            "type": "number",
+            "nullable": true
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "views": {
+            "type": "integer",
+            "description": "How many photos showed it"
+          },
+          "status": {
+            "type": "string"
+          },
+          "feature_id": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SuggestionPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "bed",
+              "path",
+              "shed",
+              "tree",
+              "water",
+              "compost",
+              "boundary",
+              "other"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "SuggestionIds": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "additionalProperties": false
+      },
       "MapJob": {
         "type": "object",
         "properties": {
@@ -2998,6 +3286,16 @@
           },
           "media_count": {
             "type": "integer"
+          },
+          "detect_objects": {
+            "type": "boolean"
+          },
+          "overlay": {
+            "type": "boolean"
+          },
+          "objects_found": {
+            "type": "integer",
+            "nullable": true
           },
           "shots_total": {
             "type": "integer",
@@ -3071,6 +3369,16 @@
             "minimum": 0.3,
             "maximum": 120.0,
             "description": "About how high the camera was held above the ground"
+          },
+          "detect_objects": {
+            "type": "boolean",
+            "default": true,
+            "description": "Recognise beds, trees, sheds etc. and propose them as map shapes"
+          },
+          "overlay": {
+            "type": "boolean",
+            "default": false,
+            "description": "Also build the stitched photo overlay (experimental; best from above)"
           }
         },
         "additionalProperties": false

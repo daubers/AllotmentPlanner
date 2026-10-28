@@ -6,6 +6,7 @@ GDAL. The geometry lives in :mod:`mapping_geo`.
 """
 
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -21,11 +22,12 @@ import yaml
 from flask import current_app
 from PIL import Image
 
+from . import detection_geo, media_meta
+from . import detector as detector_module
 from . import mapping_geo as geo
-from . import media_meta
 from .extensions import db
 from .mapping_video import video_frame_rate
-from .models import MapJob, MapLayer, Media
+from .models import MapJob, MapLayer, MapSuggestion, Media
 from .storage import get_storage
 
 log = structlog.get_logger(__name__)
@@ -126,6 +128,7 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
     overrides: dict[str, dict] = {}
     geotagged = 0
     frames_total = 0
+    headings: dict[str, float] = {}
 
     for media_id in job.media_ids:
         media = db.session.get(Media, media_id)
@@ -135,6 +138,8 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
             ext = media_meta.extension_for("photo", _head(storage, media.storage_key))
             name = f"m{media.id}{ext}"
             storage.download(media.storage_key, str(images / name))
+            if media.heading is not None:
+                headings[name] = media.heading
             if media.lat is not None and media.lng is not None:
                 geotagged += 1
                 overrides[name] = {
@@ -180,6 +185,7 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
             "to place and scale the map (a video has only one location, which can't)"
         )
     (work / "exif_overrides.json").write_text(json.dumps(overrides))
+    (work / "headings.json").write_text(json.dumps(headings))
     (work / "config.yaml").write_text(yaml.safe_dump(opensfm_config(job, frames_total > 0)))
     return total
 
@@ -288,16 +294,91 @@ class Placed:
     resolution: float
 
 
-def placed_shots(job: MapJob, work: Path) -> tuple[list[Placed], geo.Reconstruction, tuple]:
+GPS_TRUSTED_SPREAD_M = 20.0  # cameras spread wider than this: GPS fixes the scale well enough
+COMPASS_USED_BELOW_M = 15.0  # cameras bunched tighter than this: GPS can't fix the heading
+
+
+def located_names(work: Path) -> set[str]:
+    """File names of the images given a GPS position (the photos with a location)."""
+    overrides = json.loads((work / "exif_overrides.json").read_text())
+    return {name for name, o in overrides.items() if "gps" in o}
+
+
+def input_gps_spread(work: Path, reference: tuple[float, float]) -> float:
+    """How widely the photos' GPS positions are spread, in metres (0 if there are none)."""
+    overrides = json.loads((work / "exif_overrides.json").read_text())
+    lat_m, lon_m = geo.metres_per_degree(reference[0])
+    points = [
+        (
+            (o["gps"]["longitude"] - reference[1]) * lon_m,
+            (o["gps"]["latitude"] - reference[0]) * lat_m,
+            0.0,
+        )
+        for o in overrides.values()
+        if "gps" in o
+    ]
+    return geo.gps_spread(np.array(points)) if points else 0.0
+
+
+def load_corrected(
+    job: MapJob, work: Path
+) -> tuple[geo.Reconstruction, tuple[float, float, float]]:
+    """The reconstruction with its scale and heading fixed up where GPS alone can't be trusted.
+
+    OpenSfM fits the cameras to the photos' GPS. If the photos were taken from close together
+    (people tend to stand in one spot and turn round) that fit says almost nothing about scale or
+    direction, and a water butt can come out a few centimetres wide. So: when the cameras are
+    bunched, the scale is set from how high the camera was held; and the phone's compass headings,
+    if they agree with each other, set the direction."""
     rec = geo.load_reconstruction(
-        str(work / "undistorted" / "reconstruction.json"), str(work / "reference_lla.json")
+        str(work / "undistorted" / "reconstruction.json"),
+        str(work / "reference_lla.json"),
+        located=located_names(work),
     )
+    plane = geo.fit_ground_plane(rec.points)
+    spread = input_gps_spread(work, rec.reference)
+    if spread >= GPS_TRUSTED_SPREAD_M:
+        _append_log(
+            job, f"photos are spread over about {spread:.0f} m: keeping the GPS scale and heading"
+        )
+        db.session.commit()  # (a later cancel check refreshes the job and would drop unsaved lines)
+        return rec, plane
+    factor = geo.height_scale(rec, plane, job.camera_height_m)
+    heights = geo.camera_heights(rec, plane)
+    _append_log(
+        job,
+        f"photos are within about {spread:.0f} m of each other, too close for GPS to set the "
+        f"scale: cameras sit {np.median(heights):.2f} m above the ground in the reconstruction "
+        f"but were held about {job.camera_height_m:.1f} m up, so scaling by {factor:.2f}",
+    )
+    rec = geo.transform(rec, scale=factor)
+    headings = (
+        json.loads((work / "headings.json").read_text())
+        if (work / "headings.json").exists()
+        else {}
+    )
+    fix = geo.compass_yaw(rec, headings) if spread < COMPASS_USED_BELOW_M else None
+    if fix:
+        yaw, agreement = fix
+        _append_log(
+            job,
+            f"turning the map {math.degrees(yaw):+.0f} degrees to match the phone compass "
+            f"(agreement {agreement:.2f})",
+        )
+        rec = geo.transform(rec, yaw=yaw)
+    else:
+        _append_log(job, "no usable compass headings: the direction comes from GPS and may be off")
+    db.session.commit()
+    return rec, geo.fit_ground_plane(rec.points)
+
+
+def placed_shots(job: MapJob, work: Path) -> tuple[list[Placed], geo.Reconstruction, tuple]:
+    rec, plane = load_corrected(job, work)
     if len(rec.shots) < MIN_GEOTAGGED:
         raise JobFailed(
             f"Only {len(rec.shots)} of the images could be placed together; "
             "take more photos that overlap each other and show the same ground"
         )
-    plane = geo.fit_ground_plane(rec.points)
     src_dir = work / "ortho" / "src"
     src_dir.mkdir(parents=True)
     placed: list[Placed] = []
@@ -475,18 +556,124 @@ def store_layer(job: MapJob, tiles: Path, bounds, min_zoom: int, max_zoom: int) 
     return layer
 
 
-def process(job: MapJob, work: Path) -> MapLayer:
-    """The whole pipeline for one job. Raises JobFailed / JobCancelled."""
+# --- 5. recognising objects -------------------------------------------------------------------
+
+
+def choose_shots(shots: list[geo.Shot], limit: int) -> list[geo.Shot]:
+    """Which photos to look at: all the real photos if they fit, else an even spread of them;
+    video frames only fill whatever room is left (they are many and near-duplicates)."""
+    photos = [s for s in shots if not s.name.startswith("v")]
+    frames = [s for s in shots if s.name.startswith("v")]
+
+    def spread(items: list[geo.Shot], n: int) -> list[geo.Shot]:
+        if n <= 0 or not items:
+            return []
+        if len(items) <= n:
+            return items
+        return [items[int(i * len(items) / n)] for i in range(n)]
+
+    chosen = spread(photos, limit)
+    return chosen + spread(frames, limit - len(chosen))
+
+
+def suggestion_name(label: str, number: int, total: int) -> str:
+    return f"{label} {number}" if total > 1 else label
+
+
+def detect_objects(job: MapJob, work: Path, detector=None) -> int:
+    """Find objects in the placed photos, put them on the ground and save them as suggestions
+    to review. Returns how many were found."""
+    set_stage(job, "detecting")
+    rec, plane = load_corrected(job, work)
+    shots = choose_shots(rec.shots, current_app.config["MAPPING_DETECT_MAX_SHOTS"])
+    detector = detector or detector_module.get_detector()
+    observations: list[detection_geo.Observation] = []
+    for n, shot in enumerate(shots, start=1):
+        check_cancelled(job)
+        path = work / "undistorted" / "images" / shot.name
+        if not path.exists():
+            continue
+        with Image.open(path) as image:
+            found = detector.detect(image)
+        for d in found:
+            fp = detection_geo.footprint_from_mask(
+                shot,
+                plane,
+                d.mask,
+                d.score,
+                d.type.shape,
+                scale=d.scale,
+                max_range=current_app.config["MAPPING_DETECT_MAX_RANGE_M"],
+            )
+            if fp:
+                observations.append(
+                    detection_geo.Observation(d.type.name, d.type.kind, d.type.shape, fp, shot.name)
+                )
+        _append_log(job, f"looked at photo {n} of {len(shots)}: {len(found)} objects")
+        db.session.commit()
+    merged = detection_geo.fuse(observations)
+    fused = [g for g in merged if detection_geo.worth_keeping(g)]
+    _append_log(job, f"{len(merged)} candidates, {len(fused)} kept after dropping likely noise")
+    # Suggestions from an earlier run are replaced by this one.
+    db.session.query(MapSuggestion).filter_by(
+        allotment_id=job.allotment_id, status="pending"
+    ).update({"status": "dismissed"})
+    totals: dict[str, int] = {}
+    for g in fused:
+        totals[g.label] = totals.get(g.label, 0) + 1
+    counters: dict[str, int] = {}
+    for g in fused:
+        counters[g.label] = counters.get(g.label, 0) + 1
+        ring = detection_geo.outline(g)
+        lon, lat = geo.enu_to_lonlat(
+            np.array([p[0] for p in ring]), np.array([p[1] for p in ring]), rec.reference
+        )
+        if g.shape == "circle":
+            clon, clat = geo.enu_to_lonlat(g.x, g.y, rec.reference)
+            geometry = {"type": "Point", "coordinates": [float(clon), float(clat)]}
+            radius = round(max(g.width, g.depth) / 2, 2)
+        else:
+            coords = [[float(a), float(b)] for a, b in zip(lon, lat, strict=True)]
+            geometry = {"type": "Polygon", "coordinates": [[*coords, coords[0]]]}
+            radius = None
+        db.session.add(
+            MapSuggestion(
+                allotment_id=job.allotment_id,
+                job_id=job.id,
+                kind=g.kind,
+                name=suggestion_name(g.label, counters[g.label], totals[g.label]),
+                geometry=geometry,
+                radius_m=radius,
+                confidence=g.confidence,
+                views=g.views,
+            )
+        )
+    job.objects_found = len(fused)
+    db.session.commit()
+    return len(fused)
+
+
+def process(job: MapJob, work: Path) -> MapLayer | None:
+    """The whole pipeline for one job. Raises JobFailed / JobCancelled. Returns the photo overlay
+    layer if one was asked for."""
     set_stage(job, "preparing")
     job.shots_total = prepare_dataset(job, work)
     db.session.commit()
     reconstruct(job, work)
     check_cancelled(job)
-    tif, bounds, resolution, lat_mid = build_orthophoto(job, work)
-    max_zoom = geo.zoom_for_resolution(resolution, lat_mid)
-    min_zoom = max(10, max_zoom - 6)
-    tiles = make_tiles(job, work, tif, min_zoom, max_zoom)
-    check_cancelled(job)
-    layer = store_layer(job, tiles, bounds, min_zoom, max_zoom)
+    if job.detect_objects:
+        detect_objects(job, work)
+        check_cancelled(job)
+    layer = None
+    if job.overlay:
+        tif, bounds, resolution, lat_mid = build_orthophoto(job, work)
+        max_zoom = geo.zoom_for_resolution(resolution, lat_mid)
+        min_zoom = max(10, max_zoom - 6)
+        tiles = make_tiles(job, work, tif, min_zoom, max_zoom)
+        check_cancelled(job)
+        layer = store_layer(job, tiles, bounds, min_zoom, max_zoom)
+        layer.visible = (
+            False  # experimental, and a mess for hand-held photos: opt in on the Layers page
+        )
     job.finished_at = datetime.now(UTC)
     return layer

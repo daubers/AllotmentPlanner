@@ -67,15 +67,38 @@ def rodrigues(rvec) -> np.ndarray:
     return np.eye(3) + math.sin(theta) * kx + (1 - math.cos(theta)) * (kx @ kx)
 
 
-def load_reconstruction(reconstruction_json: str, reference_json: str) -> Reconstruction:
-    """The biggest reconstruction in OpenSfM's (undistorted) output, with perspective cameras."""
+def load_reconstruction(
+    reconstruction_json: str,
+    reference_json: str,
+    located: set[str] | None = None,
+    min_located: int = 3,
+) -> Reconstruction:
+    """One reconstruction from OpenSfM's output, with perspective cameras.
+
+    OpenSfM often returns several separate pieces. Only a piece containing located photos
+    (``located`` is the set of their file names) is lined up with the real world: the others have
+    an arbitrary "up" and position. So the piece with the most located photos wins, and at least
+    ``min_located`` are required; without ``located`` the biggest piece is used."""
     with open(reconstruction_json) as f:
         reconstructions = json.load(f)
     with open(reference_json) as f:
         ref = json.load(f)
     if not reconstructions:
         raise ReconstructionError("OpenSfM could not reconstruct any of the photos")
-    best = max(reconstructions, key=lambda r: len(r.get("shots", {})))
+    if located is None:
+        best = max(reconstructions, key=lambda r: len(r.get("shots", {})))
+    else:
+        best = max(
+            reconstructions,
+            key=lambda r: (len(located & set(r.get("shots", {}))), len(r.get("shots", {}))),
+        )
+        n = len(located & set(best.get("shots", {})))
+        if n < min_located:
+            raise ReconstructionError(
+                f"Only {n} of the photos with a location could be linked together; at least "
+                f"{min_located} are needed to place the map. Take photos that overlap each other "
+                "and show the same ground"
+            )
     cameras = {}
     for cid, c in best["cameras"].items():
         if c.get("projection_type") != "perspective":
@@ -134,6 +157,17 @@ def pixel_rays(shot: Shot, pixels: np.ndarray) -> np.ndarray:
     v = (pixels[:, 1] - cam.height / 2.0 + 0.5) / cam.size
     in_camera = np.c_[u / cam.focal, v / cam.focal, np.ones(len(pixels))]
     return in_camera @ shot.rotation  # rows of R^T d  ==  (R^T @ d)^T
+
+
+def project_points(shot: Shot, points: np.ndarray) -> np.ndarray:
+    """Pixels (N, 2) where world points (N, 3) appear; NaN for points behind the camera."""
+    cam = shot.camera
+    x = np.asarray(points, dtype=float) @ shot.rotation.T + shot.translation
+    with np.errstate(divide="ignore", invalid="ignore"):
+        u, v = x[:, 0] / x[:, 2] * cam.focal, x[:, 1] / x[:, 2] * cam.focal
+    px = np.c_[u * cam.size + cam.width / 2 - 0.5, v * cam.size + cam.height / 2 - 0.5]
+    px[x[:, 2] <= 0] = np.nan
+    return px
 
 
 def ground_hits(
@@ -266,3 +300,81 @@ def zoom_for_resolution(ground_metres: float, lat: float, cap: int = 22) -> int:
     """The XYZ zoom whose pixels are about as coarse as the photos' ground resolution."""
     z = math.log2(2 * math.pi * EARTH_RADIUS * math.cos(math.radians(lat)) / 256 / ground_metres)
     return int(min(cap, max(0, round(z))))
+
+
+# --- fixing scale and heading when GPS can't ------------------------------------------------------
+#
+# OpenSfM scales and orients a reconstruction by fitting the camera positions to the photos' GPS.
+# That only works if the cameras are spread far more widely than GPS jitter (a few metres). Photos
+# taken while standing about in one spot give a scale that can be wrong several times over. Two
+# other clues are usually available: how high the camera was held, and the phone's compass.
+
+
+def camera_heights(rec: Reconstruction, plane: tuple[float, float, float]) -> np.ndarray:
+    """Each camera's height above the fitted ground plane, in the reconstruction's units."""
+    a, b, c = plane
+    return np.array([s.centre[2] - (a * s.centre[0] + b * s.centre[1] + c) for s in rec.shots])
+
+
+def gps_spread(positions: np.ndarray) -> float:
+    """Root-mean-square distance of camera positions from their centre (east/north only)."""
+    xy = np.asarray(positions, dtype=float)[:, :2]
+    return float(np.sqrt(((xy - xy.mean(axis=0)) ** 2).sum(axis=1).mean())) if len(xy) else 0.0
+
+
+def transform(
+    rec: Reconstruction, scale: float = 1.0, yaw: float = 0.0, about=None
+) -> Reconstruction:
+    """The reconstruction scaled by ``scale`` and turned ``yaw`` radians anticlockwise (seen from
+    above) about the point ``about`` (default: the middle of the cameras)."""
+    centres = np.array([s.centre for s in rec.shots])
+    origin = np.asarray(about if about is not None else centres.mean(axis=0), dtype=float)
+    c, s_ = math.cos(yaw), math.sin(yaw)
+    turn = np.array([[c, -s_, 0.0], [s_, c, 0.0], [0.0, 0.0, 1.0]])
+
+    def move(points: np.ndarray) -> np.ndarray:
+        return (np.atleast_2d(points) - origin) @ turn.T * scale + origin
+
+    shots = []
+    for shot in rec.shots:
+        new_centre = move(shot.centre)[0]
+        rotation = shot.rotation @ turn.T  # the camera turns with the world
+        shots.append(Shot(shot.name, rotation, -rotation @ new_centre, shot.camera))
+    return Reconstruction(rec.reference, shots, move(rec.points) if len(rec.points) else rec.points)
+
+
+def height_scale(
+    rec: Reconstruction, plane: tuple[float, float, float], stated_height: float
+) -> float:
+    """The factor that makes the median camera height above the ground equal ``stated_height``."""
+    heights = camera_heights(rec, plane)
+    heights = heights[heights > 1e-6]
+    if len(heights) == 0:
+        raise ReconstructionError("The cameras are not above the ground, so the scale can't be set")
+    return float(stated_height / np.median(heights))
+
+
+def view_azimuth(shot: Shot) -> float:
+    """Which way a camera points, degrees clockwise from north (the optical axis on the ground)."""
+    forward = shot.rotation[2]  # the camera's z axis (its viewing direction) in world coordinates
+    return math.degrees(math.atan2(forward[0], forward[1])) % 360
+
+
+def compass_yaw(
+    rec: Reconstruction, headings: dict[str, float], min_photos: int = 4, min_agreement: float = 0.6
+):
+    """How far to turn the reconstruction (radians, anticlockwise) so its cameras point where the
+    phone's compass said. Returns ``(yaw, agreement)`` or None when too few photos have a heading or
+    they disagree too much to trust (agreement is 1.0 for perfect, 0 for random)."""
+    deltas = []
+    for shot in rec.shots:
+        if shot.name in headings:
+            # compass is clockwise from north; a world turn is anticlockwise, so the sign flips
+            deltas.append(math.radians(view_azimuth(shot) - headings[shot.name]))
+    if len(deltas) < min_photos:
+        return None
+    sin, cos = np.mean(np.sin(deltas)), np.mean(np.cos(deltas))
+    agreement = float(math.hypot(sin, cos))
+    if agreement < min_agreement:
+        return None
+    return float(math.atan2(sin, cos)), agreement

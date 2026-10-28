@@ -70,6 +70,7 @@ services:
       - ./backend/allotment:/app/allotment
       - media:/data/media
       - mapping:/data/mapping
+      - models:/data/models  # recognition models, downloaded on first use
     depends_on:
       db: {condition: service_healthy}
       redis: {condition: service_healthy}
@@ -109,3 +110,4 @@ volumes:
   pgdata:
   media:
   mapping:
+  models:

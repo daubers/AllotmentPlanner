@@ -14,6 +14,8 @@ export default function LayersPage() {
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"oblique" | "overhead">("oblique");
   const [height, setHeight] = useState(defaultHeight("oblique"));
+  const [detect, setDetect] = useState(true);
+  const [overlay, setOverlay] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
@@ -36,7 +38,7 @@ export default function LayersPage() {
   function build(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const name = String(new FormData(e.currentTarget).get("name") ?? "").trim();
-    void attempt(() => actions.build.mutateAsync({ name, view, camera_height_m: height, media_ids: choosing ? [...selected] : null }));
+    void attempt(() => actions.build.mutateAsync({ name, view, camera_height_m: height, detect_objects: detect, overlay, media_ids: choosing ? [...selected] : null }));
   }
 
   const toggle = (photoId: number) =>
@@ -49,14 +51,15 @@ export default function LayersPage() {
 
   return (
     <main className="page">
-      <h1>Map layers</h1>
+      <h1>From your photos</h1>
       <p className="muted">
-        A layer is a map made from your own photos, laid over the satellite view. Walk the plot taking overlapping photos
-        (with location switched on), then build one below.
+        Walk the plot taking overlapping photos (and video) with location switched on. The app works out where each
+        was taken, finds the beds, trees, sheds and other things in them, and suggests shapes and names for your map.
+        Nothing reaches the map until you accept it.
       </p>
       {error && <p role="alert" className="error">{error}</p>}
 
-      <h2>Your layers</h2>
+      <h2>Photo overlays <span className="badge">experimental</span></h2>
       {layers.data?.length ? (
         <ul className="layer-list">
           {layers.data.map((l) => (
@@ -101,13 +104,25 @@ export default function LayersPage() {
           ))}
         </ul>
       ) : (
-        <p className="muted">No layers yet.</p>
+        <p className="muted">None built. Overlays are optional: recognised things are reviewed on the Map page.</p>
       )}
 
       {canEdit && (
         <>
-          <h2>Build a map from photos</h2>
+          <h2>Find things in my photos</h2>
           <form className="settings-form" onSubmit={build}>
+            <fieldset>
+              <legend>What to make</legend>
+              <label className="check">
+                <input type="checkbox" checked={detect} onChange={(e) => setDetect(e.target.checked)} />
+                <span><strong>Recognise things</strong>: beds, trees, sheds, water butts, compost bins. You review them before they reach the map.</span>
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={overlay} onChange={(e) => setOverlay(e.target.checked)} />
+                <span><strong>Photo overlay</strong> (experimental): a stitched picture of the ground. Only works well for photos taken from directly above, and stays hidden until you switch it on.</span>
+              </label>
+              {!detect && !overlay && <p className="hint">Pick at least one.</p>}
+            </fieldset>
             <label>
               Name
               <input name="name" placeholder="e.g. Whole plot, November" maxLength={120} />
@@ -167,12 +182,12 @@ export default function LayersPage() {
               </p>
             </fieldset>
             <div className="inline">
-              <button type="submit" disabled={!ready.ok || busy || actions.build.isPending}>Build map</button>
+              <button type="submit" disabled={!ready.ok || busy || actions.build.isPending || (!detect && !overlay)}>Start</button>
               {busy && <span className="muted">A map is already being built.</span>}
             </div>
           </form>
 
-          <h2>Recent builds</h2>
+          <h2>Recent runs</h2>
           {jobs.data?.length ? (
             <ul className="post-list">
               {jobs.data.map((j) => (
@@ -182,7 +197,7 @@ export default function LayersPage() {
               ))}
             </ul>
           ) : (
-            <p className="muted">Nothing built yet.</p>
+            <p className="muted">Nothing run yet.</p>
           )}
         </>
       )}

@@ -1488,6 +1488,187 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/allotments/{allotment_id}/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    status?: "pending" | "accepted" | "dismissed";
+                };
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Suggestion"][];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/suggestions/{suggestion_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                suggestion_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Rename a suggestion or change what kind of thing it is before accepting it. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    suggestion_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SuggestionPatch"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Suggestion"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/suggestions/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Turn suggestions into map features. All or nothing: if one is invalid none are added. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SuggestionIds"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Feature"][];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/suggestions/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Throw suggestions away (accepted ones are left alone: they are already on the map). */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SuggestionIds"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/allotments/{allotment_id}/map-jobs": {
         parameters: {
             query?: never;
@@ -1522,7 +1703,7 @@ export interface paths {
         };
         put?: never;
         /**
-         * Queue a map build from photos and videos.
+         * Queue a build from photos and videos: recognised objects, the photo overlay, or both.
          * @description Needs about 5+ overlapping images (a video counts as the frames sampled from it, about
          *     one a second) and 3+ photos with a location, which place and scale the map.
          */
@@ -2179,6 +2360,30 @@ export interface components {
             /** @description Largest accepted upload */
             max_upload_bytes?: number;
         };
+        Suggestion: {
+            id?: number;
+            job_id?: number | null;
+            kind?: string;
+            name?: string;
+            /** @description GeoJSON Point (with radius_m) or Polygon */
+            geometry?: {
+                [key: string]: unknown;
+            };
+            radius_m?: number | null;
+            confidence?: number;
+            /** @description How many photos showed it */
+            views?: number;
+            status?: string;
+            feature_id?: number | null;
+        };
+        SuggestionPatch: {
+            name?: string;
+            /** @enum {string} */
+            kind?: "bed" | "path" | "shed" | "tree" | "water" | "compost" | "boundary" | "other";
+        };
+        SuggestionIds: {
+            ids: number[];
+        };
         MapJob: {
             id?: number;
             name?: string;
@@ -2187,6 +2392,9 @@ export interface components {
             view?: string;
             camera_height_m?: number;
             media_count?: number;
+            detect_objects?: boolean;
+            overlay?: boolean;
+            objects_found?: number | null;
             shots_total?: number | null;
             shots_used?: number | null;
             error?: string | null;
@@ -2220,6 +2428,16 @@ export interface components {
              * @default 1.7
              */
             camera_height_m?: number;
+            /**
+             * @description Recognise beds, trees, sheds etc. and propose them as map shapes
+             * @default true
+             */
+            detect_objects?: boolean;
+            /**
+             * @description Also build the stitched photo overlay (experimental; best from above)
+             * @default false
+             */
+            overlay?: boolean;
         };
         MapLayer: {
             id?: number;
