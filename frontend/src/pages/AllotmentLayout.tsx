@@ -34,6 +34,7 @@ export default function AllotmentLayout() {
           <NavLink to="tasks">Tasks</NavLink>
           <NavLink to="today">Today</NavLink>
           <NavLink to="photos">Photos</NavLink>
+          <NavLink to="overview">Overview</NavLink>
         </nav>
       </header>
       <div className="shell-body">
