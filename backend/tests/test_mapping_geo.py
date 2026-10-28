@@ -313,3 +313,70 @@ def test_too_few_located_photos_in_any_piece_is_a_clear_error(tmp_path):
         geo.load_reconstruction(rec, ref, located=located)
     relaxed = geo.load_reconstruction(rec, ref, located=located, min_located=2)
     assert len(relaxed.shots) == 11
+
+
+def test_the_ground_is_found_even_when_most_points_are_tall_things_far_away():
+    """Photos of a plot mostly reconstruct trees, sheds and neighbours; little of it is ground."""
+    rng = np.random.default_rng(5)
+    ground = np.c_[rng.uniform(-6, 6, (200, 2)), rng.normal(0, 0.03, 200)]
+    tall = np.c_[rng.uniform(-30, 30, (400, 2)), rng.uniform(1.0, 6.0, 400)]
+    points = np.vstack([ground, tall])
+    plane = geo.fit_ground_plane(points, ceiling=1.6)  # cameras held 1.6 m up
+    assert plane[2] == pytest.approx(0.0, abs=0.1) and math.hypot(plane[0], plane[1]) < 0.05
+    # without the cameras' height to go on it can be fooled; with it, it is not
+    assert abs(geo.fit_ground_plane(points, ceiling=None)[2]) < 1.5
+
+
+def test_an_implausibly_steep_plane_is_replaced_by_a_level_one():
+    rng = np.random.default_rng(6)
+    xy = rng.uniform(-10, 10, (300, 2))
+    wall = np.c_[xy, 0.9 * xy[:, 0] + rng.normal(0, 0.02, 300)]  # a 42 degree slope: not a plot
+    a, b, _ = geo.fit_ground_plane(wall)
+    assert math.hypot(a, b) <= 0.25
+
+
+def test_ground_plane_for_uses_the_camera_height_as_a_ceiling():
+    rng = np.random.default_rng(7)
+    ground = np.c_[rng.uniform(-6, 6, (150, 2)), rng.normal(0, 0.03, 150)]
+    roof = np.c_[
+        rng.uniform(-6, 6, (300, 2)), rng.normal(4.0, 0.2, 300)
+    ]  # more points high than low
+    rec = geo.Reconstruction((51.0, -1.0), _ring(height=1.6), np.vstack([ground, roof]))
+    plane = geo.ground_plane_for(rec)
+    assert plane[2] == pytest.approx(0.0, abs=0.1)
+    assert geo.camera_heights(rec, plane) == pytest.approx([1.6] * 6, abs=0.15)
+
+
+def _tilt(rec, degrees, about=(1.0, 0.0, 0.0)):
+    """The same scene with the world tipped over, as a badly aligned reconstruction would be."""
+    turn = geo.rodrigues(np.array(about) * math.radians(degrees))
+    shots = []
+    for s in rec.shots:
+        r = s.rotation @ turn.T
+        shots.append(geo.Shot(s.name, r, -r @ (turn @ s.centre), s.camera))
+    return geo.Reconstruction(
+        rec.reference, shots, rec.points @ turn.T if len(rec.points) else rec.points
+    )
+
+
+def test_a_badly_tilted_reconstruction_is_stood_upright():
+    rec = _rec(_ring(n=8))
+    tipped = _tilt(rec, 50)
+    assert math.degrees(math.acos(geo.camera_up(tipped)[2])) == pytest.approx(50, abs=1.0)
+    fixed, turned = geo.level(tipped)
+    assert turned == pytest.approx(50, abs=1.0)
+    assert geo.camera_up(fixed)[2] == pytest.approx(1.0, abs=0.01)
+    # cameras that were round a level circle are round a level circle again
+    heights = [s.centre[2] for s in fixed.shots]
+    assert max(heights) - min(heights) < 0.1
+
+
+def test_an_upside_down_reconstruction_is_turned_the_right_way_up():
+    fixed, turned = geo.level(_tilt(_rec(_ring(n=8)), 180))
+    assert turned == pytest.approx(180, abs=1.0) and geo.camera_up(fixed)[2] > 0.99
+
+
+def test_a_small_tilt_is_left_alone():
+    rec = _tilt(_rec(_ring(n=8)), 10)
+    same, turned = geo.level(rec)
+    assert turned == 0.0 and same is rec

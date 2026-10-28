@@ -22,7 +22,8 @@ import yaml
 from flask import current_app
 from PIL import Image
 
-from . import detection_geo, media_meta
+from . import boundary as boundary_fit
+from . import calibration, detection_geo, media_meta
 from . import detector as detector_module
 from . import mapping_geo as geo
 from .extensions import db
@@ -320,6 +321,25 @@ def input_gps_spread(work: Path, reference: tuple[float, float]) -> float:
     return geo.gps_spread(np.array(points)) if points else 0.0
 
 
+def load_levelled(job: MapJob, work: Path) -> tuple[geo.Reconstruction, float]:
+    """The reconstruction of the piece holding the located photos, stood upright if it was badly
+    tilted, and how widely spread the photos' GPS positions were (metres)."""
+    rec = geo.load_reconstruction(
+        str(work / "undistorted" / "reconstruction.json"),
+        str(work / "reference_lla.json"),
+        located=located_names(work),
+    )
+    rec, tilt = geo.level(rec)
+    if tilt:
+        _append_log(
+            job, f"the reconstruction was tilted {tilt:.0f} degrees from upright: levelled it"
+        )
+    spread = input_gps_spread(work, rec.reference)
+    _append_log(job, f"{len(rec.shots)} photos placed; GPS spread {spread:.0f} m")
+    db.session.commit()
+    return rec, spread
+
+
 def load_corrected(
     job: MapJob, work: Path
 ) -> tuple[geo.Reconstruction, tuple[float, float, float]]:
@@ -335,8 +355,18 @@ def load_corrected(
         str(work / "reference_lla.json"),
         located=located_names(work),
     )
-    plane = geo.fit_ground_plane(rec.points)
+    rec, tilt = geo.level(rec)
+    if tilt:
+        _append_log(
+            job, f"the reconstruction was tilted {tilt:.0f} degrees from upright: levelled it"
+        )
+    plane = geo.ground_plane_for(rec)
     spread = input_gps_spread(work, rec.reference)
+    _append_log(
+        job,
+        f"{len(rec.shots)} photos placed; ground plane fitted to {len(rec.points)} points "
+        f"(tilt {100 * math.hypot(*plane[:2]):.0f}%)",
+    )
     if spread >= GPS_TRUSTED_SPREAD_M:
         _append_log(
             job, f"photos are spread over about {spread:.0f} m: keeping the GPS scale and heading"
@@ -369,7 +399,7 @@ def load_corrected(
     else:
         _append_log(job, "no usable compass headings: the direction comes from GPS and may be off")
     db.session.commit()
-    return rec, geo.fit_ground_plane(rec.points)
+    return rec, geo.ground_plane_for(rec)
 
 
 def placed_shots(job: MapJob, work: Path) -> tuple[list[Placed], geo.Reconstruction, tuple]:
@@ -580,15 +610,110 @@ def suggestion_name(label: str, number: int, total: int) -> str:
     return f"{label} {number}" if total > 1 else label
 
 
+def propose_boundary(job, rec, shots, fence_points, fence_photos, fused, work=None) -> bool:
+    """Fit the plot's outline to the fences and posts found and save it as a suggestion."""
+    cloud = np.vstack(fence_points) if fence_points else np.zeros((0, 2))
+    inside = np.array([s.centre[:2] for s in shots] + [(g.x, g.y) for g in fused])
+    if work is not None:  # kept alongside the other files of the run, for diagnosing a bad outline
+        (work / "fence_points.json").write_text(
+            json.dumps({"fence": cloud.tolist(), "inside": inside.tolist()})
+        )
+    fit = boundary_fit.fit_boundary(cloud, inside)
+    if fit is None:
+        _append_log(job, f"{len(cloud)} fence points: not enough to work out the plot's edge")
+        return False
+    _append_log(
+        job,
+        f"{len(cloud)} fence points: found {fit.sides_found} of the plot's 4 sides"
+        + ("" if fit.complete else " (the rest are guessed from how far the photos reach)"),
+    )
+    lon, lat = geo.enu_to_lonlat(
+        np.array([c[0] for c in fit.corners]), np.array([c[1] for c in fit.corners]), rec.reference
+    )
+    ring = [[float(a), float(b)] for a, b in zip(lon, lat, strict=True)]
+    # Guessed sides make it a rough outline: it is offered, but not ticked by default.
+    confidence = {4: 0.85, 3: 0.65}.get(fit.sides_found, 0.35) + min(fit.support, 40) / 800
+    db.session.add(
+        MapSuggestion(
+            allotment_id=job.allotment_id,
+            job_id=job.id,
+            kind="boundary",
+            name="Plot boundary" if fit.sides_found >= 3 else "Plot boundary (rough)",
+            geometry={"type": "Polygon", "coordinates": [[*ring, ring[0]]]},
+            radius_m=None,
+            confidence=round(confidence, 3),
+            views=len(fence_photos),
+        )
+    )
+    return True
+
+
+def apply_compass(
+    job: MapJob, rec: geo.Reconstruction, work: Path, spread: float
+) -> geo.Reconstruction:
+    """Turn the reconstruction to the phones' compass headings when GPS can't give a heading."""
+    if spread >= COMPASS_USED_BELOW_M:
+        return rec
+    path = work / "headings.json"
+    headings = json.loads(path.read_text()) if path.exists() else {}
+    fix = geo.compass_yaw(rec, headings)
+    if not fix:
+        _append_log(job, "no usable compass headings: the direction comes from GPS and may be off")
+        return rec
+    yaw, agreement = fix
+    _append_log(
+        job,
+        f"turning the map {math.degrees(yaw):+.0f} degrees to match the phone compass "
+        f"(agreement {agreement:.2f})",
+    )
+    return geo.transform(rec, yaw=yaw)
+
+
+def calibrated_ground(job, rec, shots, raws, spread):
+    """The reconstruction in metres with a level ground plane under it.
+
+    GPS fixes the scale if the photos are spread far apart. If not (people stand in one spot and
+    turn round), the scale comes from how high the camera was held, measured against the ground's
+    height *found from the detections* (they agree across photos only at the right height). If
+    that can't be decided, the old way: the ground plane through the point cloud."""
+    if spread >= GPS_TRUSTED_SPREAD_M:
+        _append_log(job, f"photos spread over about {spread:.0f} m: keeping the GPS scale")
+        return rec, geo.ground_plane_for(rec)
+    found = calibration.calibrate_height(
+        shots, raws, job.camera_height_m, max_range=current_app.config["MAPPING_DETECT_MAX_RANGE_M"]
+    )
+    if found:
+        factor = job.camera_height_m / found.height_units
+        _append_log(
+            job,
+            f"detections from different photos agree (to {100 * found.agreement:.0f}%) with the "
+            f"cameras {found.height_units:.2f} units above the ground: held about "
+            f"{job.camera_height_m:.1f} m up, so scaling by {factor:.2f}",
+        )
+        scaled_rec = geo.transform(rec, scale=factor)
+        return scaled_rec, calibration.level_plane(scaled_rec.shots, job.camera_height_m)
+    plane = geo.ground_plane_for(rec)
+    factor = geo.height_scale(rec, plane, job.camera_height_m)
+    _append_log(
+        job,
+        "the detections were too few or too inconsistent to measure the ground height, so the "
+        f"point cloud was used instead (less reliable): scaling by {factor:.2f}",
+    )
+    scaled_rec = geo.transform(rec, scale=factor)
+    return scaled_rec, geo.ground_plane_for(scaled_rec)
+
+
 def detect_objects(job: MapJob, work: Path, detector=None) -> int:
     """Find objects in the placed photos, put them on the ground and save them as suggestions
     to review. Returns how many were found."""
     set_stage(job, "detecting")
-    rec, plane = load_corrected(job, work)
+    rec, spread = load_levelled(job, work)
     shots = choose_shots(rec.shots, current_app.config["MAPPING_DETECT_MAX_SHOTS"])
     detector = detector or detector_module.get_detector()
-    observations: list[detection_geo.Observation] = []
-    for n, shot in enumerate(shots, start=1):
+    raws: list[calibration.RawDetection] = []
+    for n, shot in enumerate(
+        shots, start=1
+    ):  # 1. look at the photos; keep where things touch the ground
         check_cancelled(job)
         path = work / "undistorted" / "images" / shot.name
         if not path.exists():
@@ -596,21 +721,41 @@ def detect_objects(job: MapJob, work: Path, detector=None) -> int:
         with Image.open(path) as image:
             found = detector.detect(image)
         for d in found:
-            fp = detection_geo.footprint_from_mask(
-                shot,
-                plane,
-                d.mask,
-                d.score,
-                d.type.shape,
-                scale=d.scale,
-                max_range=current_app.config["MAPPING_DETECT_MAX_RANGE_M"],
-            )
-            if fp:
-                observations.append(
-                    detection_geo.Observation(d.type.name, d.type.kind, d.type.shape, fp, shot.name)
+            pixels = detection_geo.contact_points(d.mask)
+            if pixels is not None:
+                t = d.type
+                raws.append(
+                    calibration.RawDetection(
+                        shot.name, t.name, t.kind, t.shape, d.score, pixels * d.scale, t.role
+                    )
                 )
         _append_log(job, f"looked at photo {n} of {len(shots)}: {len(found)} objects")
         db.session.commit()
+    (work / "detections.json").write_text(
+        json.dumps([{**vars(r), "pixels": r.pixels.tolist()} for r in raws])
+    )
+    # 2. fix the scale and heading, 3. put everything on the ground
+    rec, plane = calibrated_ground(job, rec, shots, raws, spread)
+    rec = apply_compass(job, rec, work, spread)
+    by_name = {s.name: s for s in rec.shots}
+    shots = [by_name[s.name] for s in shots]
+    max_range = current_app.config["MAPPING_DETECT_MAX_RANGE_M"]
+    observations: list[detection_geo.Observation] = []
+    fence_points: list[np.ndarray] = []  # where posts and the foot of fences meet the ground
+    fence_photos: set[str] = set()
+    for r in raws:
+        shot = by_name[r.shot]
+        if r.role != "object":
+            pts = detection_geo.ground_points_from_pixels(shot, plane, r.pixels, max_range)
+            if r.role == "post" and len(pts):
+                pts = np.median(pts, axis=0, keepdims=True)
+            if len(pts):
+                fence_points.append(pts)
+                fence_photos.add(r.shot)
+            continue
+        fp = detection_geo.footprint_from_pixels(shot, plane, r.pixels, r.score, r.shape, max_range)
+        if fp:
+            observations.append(detection_geo.Observation(r.label, r.kind, r.shape, fp, r.shot))
     merged = detection_geo.fuse(observations)
     fused = [g for g in merged if detection_geo.worth_keeping(g)]
     _append_log(job, f"{len(merged)} candidates, {len(fused)} kept after dropping likely noise")
@@ -648,7 +793,8 @@ def detect_objects(job: MapJob, work: Path, detector=None) -> int:
                 views=g.views,
             )
         )
-    job.objects_found = len(fused)
+    outline = propose_boundary(job, rec, shots, fence_points, fence_photos, fused, work)
+    job.objects_found = len(fused) + (1 if outline else 0)
     db.session.commit()
     return len(fused)
 

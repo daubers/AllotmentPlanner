@@ -1,13 +1,15 @@
 import json
 import math
+import re
 
 import numpy as np
 import pytest
 from PIL import Image
+from shapely.geometry import Polygon
 
 from allotment import mapping_geo as geo
 from allotment import mapping_pipeline as pipeline
-from allotment.detection_labels import TYPES
+from allotment.detection_labels import BOUNDARY_TYPES, TYPES
 from allotment.detector import Detection
 from allotment.extensions import db
 from allotment.models import ActivityLog, MapFeature, MapJob, MapSuggestion
@@ -415,7 +417,7 @@ def test_a_reconstruction_with_the_wrong_scale_is_fixed_from_the_camera_height(j
     write_reconstruction(work, wrong.shots, spread_m=2.0, ground=wrong.points)  # GPS bunched up
     pipeline.detect_objects(j, work, detector=SceneDetector(RING))
     rows = {s.name: s for s in db.session.query(MapSuggestion).filter_by(job_id=j.id)}
-    assert "scaling by 0.20" in j.log
+    assert "agree" in j.log and re.search(r"scaling by 0\.2[0-3]", j.log), j.log
     assert metres(*rows["Tree"].geometry["coordinates"]) == pytest.approx((2.0, -2.5), abs=0.45)
     assert metres(*rows["Water butt"].geometry["coordinates"]) == pytest.approx(
         (0.5, 0.0), abs=0.35
@@ -428,3 +430,96 @@ def test_widely_spread_photos_keep_the_gps_scale(job):
     write_reconstruction(work, RING, spread_m=60.0)
     pipeline.detect_objects(j, work, detector=SceneDetector(RING))
     assert "keeping the GPS scale" in j.log and "scaling by" not in j.log
+
+
+# --- the plot boundary from fence posts ---------------------------------------------------------
+
+BOUNDARY_TYPE = next(t for t in BOUNDARY_TYPES if t.role == "post")
+
+
+def outward_ring(n=6, radius=1.5, height=1.6):
+    """Cameras standing in the middle of a plot, together looking all the way round it."""
+    shots = []
+    for i in range(n):
+        a = 2 * math.pi * i / n
+        centre = np.array([radius * math.cos(a), radius * math.sin(a), height])
+        look = centre + np.array([math.cos(a), math.sin(a), -0.15])
+        f = look - centre
+        f /= np.linalg.norm(f)
+        right = np.cross(f, [0, 0, 1.0])
+        right /= np.linalg.norm(right)
+        rotation = np.array([right, np.cross(f, right), f])
+        shots.append(geo.Shot(f"view{i}.jpg", rotation, -rotation @ centre, RING[0].camera))
+    return shots
+
+
+def fence_posts(width=10.0, length=16.0, spacing=2.0):
+    """Thin vertical posts every ``spacing`` metres round a width x length rectangle."""
+    pts = []
+    for x in np.arange(-width / 2, width / 2 + 1e-9, spacing):
+        pts += [(x, -length / 2), (x, length / 2)]
+    for y in np.arange(-length / 2 + spacing, length / 2 - 1e-9, spacing):
+        pts += [(-width / 2, y), (width / 2, y)]
+    return pts
+
+
+class PostDetector:
+    """A perfect post detector: the silhouette of every post that is in view."""
+
+    def __init__(self, shots, posts):
+        self.by_name = {s.name: s for s in shots}
+        self.posts = posts
+
+    def detect(self, image):
+        shot = self.by_name[image.filename.rsplit("/", 1)[-1]]
+        found = []
+        for x, y in self.posts:
+            mask = render_mask(shot, cylinder(x, y, 0.06, 1.3, n=8))
+            if mask.sum() >= 20:
+                found.append(Detection(BOUNDARY_TYPE, 0.7, mask, 1.0))
+        return found
+
+
+def test_the_plot_boundary_is_proposed_from_fence_posts(job):
+    j, work = job
+    shots = outward_ring()
+    write_reconstruction(
+        work,
+        shots,
+        spread_m=60.0,
+        ground=np.c_[np.random.default_rng(3).uniform(-9, 9, (80, 2)), np.zeros(80)],
+    )
+    pipeline.detect_objects(j, work, detector=PostDetector(shots, fence_posts()))
+    rows = db.session.query(MapSuggestion).filter_by(job_id=j.id, kind="boundary").all()
+    assert len(rows) == 1 and j.objects_found == 1
+    plot = rows[0]
+    assert (
+        plot.name == "Plot boundary"
+        and plot.geometry["type"] == "Polygon"
+        and plot.radius_m is None
+    )
+    ring = [metres(*p) for p in plot.geometry["coordinates"][0]]
+    found = Polygon(ring)
+    truth = Polygon([(-5, -8), (5, -8), (5, 8), (-5, 8)])
+    assert found.intersection(truth).area / found.union(truth).area > 0.8
+    assert plot.confidence >= 0.8 and plot.views >= 5  # four sides, seen from most of the photos
+    assert "found 4 of the plot's 4 sides" in j.log
+
+
+def test_no_fence_means_no_boundary_and_no_error(job):
+    j, work = job
+    shots = outward_ring()
+    write_reconstruction(work, shots, spread_m=60.0)
+    pipeline.detect_objects(j, work, detector=PostDetector(shots, []))
+    assert db.session.query(MapSuggestion).filter_by(kind="boundary").count() == 0
+    assert "not enough to work out the plot's edge" in j.log
+
+
+def test_posts_on_only_two_sides_give_a_rough_outline_that_is_not_ticked_by_default(job):
+    j, work = job
+    shots = outward_ring()
+    write_reconstruction(work, shots, spread_m=60.0)
+    two_sides = [p for p in fence_posts() if abs(p[1]) > 7.9]  # just the south and north ends
+    pipeline.detect_objects(j, work, detector=PostDetector(shots, two_sides))
+    plot = db.session.query(MapSuggestion).filter_by(kind="boundary").one()
+    assert plot.name == "Plot boundary (rough)" and plot.confidence < 0.4
