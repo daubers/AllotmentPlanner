@@ -76,6 +76,15 @@ export default function Home() {
           <Text style={s.buttonText}>Photograph the plot</Text>
         </Pressable>
 
+        <Pressable
+          style={[s.ghost, { opacity: allotmentId === null ? 0.5 : 1 }]}
+          disabled={allotmentId === null}
+          onPress={() => router.push("/measure")}
+          accessibilityRole="button"
+        >
+          <Text style={s.ghostText}>Measure the plot</Text>
+        </Pressable>
+
         <View style={s.card}>
           <Text style={s.heading}>Waiting to send</Text>
           <Text style={s.text}>
