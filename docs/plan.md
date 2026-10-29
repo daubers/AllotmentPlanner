@@ -30,12 +30,13 @@ Tickets live in YouTrack project **AM** (Allotment Manager) at pm.daubney.dev. W
 | 15 Mobile app: walk the boundary with GPS | AM-30 | Backlog |
 | 16 Mobile app: tasks and quick photos | AM-31 | Backlog |
 | 17 Seed library | AM-38 | Merged (in Review); web only, mobile is AM-44 |
-| 18 Packet-reading spike (needs real packet photos) | AM-39 | Backlog |
+| 18 Packet-reading spike | AM-39 | Done; see [seed-scanning-spike.md](seed-scanning-spike.md) |
 | 19 Seed trays | AM-40 | Merged (in Review); web only, mobile is AM-44 |
 | 20 Bed plantings | AM-41 | Backlog |
 | 21 Packet scanning pipeline | AM-42 | Backlog |
 | 22 Suggested tasks and overview | AM-43 | Backlog |
 | 23 Mobile: library, trays, bed plantings | AM-44 | Backlog |
+| Later: a GPU for packet reading and faster mapping (parked: money) | AM-56 | Backlog |
 | CI: Gitea Actions | AM-11 | Done |
 | README, production compose, automatic migrations | AM-45 | Done |
 | Logo and app icon | AM-46 | Done |
@@ -100,6 +101,8 @@ What is being grown, not just what is being done. A **seed library** is filled b
 - Events `packet.created`, `packet.scanned`, `tray.created`, `planting.created`, `tray.planted_out`, `planting.harvested` are recorded in `ActivityLog`, with a new "sowings" overview counter.
 
 **Plant out is one transaction**: `POST /trays/{id}/plant-out` takes cells, a bed, a region and a date, creates one `Planting` per packet among the cells, marks the cells planted out pointing at it, all or nothing (422 with the reason if the region is outside the bed). A direct sow is `POST /beds/{feature_id}/plantings`.
+
+**Decision (2026-10-29): the packet reader must run on a plain CPU.** A GPU is an optional speed-up and a better card is parked in AM-56. The spike ([seed-scanning-spike.md](seed-scanning-spike.md)) found the calendar can be read from pixels with no model (99.7% of month-cells), but that Qwen2-VL-2B takes about 3 minutes a packet on a 12-core CPU and reads small-print numbers poorly. So AM-42 starts with a short CPU spike of OCR engines (RapidOCR/PaddleOCR via ONNX, Tesseract, Florence-2) on the same 23 packets, then: calendar from pixels, text by OCR transcription parsed in code, and name, variety and supplier from the largest text plus a supplier list. The vision-language-model description below is the original plan and is kept for context.
 
 **Reading a packet.** Runs on the mapper (a new `vision` Celery queue; the model is downloaded into the `models` volume on first use, like Grounding DINO, because the registry limits layer size). (1) A small local VLM (candidate Qwen2-VL-2B-Instruct; fallback Florence-2 plus OCR with rules if CPU speed or accuracy disappoints) returns the text fields as JSON plus the location of the calendar and its legend. (2) `calendar_cv.py` reads the calendar from pixels, because a language model is unreliable at "which months is this bar over": crop it, find the 12 month columns from the header labels (J F M A M J J A S O N D, Jan to Dec, or 1 to 12) and the rows by horizontal projection, average the colour of each cell, cluster colours (background = most common) and match each cluster to a legend entry by swatch colour or row label. (3) The result opens as a **draft**: the calendar crop beside a 12-month editor per activity (tap months), every field editable, low-confidence fields highlighted. (4) A **spike comes first** (AM-39): an evaluation over 10 to 15 of the user's real packets, kept in scratch and deleted afterwards, reporting per-field and calendar accuracy and seconds per packet; the pipeline is only built if it is usable, otherwise the approach changes and that is said plainly.
 
