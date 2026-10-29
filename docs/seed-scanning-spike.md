@@ -77,8 +77,21 @@ Run on the host's GPU (M2 Pro, fp16). Images went in as the phone took them.
 
 - Qwen2-VL-2B needs about 4.5 GB. The dev Docker VM has 5.8 GB, so it cannot run beside the stack
   there; it ran natively on the host.
-- On a CPU, expect tens of seconds per packet (transcription is the long part). On a GPU it is
-  seconds. The GPU worker (AM-55) has an 8 GB AMD card; fitting this model there is the next check.
+- **It fits on the 8 GB AMD card (RX 6600) of the GPU worker (AM-55).** fp16 weights take 4.1 GB and
+  the peak while reading a packet is 6.3 GB. Accuracy is identical to the Mac runs (same model, same
+  prompts), so the only question was speed:
+
+  | Where | JSON prompt | Transcribe |
+  |---|---|---|
+  | RX 6600, ROCm, fp16 | 14.8 s | 33.4 s |
+  | That machine's CPU (12 cores, bf16) | 192 s | not run |
+  | M2 Pro GPU, fp16 | 7.7 s | 16.4 s |
+
+  The RX 6600 is about 13 times faster than that machine's CPU and about half the speed of the M2
+  Pro. The first packet after the process starts takes about two minutes (the GPU kernels compile
+  on first use, which ROCm does for chips it does not officially support); a long-running worker
+  pays that once per restart. One packet with both passes is about 50 s on this card, so scanning
+  a handful of packets at a time is fine and a whole drawer is a coffee-break job.
 - Everything runs locally; nothing about a packet leaves the network.
 
 ## Recommended design for AM-42
@@ -98,7 +111,9 @@ Run on the host's GPU (M2 Pro, fp16). Images went in as the phone took them.
 
 ## Not done / still open
 
-- Fitting and timing Qwen2-VL-2B on the AMD GPU (needs the 8 GB check).
+- Persisting the GPU kernel cache across worker restarts (the 2-minute first call).
+- A model larger than 2B: nothing bigger than about 3B fits in 8 GB at fp16, so a better reader of
+  small print would need quantisation or a bigger card; not tried.
 - A third supplier's palette; fronts of packets; barcodes (only the back was photographed).
 - Tuning the parsers on fresh photos; this set was used for everything above.
 - The photos used are in scratch space only, not in the repository. They should be deleted when
