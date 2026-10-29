@@ -10,6 +10,7 @@ An `act_runner` labelled `ubuntu-latest` with access to the Docker socket (neede
 
 ## Secrets
 - `REGISTRY_TOKEN`: a personal access token with `write:package`. The automatic `GITEA_TOKEN` usually cannot push packages.
+- `DEPLOY_DISPATCH_TOKEN`: a personal access token that can dispatch workflows on `matt/Allotment-Deploy` (used by the `trigger-deploy` job).
 
 ## Image tags
 Three images are pushed to `<gitea-host>/<owner>/`: `allotment-api`, `allotment-frontend` and `allotment-worker` (the OpenSfM + GDAL mapping worker). Each gets `sha-<short>`, the branch name, `latest` on `main`, and `X.Y.Z` / `X.Y` for tags like `v0.1.0`.
@@ -35,3 +36,6 @@ with the polish phase (AM-10). Test users are named `e2e-*@example.com`.
 
 ## Deploying what CI builds
 `deploy/docker-compose.prod.yml` runs these images; the README's "Deployment" section is the walk-through (settings, first start, TLS, backups, upgrades). The `api` image contains the database migrations, and a one-shot `migrate` service runs `flask db upgrade` before anything else starts.
+
+## Automatic deployment
+Pushing a plain `vX.Y.Z` tag on a commit that is on `main` deploys it to the production host. After `build` pushes the images, its `trigger-deploy` job waits for the `test` workflow on the same tag, then dispatches the `deploy` workflow in `matt/Allotment-Deploy`, which re-checks that the commit is on `main` and that `build` and `test` both succeeded, then runs the Ansible playbook. Pre-release tags such as `v1.0.0-rc1` are built but not deployed. Roll back by running the `deploy` workflow by hand with an older tag.
