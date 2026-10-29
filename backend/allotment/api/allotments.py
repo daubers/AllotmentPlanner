@@ -110,6 +110,7 @@ class AllotmentDetail(MethodView):
         db.session.commit()
         safe_delete(*keys)
         safe_delete_prefix(f"allotments/{allotment_id}/layers")
+        safe_delete_prefix(f"allotments/{allotment_id}/stills")
         events.emit("allotment.deleted", actor_id=membership.user_id, allotment_id=allotment_id)
 
 

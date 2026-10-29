@@ -40,3 +40,13 @@ describe("SightingPhoto for a video", () => {
     expect(container.querySelector("polygon")).toBeInTheDocument();
   });
 });
+
+describe("SightingPhoto with a saved still of a video frame", () => {
+  it("shows the still as a picture, not the video", () => {
+    const video = { ...sighting, kind: "video", at_s: 4.2, url: "/clip.mp4?t=x", still_url: "/api/v1/media/stills?t=abc" };
+    const { container } = render(<SightingPhoto sighting={video} full alt="Shed" />);
+    expect(screen.getByAltText("Shed")).toHaveAttribute("src", "/api/v1/media/stills?t=abc");
+    expect(container.querySelector("video")).toBeNull();
+    expect(container.querySelector("polygon")).toBeInTheDocument();
+  });
+});

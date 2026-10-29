@@ -10,7 +10,7 @@ export const SHOWN_PHOTOS = 3;
 export function photosOf(s: Pick<Suggestion, "sightings">, shown = SHOWN_PHOTOS): { shown: Sighting[]; more: number } {
   // A video sighting needs its second to show the right frame; ones saved without it are left out
   // rather than drawn over the wrong picture.
-  const all = (s.sightings ?? []).filter((x) => x.outline && x.outline.length >= 3 && (x.kind !== "video" || x.at_s != null));
+  const all = (s.sightings ?? []).filter((x) => x.outline && x.outline.length >= 3 && (x.kind !== "video" || x.at_s != null || x.still_url));
   return { shown: all.slice(0, shown), more: Math.max(0, all.length - shown) };
 }
 

@@ -113,3 +113,10 @@ describe("sightings in videos", () => {
     expect(shown.map((x) => x.media_id)).toEqual([2]);
   });
 });
+
+describe("video sightings with a saved still", () => {
+  it("are kept even without the second", () => {
+    const x = { media_id: 3, kind: "video", outline: [[0, 0], [1, 0], [1, 1]], score: 0.8, url: "/v", still_url: "/still" };
+    expect(photosOf({ sightings: [x] }).shown).toHaveLength(1);
+  });
+});

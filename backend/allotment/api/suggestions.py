@@ -14,7 +14,7 @@ from ..schemas import (
     SuggestionSchema,
 )
 from ..security import require_role
-from .media import media_to_dict
+from .media import media_to_dict, still_url
 
 blp = Blueprint(
     "suggestions",
@@ -36,6 +36,7 @@ def _sightings(s: MapSuggestion, photos: dict[int, dict]) -> list[dict]:
                     "url": p["url"],
                     "thumb_url": p["thumb_url"],
                     "kind": p["kind"],
+                    "still_url": still_url(x["still"]) if x.get("still") else None,
                     "width": p["width"],
                     "height": p["height"],
                 }
