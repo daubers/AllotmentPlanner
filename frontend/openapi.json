@@ -1329,6 +1329,32 @@
         }
       ]
     },
+    "/api/v1/media/stills": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "A video frame kept for a found item, authorised by the signed ``t`` in its link.",
+        "tags": [
+          "media-files"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "t",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/media/{media_id}/{variant}": {
       "get": {
         "responses": {
@@ -5722,6 +5748,11 @@
           "kind": {
             "type": "string",
             "description": "photo or video"
+          },
+          "still_url": {
+            "type": "string",
+            "description": "Signed link to a still of the video frame",
+            "nullable": true
           },
           "url": {
             "type": "string",

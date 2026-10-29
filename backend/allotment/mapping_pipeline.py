@@ -30,7 +30,7 @@ from . import mapping_geo as geo
 from .extensions import db
 from .mapping_video import video_frame_rate
 from .models import MapJob, MapLayer, MapSuggestion, Media
-from .storage import get_storage
+from .storage import get_storage, safe_delete_prefix
 
 log = structlog.get_logger(__name__)
 
@@ -867,10 +867,41 @@ def sightings_of(g: detection_geo.FusedObject, times: dict[str, float] | None = 
             "media_id": i,
             "outline": m.outline,
             "score": round(m.footprint.score, 3),
-            **({"at_s": times[m.shot]} if m.shot in times else {}),
+            **({"at_s": times[m.shot], "shot": m.shot} if m.shot in times else {}),
         }
         for i, m in ranked
     ]
+
+
+STILL_WIDTH = 960
+
+
+def save_stills(job: MapJob, work: Path, suggestions: list[MapSuggestion]) -> None:
+    """Keep a small picture of each video frame a found object was seen in, so it can be shown
+    with its outline in any browser (a video held at one second does not always draw). The still is
+    cut from the same undistorted frame the outline was found in, so the two line up exactly."""
+    prefix = f"allotments/{job.allotment_id}/stills/"
+    safe_delete_prefix(prefix)  # the earlier run's suggestions are dismissed: their stills go too
+    storage = get_storage()
+    done: set[str] = set()
+    for s in suggestions:
+        for x in s.sightings or []:
+            shot = x.pop("shot", None)
+            source = work / "undistorted" / "images" / (shot or "")
+            if not shot or not source.exists():
+                continue
+            key = f"{prefix}{job.id}/{shot}"
+            if key not in done:
+                with Image.open(source) as image, tempfile.TemporaryDirectory() as tmp:
+                    image = image.convert("RGB")
+                    image.thumbnail((STILL_WIDTH, STILL_WIDTH))
+                    out = Path(tmp) / "still.jpg"
+                    image.save(out, "JPEG", quality=80)
+                    storage.put(key, str(out), "image/jpeg")
+                done.add(key)
+            x["still"] = key
+    for s in suggestions:  # the JSON column must see the change
+        s.sightings = [dict(x) for x in s.sightings or []] or None
 
 
 def detect_objects(job: MapJob, work: Path, detector=None) -> int:
@@ -949,6 +980,7 @@ def detect_objects(job: MapJob, work: Path, detector=None) -> int:
         allotment_id=job.allotment_id, status="pending"
     ).update({"status": "dismissed"})
     times = frame_times_of(work)
+    added: list[MapSuggestion] = []
     totals: dict[str, int] = {}
     for g in fused:
         totals[g.label] = totals.get(g.label, 0) + 1
@@ -967,19 +999,20 @@ def detect_objects(job: MapJob, work: Path, detector=None) -> int:
             coords = [[float(a), float(b)] for a, b in zip(lon, lat, strict=True)]
             geometry = {"type": "Polygon", "coordinates": [[*coords, coords[0]]]}
             radius = None
-        db.session.add(
-            MapSuggestion(
-                allotment_id=job.allotment_id,
-                job_id=job.id,
-                kind=g.kind,
-                name=suggestion_name(g.label, counters[g.label], totals[g.label]),
-                geometry=geometry,
-                radius_m=radius,
-                confidence=g.confidence,
-                views=g.views,
-                sightings=sightings_of(g, times),
-            )
+        suggestion = MapSuggestion(
+            allotment_id=job.allotment_id,
+            job_id=job.id,
+            kind=g.kind,
+            name=suggestion_name(g.label, counters[g.label], totals[g.label]),
+            geometry=geometry,
+            radius_m=radius,
+            confidence=g.confidence,
+            views=g.views,
+            sightings=sightings_of(g, times),
         )
+        db.session.add(suggestion)
+        added.append(suggestion)
+    save_stills(job, work, added)
     if boundary is not None:
         outline = propose_gpx_boundary(job)
     else:

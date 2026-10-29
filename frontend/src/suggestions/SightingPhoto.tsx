@@ -4,8 +4,10 @@ import { frameSrc, outlinePoints, type Sighting } from "./model";
 /** A photo with the found object outlined. The outline is in 0..1 of the picture, so it lines up at
  *  any size; the box takes the photo's own shape so the two stay together. */
 export function SightingPhoto({ sighting, full = false, alt }: { sighting: Sighting; full?: boolean; alt: string }) {
-  const frame = frameSrc(sighting);
-  const src = full ? sighting.url : (sighting.thumb_url ?? sighting.url);
+  // A saved still of a video frame lines up exactly and draws everywhere; the video held at that
+  // second is the fallback for results that have none.
+  const frame = sighting.still_url ? undefined : frameSrc(sighting);
+  const src = sighting.still_url ?? (full ? sighting.url : (sighting.thumb_url ?? sighting.url));
   const ratio = sighting.width && sighting.height ? `${sighting.width} / ${sighting.height}` : undefined;
   return (
     <span className="sighting-photo" style={{ aspectRatio: ratio }}>

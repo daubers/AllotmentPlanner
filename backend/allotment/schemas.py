@@ -515,6 +515,9 @@ class SightingSchema(Schema):
         allow_none=True, metadata={"description": "Seconds into the video, if it is a video"}
     )
     kind = fields.String(metadata={"description": "photo or video"})
+    still_url = fields.String(
+        allow_none=True, metadata={"description": "Signed link to a still of the video frame"}
+    )
     url = fields.String(metadata={"description": "Signed link to the full photo or video"})
     thumb_url = fields.String(allow_none=True)
     width = fields.Integer(allow_none=True)

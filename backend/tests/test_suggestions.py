@@ -799,3 +799,82 @@ def test_a_photo_has_no_second(job, monkeypatch):
     pipeline.detect_objects(j, work, detector=SceneDetector(RING))
     seen = [x for s in db.session.query(MapSuggestion).filter_by(job_id=j.id) for x in s.sightings]
     assert seen and all("at_s" not in x for x in seen)
+
+
+# --- stills of video frames --------------------------------------------------------------------
+
+
+def run_with_video_frames(job, monkeypatch):
+    j, work = job
+    write_reconstruction(work, RING)
+    (work / "frame_times.json").write_text(json.dumps({s.name: 2.0 for s in RING}))
+    monkeypatch.setattr(pipeline, "media_id_of", lambda n: int(re.search(r"\d+", n).group()) + 1)
+    pipeline.detect_objects(j, work, detector=SceneDetector(RING))
+    return j
+
+
+def test_a_still_of_each_video_frame_is_kept_and_linked(app, job, monkeypatch):
+    j = run_with_video_frames(job, monkeypatch)
+    sightings = [x for s in db.session.query(MapSuggestion) for x in s.sightings]
+    keys = {x["still"] for x in sightings}
+    assert keys and all(k.startswith(f"allotments/{j.allotment_id}/stills/{j.id}/") for k in keys)
+    assert all("shot" not in x for x in sightings)  # only the key is kept
+    from allotment.storage import get_storage
+
+    for key in keys:
+        with Image.open(__import__("io").BytesIO(get_storage().get_bytes(key))) as still:
+            assert max(still.size) <= pipeline.STILL_WIDTH
+
+
+def test_the_api_gives_a_signed_link_to_the_still_which_serves_it(client, plot, job, monkeypatch):
+    j = run_with_video_frames(job, monkeypatch)
+    db.session.query(MapSuggestion).update({"allotment_id": plot["id"]})
+    for i in range(1, 8):  # the videos the frames came from
+        db.session.add(
+            Media(
+                id=i,
+                allotment_id=plot["id"],
+                kind="video",
+                filename="w.mp4",
+                content_type="video/mp4",
+                storage_key=f"allotments/{plot['id']}/w{i}.mp4",
+                status="ready",
+            )
+        )
+    db.session.commit()
+    [first, *_] = client.get(plot["s"], headers=plot["editor"]).json
+    link = first["sightings"][0]["still_url"]
+    assert link.startswith("/api/v1/media/stills?t=")
+    out = client.get(link)  # no bearer: the link is the authority
+    assert out.status_code == 200 and out.mimetype == "image/jpeg"
+    assert client.get("/api/v1/media/stills?t=nonsense").status_code == 403
+    assert client.get("/api/v1/media/stills").status_code == 403
+    assert j.id  # the job exists
+
+
+def test_a_still_link_cannot_name_any_other_file(app, client):
+    from allotment.api.media import _still_signer
+
+    with app.app_context():
+        for key in ("allotments/1/a.jpg", "allotments/1/stills/../a.jpg"):
+            t = _still_signer().dumps(key)
+            assert client.get(f"/api/v1/media/stills?t={t}").status_code == 404
+
+
+def test_a_rerun_clears_the_earlier_stills(app, job, monkeypatch):
+    from allotment.storage import get_storage
+
+    j = run_with_video_frames(job, monkeypatch)
+    first = {x["still"] for s in db.session.query(MapSuggestion) for x in s.sightings}
+    j2 = MapJob(allotment_id=j.allotment_id, name="again", media_ids=[])
+    db.session.add(j2)
+    db.session.commit()
+    _, work = job
+    pipeline.detect_objects(j2, work, detector=SceneDetector(RING))
+    assert all(get_storage().get_bytes(k) is None for k in first)
+    now = {
+        x["still"]
+        for s in db.session.query(MapSuggestion).filter_by(job_id=j2.id)
+        for x in s.sightings
+    }
+    assert now and all(get_storage().get_bytes(k) for k in now)

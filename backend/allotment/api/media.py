@@ -41,6 +41,15 @@ def _signer() -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(current_app.config["JWT_SECRET_KEY"], salt="media-url")
 
 
+def _still_signer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(current_app.config["JWT_SECRET_KEY"], salt="still-url")
+
+
+def still_url(key: str) -> str:
+    """Signed link to a saved still (mapping_pipeline.save_stills): <img> can't send a bearer."""
+    return f"/api/v1/media/stills?t={_still_signer().dumps(key)}"
+
+
 def media_to_dict(m: Media) -> dict:
     """JSON for a media row. File links are signed: <img>/<video> can't send a bearer token."""
     token = _signer().dumps(m.id)
@@ -356,6 +365,25 @@ def _serve(key: str, content_type: str, filename: str) -> Response:
     if status == 206:
         response.headers["Content-Range"] = f"bytes {start}-{end}/{size}"
     return response
+
+
+@files_blp.route("/stills")
+class StillFile(MethodView):
+    @files_blp.doc(
+        parameters=[{"in": "query", "name": "t", "required": True, "schema": {"type": "string"}}]
+    )
+    @files_blp.response(200)
+    def get(self):
+        """A video frame kept for a found item, authorised by the signed ``t`` in its link."""
+        try:
+            key = _still_signer().loads(
+                request.args.get("t", ""), max_age=current_app.config["MEDIA_URL_TTL_SECONDS"]
+            )
+        except BadSignature:
+            abort(403, message="Invalid or expired link")
+        if "/stills/" not in key or ".." in key or get_storage().get_bytes(key) is None:
+            abort(404, message="No such picture")
+        return _serve(key, "image/jpeg", "frame.jpg")
 
 
 @files_blp.route("/<int:media_id>/<any(file,thumb):variant>")

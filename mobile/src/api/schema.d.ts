@@ -1231,6 +1231,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/media/stills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A video frame kept for a found item, authorised by the signed ``t`` in its link. */
+        get: {
+            parameters: {
+                query: {
+                    t: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/media/{media_id}/{variant}": {
         parameters: {
             query?: never;
@@ -3882,6 +3919,8 @@ export interface components {
             at_s?: number | null;
             /** @description photo or video */
             kind?: string;
+            /** @description Signed link to a still of the video frame */
+            still_url?: string | null;
             /** @description Signed link to the full photo or video */
             url?: string;
             thumb_url?: string | null;
