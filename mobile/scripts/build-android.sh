@@ -19,7 +19,13 @@ commit="$(git rev-parse --short HEAD 2>/dev/null || echo local)"
 npm ci
 # Regenerate the native project each time: android/ is not committed.
 CI=1 npx expo prebuild --platform android --clean --no-install
-(cd android && ./gradlew --no-daemon assembleRelease "-PreactNativeArchitectures=${abis}")
+# Gentle on memory: a CI runner shared with other jobs killed the Gradle daemon part-way through.
+# One worker, Kotlin compiled inside Gradle's JVM rather than a second one, and a capped heap.
+echo "Memory: $(free -m 2>/dev/null | awk '/^Mem:/ {print $2 " MB total, " $7 " MB available"}')"
+(cd android && ./gradlew --no-daemon --max-workers=2 assembleRelease \
+  "-PreactNativeArchitectures=${abis}" \
+  -Pkotlin.compiler.execution.strategy=in-process \
+  "-Dorg.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m")
 
 mkdir -p "$out"
 apk="$out/allotment-${version}-${commit}.apk"
