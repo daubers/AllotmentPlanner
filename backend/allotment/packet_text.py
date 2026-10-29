@@ -23,7 +23,10 @@ MONTHS = [
     "nov",
     "dec",
 ]
-_MONTH = r"(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+_MONTH = (
+    r"(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?"
+    r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+)
 SUPPLIERS = {
     "Mr Fothergill's": ("fothergill",),
     "Suttons": ("suttons",),
@@ -123,7 +126,7 @@ def find_supplier(text: str) -> str | None:
 
 
 def months_in(text: str) -> list[int]:
-    """Months named in a phrase: "March to June" is 3 to 6, "Nov to Feb" wraps, "all year round" is all."""
+    """Months named in a phrase: "March to June" is 3 to 6, "Nov to Feb" wraps, "all year" is all."""
     low = text.lower()
     if re.search(r"all\s+year(?:\s+round)?|throughout the year|year[- ]round", low):
         return list(range(1, 13))

@@ -18,7 +18,8 @@ TODAY = date(2026, 10, 29)
 # Text as printed on real packets (see docs/seed-scanning-spike.md).
 FOTHERGILLS_CARROT = """Carrot Flyaway F1
 Sow outdoors thinly where they are to crop, 1.5cm (1/2") deep directly into finely prepared soil
-which has already been watered. Allow 30cm (1') between rows. Seedlings usually appear in 14-21 days.
+which has already been watered. Allow 30cm (1') between rows.
+Seedlings usually appear in 14-21 days.
 Mr. Fothergill's Seeds, Kentford, Newmarket
 Packed in year ending OCT 2024
 Sow by DEC 2028"""
