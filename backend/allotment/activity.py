@@ -19,6 +19,7 @@ RECORDED = {
     "feature.deleted",
     "feature.bulk_replaced",
     "layer.created",
+    "packet.created",
     "measurements.applied",
 }
 
