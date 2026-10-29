@@ -300,3 +300,4 @@ label.missing { color: var(--danger); }
 .planting-body { padding: 0 .9rem .9rem; }
 .planting-photos h3 { margin: 1rem 0 .25rem; font-size: 1rem; }
 .planting-label { background: rgba(255,255,255,.85); border: 0; box-shadow: none; font-size: 11px; padding: 0 .3rem; }
+.outline-preview { max-width: 360px; margin: .5rem 0; }

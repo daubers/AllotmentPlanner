@@ -410,6 +410,14 @@ class MastodonPostQuerySchema(Schema):
 
 class MapJobInSchema(Schema):
     name = fields.String(load_default="", validate=validate.Length(max=120))
+    boundary = fields.Dict(
+        load_default=None,
+        allow_none=True,
+        metadata={
+            "description": "Optional plot boundary as a GeoJSON Polygon (see boundary-from-gpx): "
+            "objects outside it are left out, and it is offered as the Plot boundary suggestion"
+        },
+    )
     media_ids = fields.List(
         fields.Integer(),
         load_default=None,
@@ -457,6 +465,7 @@ class MapJobSchema(Schema):
     media_count = fields.Integer()
     detect_objects = fields.Boolean()
     overlay = fields.Boolean()
+    boundary = fields.Dict(allow_none=True)
     objects_found = fields.Integer(allow_none=True)
     shots_total = fields.Integer(allow_none=True)
     shots_used = fields.Integer(allow_none=True)
@@ -885,3 +894,18 @@ class PlantOutSchema(Schema):
 class PlantOutResultSchema(Schema):
     plantings = fields.List(fields.Nested(PlantingSchema))
     tray = fields.Nested(TraySchema)
+
+
+class GpxUploadFormSchema(Schema):
+    # Documented here for OpenAPI; the view reads the actual file from request.files.
+    file = fields.Raw(load_default=None, metadata={"type": "string", "format": "binary"})
+
+
+class BoundaryFromGpxSchema(Schema):
+    polygon = fields.Dict(metadata={"description": "GeoJSON Polygon, counter-clockwise"})
+    area_m2 = fields.Float()
+    perimeter_m = fields.Float()
+    gap_m = fields.Float(metadata={"description": "How far apart the walk's ends were"})
+    points_in = fields.Integer()
+    points_out = fields.Integer()
+    warnings = fields.List(fields.String())

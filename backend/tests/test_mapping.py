@@ -620,3 +620,121 @@ def test_dataset_from_photos_and_a_real_video(plot, job, tmp_path):
     assert sum("gps" in v for v in overrides.values()) == 3  # only the photos are located
     config = (work / "config.yaml").read_text()
     assert "matching_bow_neighbors: 10" in config and "matching_order_neighbors: 6" in config
+
+
+# --- a plot boundary from a GPX trace -------------------------------------------------------
+
+
+def square_polygon(side_m=20.0, lat=51.5, lon=-0.12):
+    dlat = side_m / 111_320
+    dlon = side_m / (111_320 * 0.6225)
+    ring = [[lon, lat], [lon + dlon, lat], [lon + dlon, lat + dlat], [lon, lat + dlat], [lon, lat]]
+    return {"type": "Polygon", "coordinates": [ring]}
+
+
+def gpx_file(side_m=20.0, closed=True, keep=None):
+    import io
+
+    dlat = side_m / 111_320
+    dlon = side_m / (111_320 * 0.6225)
+    corners = [(0, 0), (1, 0), (1, 1), (0, 1)]
+    pts = []
+    for (ax, ay), (bx, by) in zip(corners, corners[1:] + corners[:1], strict=True):
+        for i in range(8):
+            t = i / 8
+            pts.append((51.5 + (ay + (by - ay) * t) * dlat, -0.12 + (ax + (bx - ax) * t) * dlon))
+    if closed:
+        pts.append((51.5, -0.12))
+    if keep is not None:
+        pts = pts[:keep]
+    body = "".join(f'<trkpt lat="{a:.7f}" lon="{b:.7f}"/>' for a, b in pts)
+    xml = f'<gpx xmlns="http://www.topografix.com/GPX/1/1"><trk><trkseg>{body}</trkseg></trk></gpx>'
+    return io.BytesIO(xml.encode())
+
+
+def read_gpx(client, plot, data, who="editor", name="plot.gpx"):
+    return client.post(
+        f"{plot['base']}/boundary-from-gpx",
+        data={"file": (data, name)},
+        headers=plot[who],
+        content_type="multipart/form-data",
+    )
+
+
+def test_a_gpx_walk_becomes_an_outline_to_check(client, plot):
+    resp = read_gpx(client, plot, gpx_file())
+    assert resp.status_code == 200, resp.json
+    out = resp.json
+    assert out["polygon"]["type"] == "Polygon"
+    assert out["area_m2"] == pytest.approx(400, rel=0.05) and out["perimeter_m"] == pytest.approx(
+        80, rel=0.05
+    )
+    assert out["points_in"] == 33 and out["points_out"] < out["points_in"] and out["warnings"] == []
+
+
+@pytest.mark.parametrize(
+    ("data", "fragment"),
+    [
+        ("not xml", "readable"),
+        ("<html/>", "not a GPX"),
+        ("<gpx/>", "no track"),
+    ],
+)
+def test_a_file_that_is_not_a_usable_trace_says_why(client, plot, data, fragment):
+    import io
+
+    resp = read_gpx(client, plot, io.BytesIO(data.encode()))
+    assert resp.status_code == 422 and fragment in resp.json["message"]
+
+
+def test_a_walk_that_does_not_come_back_is_refused(client, plot):
+    resp = read_gpx(client, plot, gpx_file(side_m=80, closed=False, keep=14))
+    assert resp.status_code == 422 and "from where it started" in resp.json["message"]
+
+
+def test_the_gpx_endpoint_needs_a_file_and_an_editor(client, plot):
+    assert read_gpx(client, plot, gpx_file(), who="viewer").status_code == 403
+    assert read_gpx(client, plot, gpx_file(), who="stranger").status_code == 404
+    no_file = client.post(
+        f"{plot['base']}/boundary-from-gpx",
+        data={},
+        headers=plot["editor"],
+        content_type="multipart/form-data",
+    )
+    assert no_file.status_code == 422
+
+
+def test_a_job_can_carry_a_boundary_and_it_is_kept(client, plot, queued):
+    add_media(plot["id"], 6)
+    boundary = square_polygon()
+    resp = create(client, plot, boundary=boundary)
+    assert resp.status_code == 202, resp.json
+    assert resp.json["boundary"]["type"] == "Polygon"
+    stored = db.session.get(MapJob, resp.json["id"]).boundary
+    assert stored == boundary
+    detail = client.get(f"{plot['base']}/map-jobs/{resp.json['id']}", headers=plot["editor"]).json
+    assert detail["boundary"] == boundary
+
+
+@pytest.mark.parametrize(
+    ("boundary", "fragment"),
+    [
+        ({"type": "Point", "coordinates": [0, 0]}, "Polygon"),
+        (square_polygon(0.5), "too small"),
+        (square_polygon(5000), "too large"),
+        ({"type": "Polygon", "coordinates": [[[0, 0], [1, 1], [0, 1], [1, 0], [0, 0]]]}, "crosses"),
+        ({"type": "Polygon", "coordinates": [[[0, 0], [400, 0], [400, 1], [0, 0]]]}, "longitude"),
+    ],
+)
+def test_a_bad_boundary_is_refused_before_anything_is_queued(
+    client, plot, queued, boundary, fragment
+):
+    add_media(plot["id"], 6)
+    resp = create(client, plot, boundary=boundary)
+    assert resp.status_code == 422 and fragment in resp.json["message"]
+    assert queued == []
+
+
+def test_a_job_without_a_boundary_has_none(client, plot, queued):
+    add_media(plot["id"], 6)
+    assert create(client, plot).json["boundary"] is None

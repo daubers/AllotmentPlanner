@@ -3031,6 +3031,56 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/allotments/{allotment_id}/boundary-from-gpx": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read a GPX trace of a walk round the plot's edge and return the outline it encloses.
+         * @description Nothing is stored: check the result (area, warnings), then send ``polygon`` as ``boundary``
+         *     when starting a map build.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": components["schemas"]["GpxUploadForm"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BoundaryFromGpx"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/layers/{layer_id}/tiles/{z}/{x}/{y}.png": {
         parameters: {
             query?: never;
@@ -3928,6 +3978,9 @@ export interface components {
             media_count?: number;
             detect_objects?: boolean;
             overlay?: boolean;
+            boundary?: {
+                [key: string]: unknown;
+            } | null;
             objects_found?: number | null;
             shots_total?: number | null;
             shots_used?: number | null;
@@ -3946,6 +3999,13 @@ export interface components {
         MapJobIn: {
             /** @default  */
             name?: string;
+            /**
+             * @description Optional plot boundary as a GeoJSON Polygon (see boundary-from-gpx): objects outside it are left out, and it is offered as the Plot boundary suggestion
+             * @default null
+             */
+            boundary?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * @description Photos/videos to use; default is every ready photo and video
              * @default null
@@ -3998,6 +4058,26 @@ export interface components {
             name?: string;
             opacity?: number;
             visible?: boolean;
+        };
+        GpxUploadForm: {
+            /**
+             * Format: binary
+             * @default null
+             */
+            file?: string | null;
+        };
+        BoundaryFromGpx: {
+            /** @description GeoJSON Polygon, counter-clockwise */
+            polygon?: {
+                [key: string]: unknown;
+            };
+            area_m2?: number;
+            perimeter_m?: number;
+            /** @description How far apart the walk's ends were */
+            gap_m?: number;
+            points_in?: number;
+            points_out?: number;
+            warnings?: string[];
         };
     };
     responses: {

@@ -3277,6 +3277,54 @@
         }
       ]
     },
+    "/api/v1/allotments/{allotment_id}/boundary-from-gpx": {
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoundaryFromGpx"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/GpxUploadForm"
+              }
+            }
+          }
+        },
+        "summary": "Read a GPX trace of a walk round the plot's edge and return the outline it encloses.",
+        "description": "Nothing is stored: check the result (area, warnings), then send ``polygon`` as ``boundary``\nwhen starting a map build.",
+        "tags": [
+          "mapping"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
     "/api/v1/layers/{layer_id}/tiles/{z}/{x}/{y}.png": {
       "get": {
         "responses": {
@@ -5982,6 +6030,11 @@
           "overlay": {
             "type": "boolean"
           },
+          "boundary": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
           "objects_found": {
             "type": "integer",
             "nullable": true
@@ -6033,6 +6086,13 @@
             "type": "string",
             "default": "",
             "maxLength": 120
+          },
+          "boundary": {
+            "type": "object",
+            "default": null,
+            "description": "Optional plot boundary as a GeoJSON Polygon (see boundary-from-gpx): objects outside it are left out, and it is offered as the Plot boundary suggestion",
+            "additionalProperties": {},
+            "nullable": true
           },
           "media_ids": {
             "type": "array",
@@ -6139,6 +6199,51 @@
           },
           "visible": {
             "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GpxUploadForm": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "default": null,
+            "type": "string",
+            "format": "binary",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BoundaryFromGpx": {
+        "type": "object",
+        "properties": {
+          "polygon": {
+            "type": "object",
+            "description": "GeoJSON Polygon, counter-clockwise",
+            "additionalProperties": {}
+          },
+          "area_m2": {
+            "type": "number"
+          },
+          "perimeter_m": {
+            "type": "number"
+          },
+          "gap_m": {
+            "type": "number",
+            "description": "How far apart the walk's ends were"
+          },
+          "points_in": {
+            "type": "integer"
+          },
+          "points_out": {
+            "type": "integer"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": false

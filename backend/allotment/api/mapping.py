@@ -4,12 +4,17 @@ from flask import Response, current_app, request
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from itsdangerous import BadSignature, URLSafeTimedSerializer
+from shapely.geometry import mapping
 
 from .. import events
 from ..extensions import db
+from ..gpx import MAX_BYTES, GpxError, outline_from_trace, parse_gpx
 from ..mapping_video import estimated_frames
 from ..models import MapJob, MapLayer, Media, Role
+from ..plot_boundary import boundary_problem
 from ..schemas import (
+    BoundaryFromGpxSchema,
+    GpxUploadFormSchema,
     MapJobInSchema,
     MapJobSchema,
     MapLayerPatchSchema,
@@ -54,6 +59,7 @@ def job_to_dict(job: MapJob, layer_id: int | None = None, detail: bool = False) 
         "detect_objects": job.detect_objects,
         "overlay": job.overlay,
         "objects_found": job.objects_found,
+        "boundary": job.boundary,
         "shots_total": job.shots_total,
         "shots_used": job.shots_used,
         "error": job.error,
@@ -118,6 +124,10 @@ class MapJobList(MethodView):
 
         Needs about 5+ overlapping images (a video counts as the frames sampled from it, about
         one a second) and 3+ photos with a location, which place and scale the map."""
+        if data["boundary"] is not None:
+            problem = boundary_problem(data["boundary"])
+            if problem:
+                abort(422, message=problem)
         if not data["detect_objects"] and not data["overlay"]:
             abort(
                 422, message="Choose at least one thing to make: recognised objects or the overlay"
@@ -183,6 +193,7 @@ class MapJobList(MethodView):
             camera_height_m=data["camera_height_m"],
             detect_objects=data["detect_objects"],
             overlay=data["overlay"],
+            boundary=data["boundary"],
             created_by=membership.user_id,
         )
         db.session.add(job)
@@ -307,3 +318,32 @@ class LayerTile(MethodView):
         )
         response.headers["X-Content-Type-Options"] = "nosniff"
         return response
+
+
+@blp.route("/boundary-from-gpx")
+class BoundaryFromGpx(MethodView):
+    @require_role(Role.EDITOR)
+    @blp.arguments(GpxUploadFormSchema, location="form", content_type="multipart/form-data")
+    @blp.response(200, BoundaryFromGpxSchema)
+    def post(self, form, allotment, membership):
+        """Read a GPX trace of a walk round the plot's edge and return the outline it encloses.
+
+        Nothing is stored: check the result (area, warnings), then send ``polygon`` as ``boundary``
+        when starting a map build."""
+        upload = request.files.get("file")
+        if upload is None:
+            abort(422, message="Missing 'file' in the multipart form")
+        data = upload.read(MAX_BYTES + 1)
+        try:
+            outline = outline_from_trace(parse_gpx(data))
+        except GpxError as exc:
+            abort(422, message=str(exc))
+        return {
+            "polygon": mapping(outline.polygon),
+            "area_m2": outline.area_m2,
+            "perimeter_m": outline.perimeter_m,
+            "gap_m": outline.gap_m,
+            "points_in": outline.points_in,
+            "points_out": outline.points_out,
+            "warnings": outline.warnings,
+        }
