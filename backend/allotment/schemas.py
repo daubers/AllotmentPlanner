@@ -1,7 +1,7 @@
 from marshmallow import Schema, fields, validate
 
 from .models import FeatureKind
-from .seeds import ACTIVITIES, STOCK_LEVELS, SUN_LEVELS
+from .seeds import ACTIVITIES, CELL_STATUSES, MAX_TRAY_SIDE, STOCK_LEVELS, SUN_LEVELS
 
 ROLES = ["viewer", "editor", "owner"]
 
@@ -218,6 +218,7 @@ class MediaUploadFormSchema(Schema):
     feature_id = fields.Integer(load_default=None)
     task_id = fields.Integer(load_default=None)
     packet_id = fields.Integer(load_default=None, metadata={"description": "A seed packet's photo"})
+    tray_id = fields.Integer(load_default=None, metadata={"description": "A seed tray's photo"})
     caption = fields.String(load_default="", validate=validate.Length(max=500))
     lat = fields.Float(
         load_default=None,
@@ -252,6 +253,7 @@ class MediaQuerySchema(Schema):
     feature_id = fields.Integer()
     task_id = fields.Integer()
     packet_id = fields.Integer()
+    tray_id = fields.Integer()
     capture_session = fields.String()
     taken_from = fields.Date(metadata={"description": "On or after this date"})
     taken_to = fields.Date(metadata={"description": "On or before this date"})
@@ -265,6 +267,7 @@ class MediaPatchSchema(Schema):
     feature_id = fields.Integer(allow_none=True)
     task_id = fields.Integer(allow_none=True)
     packet_id = fields.Integer(allow_none=True)
+    tray_id = fields.Integer(allow_none=True)
     taken_at = fields.DateTime()
     lat = fields.Float(allow_none=True, validate=validate.Range(min=-90, max=90))
     lng = fields.Float(allow_none=True, validate=validate.Range(min=-180, max=180))
@@ -290,6 +293,7 @@ class MediaSchema(Schema):
     feature_id = fields.Integer(allow_none=True)
     task_id = fields.Integer(allow_none=True)
     packet_id = fields.Integer(allow_none=True)
+    tray_id = fields.Integer(allow_none=True)
     caption = fields.String()
     status = fields.String()
     error = fields.String(allow_none=True)
@@ -670,3 +674,99 @@ class PacketSchema(Schema):
     created_by = fields.Integer(allow_none=True)
     created_at = fields.DateTime()
     updated_at = fields.DateTime()
+
+
+TRAY_STATUSES = ["active", "planted_out", "finished"]
+
+
+class TrayPatchSchema(Schema):
+    name = fields.String(validate=validate.Length(min=1, max=200))
+    rows = fields.Integer(validate=validate.Range(min=1, max=MAX_TRAY_SIDE))
+    cols = fields.Integer(validate=validate.Range(min=1, max=MAX_TRAY_SIDE))
+    tray_type = fields.String(validate=validate.Length(max=100))
+    sown_on = fields.Date(allow_none=True)
+    location = fields.String(validate=validate.Length(max=200))
+    notes = fields.String(validate=validate.Length(max=5000))
+    status = fields.String(validate=validate.OneOf(TRAY_STATUSES))
+
+
+class TrayInSchema(TrayPatchSchema):
+    name = fields.String(required=True, validate=validate.Length(min=1, max=200))
+    rows = fields.Integer(required=True, validate=validate.Range(min=1, max=MAX_TRAY_SIDE))
+    cols = fields.Integer(required=True, validate=validate.Range(min=1, max=MAX_TRAY_SIDE))
+
+
+class TrayQuerySchema(Schema):
+    status = fields.String(validate=validate.OneOf(TRAY_STATUSES))
+    packet_id = fields.Integer(metadata={"description": "Only trays with this packet sown in them"})
+
+
+class CellRefSchema(Schema):
+    row = fields.Integer(required=True, validate=validate.Range(min=0, max=MAX_TRAY_SIDE - 1))
+    col = fields.Integer(required=True, validate=validate.Range(min=0, max=MAX_TRAY_SIDE - 1))
+
+
+class CellSetSchema(Schema):
+    """What to do to the chosen cells. Only the fields sent change."""
+
+    status = fields.String(validate=validate.OneOf(["empty", "sown", "germinated", "failed"]))
+    packet_id = fields.Integer(allow_none=True)
+    count = fields.Integer(allow_none=True, validate=validate.Range(min=1, max=1000))
+    sown_on = fields.Date(allow_none=True)
+    germinated_on = fields.Date(allow_none=True)
+    note = fields.String(validate=validate.Length(max=500))
+
+
+class CellsUpdateSchema(Schema):
+    cells = fields.List(
+        fields.Nested(CellRefSchema), required=True, validate=validate.Length(min=1, max=900)
+    )
+    set = fields.Nested(CellSetSchema, required=True)
+
+
+class TrayCellSchema(Schema):
+    row = fields.Integer()
+    col = fields.Integer()
+    packet_id = fields.Integer(allow_none=True)
+    count = fields.Integer(allow_none=True)
+    status = fields.String(validate=validate.OneOf(CELL_STATUSES))
+    sown_on = fields.Date(allow_none=True)
+    germinated_on = fields.Date(allow_none=True)
+    note = fields.String()
+
+
+class TrayCountsSchema(Schema):
+    empty = fields.Integer()
+    sown = fields.Integer()
+    germinated = fields.Integer()
+    failed = fields.Integer()
+    planted_out = fields.Integer()
+
+
+class TrayKindSchema(Schema):
+    packet_id = fields.Integer()
+    name = fields.String()
+    variety = fields.String()
+    cells = fields.Integer()
+    seeds = fields.Integer()
+
+
+class TraySummarySchema(Schema):
+    id = fields.Integer()
+    name = fields.String()
+    rows = fields.Integer()
+    cols = fields.Integer()
+    tray_type = fields.String()
+    sown_on = fields.Date(allow_none=True)
+    location = fields.String()
+    notes = fields.String()
+    status = fields.String()
+    counts = fields.Nested(TrayCountsSchema)
+    kinds = fields.List(fields.Nested(TrayKindSchema))
+    created_at = fields.DateTime()
+    updated_at = fields.DateTime()
+
+
+class TraySchema(TraySummarySchema):
+    cells = fields.List(fields.Nested(TrayCellSchema))
+    photos = fields.List(fields.Nested(MediaSchema))

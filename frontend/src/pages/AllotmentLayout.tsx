@@ -35,6 +35,7 @@ export default function AllotmentLayout() {
           <NavLink to="today">Today</NavLink>
           <NavLink to="photos">Photos</NavLink>
           <NavLink to="seeds">Seeds</NavLink>
+          <NavLink to="trays">Trays</NavLink>
           <NavLink to="layers">From photos</NavLink>
           <NavLink to="overview">Overview</NavLink>
           {canEdit && <NavLink to="settings">Settings</NavLink>}

@@ -15,7 +15,7 @@ from werkzeug.utils import secure_filename
 from .. import events, media_meta
 from ..celery_app import celery
 from ..extensions import db
-from ..models import MapFeature, Media, Role, SeedPacket, Task
+from ..models import MapFeature, Media, Role, SeedPacket, Task, Tray
 from ..schemas import (
     MediaPatchSchema,
     MediaQuerySchema,
@@ -63,6 +63,7 @@ def media_to_dict(m: Media) -> dict:
         "feature_id": m.feature_id,
         "task_id": m.task_id,
         "packet_id": m.packet_id,
+        "tray_id": m.tray_id,
         "caption": m.caption,
         "status": m.status,
         "error": m.error,
@@ -77,7 +78,7 @@ def _by_client_id(allotment, client_id: str) -> Media | None:
     return db.session.query(Media).filter_by(allotment_id=allotment.id, client_id=client_id).first()
 
 
-def _check_refs(allotment, feature_id, task_id, packet_id=None) -> None:
+def _check_refs(allotment, feature_id, task_id, packet_id=None, tray_id=None) -> None:
     if feature_id is not None:
         feature = db.session.get(MapFeature, feature_id)
         if feature is None or feature.allotment_id != allotment.id:
@@ -90,6 +91,10 @@ def _check_refs(allotment, feature_id, task_id, packet_id=None) -> None:
         packet = db.session.get(SeedPacket, packet_id)
         if packet is None or packet.allotment_id != allotment.id:
             abort(422, message="packet_id does not belong to this allotment")
+    if tray_id is not None:
+        tray = db.session.get(Tray, tray_id)
+        if tray is None or tray.allotment_id != allotment.id:
+            abort(422, message="tray_id does not belong to this allotment")
 
 
 def _get(allotment, media_id: int) -> Media:
@@ -115,7 +120,7 @@ class MediaList(MethodView):
     @blp.response(200, MediaSchema(many=True))
     def get(self, args, allotment, membership):
         q = db.session.query(Media).filter_by(allotment_id=allotment.id)
-        for key in ("kind", "feature_id", "task_id", "packet_id", "capture_session"):
+        for key in ("kind", "feature_id", "task_id", "packet_id", "tray_id", "capture_session"):
             if key in args:
                 q = q.filter(getattr(Media, key) == args[key])
         if "taken_from" in args:
@@ -134,7 +139,9 @@ class MediaList(MethodView):
     @blp.response(201, MediaSchema)
     def post(self, form, allotment, membership):
         """Upload a photo or video. Time, GPS, size and thumbnail are read in the background."""
-        _check_refs(allotment, form["feature_id"], form["task_id"], form["packet_id"])
+        _check_refs(
+            allotment, form["feature_id"], form["task_id"], form["packet_id"], form["tray_id"]
+        )
         if (form["lat"] is None) != (form["lng"] is None):
             abort(422, message="lat and lng must be sent together")
         if form["client_id"]:
@@ -172,6 +179,7 @@ class MediaList(MethodView):
             feature_id=form["feature_id"],
             task_id=form["task_id"],
             packet_id=form["packet_id"],
+            tray_id=form["tray_id"],
             caption=form["caption"],
             capture_session=form["capture_session"],
             client_id=form["client_id"],
@@ -203,6 +211,7 @@ class MediaList(MethodView):
                 "feature_id": media.feature_id,
                 "task_id": media.task_id,
                 "packet_id": media.packet_id,
+                "tray_id": media.tray_id,
             },
             payload={"kind": kind, "size_bytes": size},
         )
@@ -222,12 +231,27 @@ class MediaDetail(MethodView):
     @blp.response(200, MediaSchema)
     def patch(self, data, allotment, membership, media_id):
         media = _get(allotment, media_id)
-        _check_refs(allotment, data.get("feature_id"), data.get("task_id"), data.get("packet_id"))
+        _check_refs(
+            allotment,
+            data.get("feature_id"),
+            data.get("task_id"),
+            data.get("packet_id"),
+            data.get("tray_id"),
+        )
         if ("lat" in data) != ("lng" in data) or (data.get("lat") is None) != (
             data.get("lng") is None
         ):
             abort(422, message="lat and lng must be set together (or both cleared)")
-        for key in ("caption", "feature_id", "task_id", "packet_id", "lat", "lng", "heading"):
+        for key in (
+            "caption",
+            "feature_id",
+            "task_id",
+            "packet_id",
+            "tray_id",
+            "lat",
+            "lng",
+            "heading",
+        ):
             if key in data:
                 setattr(media, key, data[key])
         if "lat" in data:

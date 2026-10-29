@@ -4,6 +4,8 @@ import { uploadMedia, useMediaActions } from "../media/hooks";
 import MonthGrid from "../seeds/MonthGrid";
 import { ACTIVITIES, STOCK, SUN, toggleMonth, type Calendar } from "../seeds/calendar";
 import { usePacket, usePacketActions, type PacketPatch } from "../seeds/hooks";
+import { summarise } from "../trays/grid";
+import { useTrays } from "../trays/hooks";
 import { useAllotment } from "./AllotmentLayout";
 
 const num = (v: FormDataEntryValue | null): number | null => (v === null || String(v).trim() === "" ? null : Number(v));
@@ -15,6 +17,7 @@ export default function PacketPage() {
   const packet = usePacket(id, packetId);
   const actions = usePacketActions(id);
   const mediaActions = useMediaActions(id);
+  const trays = useTrays(id, { packetId });
   const fileInput = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<{ key: string; calendar: Calendar } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -152,6 +155,22 @@ export default function PacketPage() {
         {notice && <p role="status" className="ok">{notice}</p>}
         {canEdit && <button type="submit" disabled={actions.patch.isPending}>Save</button>}
       </form>
+
+      <section>
+        <h2>In trays</h2>
+        {trays.data?.length ? (
+          <ul>
+            {trays.data.map((t) => (
+              <li key={t.id}>
+                <Link to={`../../trays/${t.id}`} relative="path">{t.name}</Link>
+                <span className="muted"> · {summarise(t.counts)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted">Not sown in any tray yet.</p>
+        )}
+      </section>
 
       <section>
         <h2>Photos</h2>

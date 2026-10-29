@@ -11,6 +11,8 @@ import PacketPage from "./pages/PacketPage";
 import SeedsPage from "./pages/SeedsPage";
 import SettingsPage from "./pages/SettingsPage";
 import TasksPage from "./pages/TasksPage";
+import TrayPage from "./pages/TrayPage";
+import TraysPage from "./pages/TraysPage";
 import TodayPage from "./pages/TodayPage";
 
 // The map editor pulls in Leaflet + Geoman, so load it only when needed.
@@ -46,6 +48,8 @@ export default function App() {
           <Route path="layers" element={<LayersPage />} />
           <Route path="seeds" element={<SeedsPage />} />
           <Route path="seeds/:packetId" element={<PacketPage />} />
+          <Route path="trays" element={<TraysPage />} />
+          <Route path="trays/:trayId" element={<TrayPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
