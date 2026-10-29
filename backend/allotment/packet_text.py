@@ -126,7 +126,7 @@ def find_supplier(text: str) -> str | None:
 
 
 def months_in(text: str) -> list[int]:
-    """Months named in a phrase: "March to June" is 3 to 6, "Nov to Feb" wraps, "all year" is all."""
+    """Months named in a phrase: "March to June" is 3 to 6, "Nov to Feb" wraps, "all year": all."""
     low = text.lower()
     if re.search(r"all\s+year(?:\s+round)?|throughout the year|year[- ]round", low):
         return list(range(1, 13))
