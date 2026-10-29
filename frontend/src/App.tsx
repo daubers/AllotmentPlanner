@@ -7,6 +7,8 @@ import LayersPage from "./pages/LayersPage";
 import Login from "./pages/Login";
 import OverviewPage from "./pages/OverviewPage";
 import PhotosPage from "./pages/PhotosPage";
+import BedPage from "./pages/BedPage";
+import BedsPage from "./pages/BedsPage";
 import PacketPage from "./pages/PacketPage";
 import SeedsPage from "./pages/SeedsPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -48,6 +50,8 @@ export default function App() {
           <Route path="layers" element={<LayersPage />} />
           <Route path="seeds" element={<SeedsPage />} />
           <Route path="seeds/:packetId" element={<PacketPage />} />
+          <Route path="beds" element={<BedsPage />} />
+          <Route path="beds/:featureId" element={<BedPage />} />
           <Route path="trays" element={<TraysPage />} />
           <Route path="trays/:trayId" element={<TrayPage />} />
           <Route path="settings" element={<SettingsPage />} />

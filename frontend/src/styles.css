@@ -281,3 +281,22 @@ label.missing > input, label.missing > select { border-color: var(--danger); box
 label.missing { color: var(--danger); }
 .calendar-crop { margin: 0 0 .5rem; grid-column: 1 / -1; }
 .calendar-crop img { max-width: 100%; border: 1px solid var(--border); border-radius: 6px; }
+
+/* Beds and plantings */
+.sketch { width: 100%; max-height: 420px; border: 1px solid var(--border); border-radius: 8px; background: #fafaf5; display: block; }
+.sketch.drawing { cursor: crosshair; }
+.bed-outline { fill: #efe9d6; stroke: #8a7a4a; stroke-width: 2; }
+.region-label { font-size: 12px; fill: #1f2a1f; paint-order: stroke; stroke: #fff; stroke-width: 3px; pointer-events: none; }
+.region-tools { margin-top: .5rem; flex-wrap: wrap; align-items: center; }
+.planting-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .75rem; align-items: end; margin-bottom: 1rem; }
+.planting-form .wide { grid-column: 1 / -1; }
+.warnings { margin: .5rem 0; padding-left: 1.25rem; color: #8a5a00; }
+.plantings { list-style: none; padding: 0; display: grid; gap: .5rem; }
+.planting { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.planting.open { border-color: var(--accent); }
+.planting-head { width: 100%; display: flex; gap: .6rem; align-items: center; text-align: left; background: none; color: var(--text); padding: .7rem .9rem; border-radius: 8px; }
+.planting-head .badge { margin-left: auto; }
+.planting-head .swatch { width: 1rem; height: 1rem; border-radius: 3px; flex: none; }
+.planting-body { padding: 0 .9rem .9rem; }
+.planting-photos h3 { margin: 1rem 0 .25rem; font-size: 1rem; }
+.planting-label { background: rgba(255,255,255,.85); border: 0; box-shadow: none; font-size: 11px; padding: 0 .3rem; }
