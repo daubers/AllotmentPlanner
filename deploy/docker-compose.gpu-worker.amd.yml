@@ -1,0 +1,17 @@
+# Add-on for an AMD GPU (ROCm). Use with docker-compose.gpu-worker.yml and TORCH_INDEX=rocm7.1.
+# The host needs only the normal amdgpu kernel driver (check `ls /dev/kfd /dev/dri`); ROCm's
+# libraries come inside the image with PyTorch.
+services:
+  mapper:
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - "44"                      # video
+      - "${RENDER_GID:-991}"      # render: `getent group render` on the host
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      # RDNA2 cards that ROCm does not list (RX 6600/6700 series, gfx1031/1032) run as gfx1030. Without
+      # this the process crashes (segfault) on the first GPU call. RX 6800/6900 cards do not need it.
+      HSA_OVERRIDE_GFX_VERSION: ${HSA_OVERRIDE_GFX_VERSION:-10.3.0}

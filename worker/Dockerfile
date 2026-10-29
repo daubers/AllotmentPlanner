@@ -46,7 +46,7 @@ FROM ubuntu:24.04 AS runtime
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl libpq5 python3 python3-venv \
+    && apt-get install -y --no-install-recommends ca-certificates curl libatomic1 libpq5 python3 python3-venv \
     && rm -rf /var/lib/apt/lists/*
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
@@ -67,17 +67,23 @@ RUN python3 -m venv /opt/app-venv
 COPY . /app
 RUN /opt/app-venv/bin/pip install --no-cache-dir /app
 
-# Object recognition (Grounding DINO + SAM through transformers), CPU only. torch's wheel is one
+# Which PyTorch build: "cpu" (default), "cu126" (NVIDIA), or "rocm7.1" (AMD). GPU builds are several
+# GB larger and are meant to be built on the GPU machine itself (deploy/docker-compose.gpu-worker.yml),
+# not pushed to a registry that caps layer size. Set TORCH_DEVICE=auto (default) to use the GPU.
+ARG TORCH_INDEX=cpu
+
+# Object recognition (Grounding DINO + SAM through transformers); CPU unless TORCH_INDEX says
+# otherwise. torch's wheel is one
 # big file, so it goes in a layer of its own; its smaller dependencies follow in another. The
 # models themselves are NOT baked in (hundreds of MB of weights in one layer would be refused by
 # the registry's proxy): they download into /data/models the first time a job needs them.
 # (torch's own tests and C++ headers are about 180 MB that inference never touches.)
-RUN /opt/app-venv/bin/pip install --no-cache-dir --no-deps torch torchvision \
-    --index-url https://download.pytorch.org/whl/cpu \
+RUN /opt/app-venv/bin/pip install --no-cache-dir --retries 10 --timeout 120 --no-deps torch torchvision \
+    --index-url https://download.pytorch.org/whl/${TORCH_INDEX} \
     && rm -rf /opt/app-venv/lib/python3.12/site-packages/torch/test \
               /opt/app-venv/lib/python3.12/site-packages/torch/include
 RUN /opt/app-venv/bin/pip install --no-cache-dir torch torchvision scipy "transformers>=4.45" \
-    --extra-index-url https://download.pytorch.org/whl/cpu
+    --extra-index-url https://download.pytorch.org/whl/${TORCH_INDEX}
 
 ENV PATH="/opt/app-venv/bin:$PATH" \
     HF_HOME=/data/models \

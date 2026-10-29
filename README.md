@@ -191,6 +191,39 @@ To bring someone in, an allotment owner opens **Settings → Invite someone**, e
 - People who already have an account are added with the members API instead (`POST /api/v1/allotments/{id}/members`).
 - With `REGISTRATION=open` anyone who can reach the server can still create an empty account, though they see nothing of other people's allotments. Use that only on a private network.
 
+### 6. A worker on another machine (GPU)
+
+Building maps and recognising objects is the heavy job. It can run on a second machine, ideally one with a GPU, while the main server keeps the API, web app, database and Redis. Recognition (Grounding DINO and SAM) uses the GPU; map building (OpenSfM) is CPU only, so the second machine's CPU and RAM matter as much as its graphics card.
+
+Nothing is shared as a volume between the two: photos and map tiles go through S3 (SeaweedFS), and the worker talks to Redis and Postgres over the LAN. **Keep those ports off the internet**: they are for your home network only, and your server's firewall should allow them from the worker's address alone.
+
+**Main server**
+
+1. Give it a fixed LAN address. In `.env` set `LAN_IP`, `REDIS_PASSWORD`, `REDIS_URL=redis://:<REDIS_PASSWORD>@redis:6379/0`, `STORAGE_BACKEND=s3`, `S3_ENDPOINT_URL=http://s3:9000`, `S3_BUCKET`, `S3_ACCESS_KEY` and `S3_SECRET_KEY` (the last two become the S3 service's login; 8 or more characters). The commented block at the end of `.env.production.example` lists them.
+2. Start with the LAN add-on: `docker compose -f docker-compose.prod.yml -f docker-compose.lan.yml up -d`. It publishes Redis (password protected), Postgres and the S3 service on `LAN_IP` only.
+3. If you already have photos, copy them from the `media` volume into the bucket once: `docker compose run --rm api flask copy-media-to-s3` (add `--dry-run` to see what it would do). It leaves the files where they are and can be repeated.
+4. Do not run `--profile mapping` here any more, or two workers would share the queue.
+
+**GPU machine** (Docker installed, the repository checked out)
+
+| Card | On the host | `TORCH_INDEX` | Compose add-on |
+|---|---|---|---|
+| NVIDIA | the NVIDIA driver and the NVIDIA Container Toolkit (`nvidia-ctk runtime configure --runtime=docker`, then restart Docker). `docker run --rm --gpus all ubuntu nvidia-smi` must list the card | `cu126` | `docker-compose.gpu-worker.nvidia.yml` |
+| AMD (RX 6000 series and similar) | the normal `amdgpu` kernel driver; `/dev/kfd` and `/dev/dri` must exist. Nothing else: ROCm's libraries come inside the image | `rocm7.1` | `docker-compose.gpu-worker.amd.yml` |
+| none | nothing | `cpu` | none |
+
+```sh
+cd deploy
+cp .env.gpu-worker.example .env.gpu-worker     # MAIN_SERVER, the same secrets as the main server, TORCH_INDEX
+./build-gpu-worker.sh                          # builds the image on this machine
+docker compose --env-file .env.gpu-worker -f docker-compose.gpu-worker.yml -f docker-compose.gpu-worker.amd.yml up -d
+docker compose --env-file .env.gpu-worker -f docker-compose.gpu-worker.yml logs -f mapper
+```
+
+The first build takes a while (OpenSfM is compiled, and the GPU build of PyTorch alone is 3 to 6 GB; the finished image is about 20 GB for AMD), and it is built here instead of pulled because a registry will not take layers that large. The recognition models (about 1.3 GB) download on the first job. The log line `detector_loading ... device=cuda gpu=...` shows the card in use; once it works, set `TORCH_DEVICE=cuda` so a broken GPU setup fails loudly instead of quietly running on the CPU.
+
+*AMD notes.* RX 6600/6700 cards (gfx1031/1032) are not on ROCm's supported list; the add-on sets `HSA_OVERRIDE_GFX_VERSION=10.3.0` so they run as the supported gfx1030. Without it the worker crashes on its first GPU call. Set `RENDER_GID` to your host's `render` group id (`getent group render`). Cards with 8 GB of memory are enough for the recognition models.
+
 ### Backups
 
 Two things hold your data: the database and the photo volume. Back up both, and `.env`.
@@ -267,6 +300,7 @@ Set in `.env` (development: `.env.example`; production: `deploy/.env.production.
 | `S3_ENDPOINT_URL`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | | for `s3` |
 | `REGISTRATION` | `open` (the production compose file sets `invite`) | `open`: anyone can register. `invite`: only the first account on an empty server, then people an owner has invited |
 | `INVITE_TTL_DAYS` | `7` | how long an invite link stays valid |
+| `TORCH_DEVICE` | `auto` | worker only: `auto` uses a GPU if there is one, `cpu` never does, `cuda` insists (and refuses to start without one) |
 | `MAX_UPLOAD_MB` | `4096` | largest accepted upload; keep nginx's `client_max_body_size` in step |
 | `LOG_LEVEL` | `INFO` | |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | send traces to an OpenTelemetry collector |

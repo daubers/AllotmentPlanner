@@ -2,7 +2,7 @@ from flask import Flask
 from flask_jwt_extended import JWTManager
 from flask_smorest import Api
 
-from . import events, health, mastodon_posts, models  # noqa: F401 - models register with SQLAlchemy
+from . import cli, events, health, mastodon_posts, models  # noqa: F401 - models register with SQLAlchemy
 from .activity import record_activity
 from .api import (
     allotments,
@@ -65,4 +65,5 @@ def create_app(config: type = Config) -> Flask:
     events.subscribe(events.WILDCARD, count_event)
     events.subscribe(events.WILDCARD, record_activity)
     mastodon_posts.register(events)
+    cli.register(app)
     return app
