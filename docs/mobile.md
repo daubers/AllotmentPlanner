@@ -50,6 +50,9 @@ npx expo run:android                  # or run:ios (macOS + Xcode)
 ```
 On the sign-in screen, enter the address the phone can reach. For the development stack that is your computer's LAN IP with the API port (`192.168.1.20:8000`) or the web dev server port (`192.168.1.20:5173`); for a production deployment it is its address (`https://plot.example.com`, or `192.168.1.20:8080` on a home network). `localhost` means the phone itself. Plain `http` is allowed in these builds for self-hosted use on a home network; use `https` for anything reachable from the internet.
 
+## Building the Android app
+`mobile/scripts/build-android.sh` makes an installable APK with no Expo account (CI runs the same script for release tags: see [ci.md](ci.md)). It is signed with the debug key, so it is for your own phone. `adb install mobile/dist/allotment-<version>-<commit>.apk`, or open the file on the phone.
+
 ## Checks
 `npm run typecheck`, `npm test` (Jest: session, queue, request handlers), and `npx expo export` (bundling) run in CI as the `mobile` job. Sensors, camera, background transfer and the native screens can only be checked on a device or simulator.
 
