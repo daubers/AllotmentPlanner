@@ -128,6 +128,25 @@ def footprint_from_mask(
     return footprint_from_pixels(shot, plane, pixels * scale, score, shape, max_range)
 
 
+def why_no_footprint(
+    shot: Shot,
+    plane: tuple[float, float, float],
+    pixels: np.ndarray,
+    max_range: float = MAX_RANGE_M,
+) -> str:
+    """Why ``footprint_from_pixels`` gave nothing, in a word, so a run that finds nothing can say
+    which way it failed: "no ground" (the rays miss the ground plane or land past ``max_range``),
+    "too close" (under 0.3 m from the camera), or "other"."""
+    hits = ground_hits(shot, plane, pixels, max_range)
+    ok = ~np.isnan(hits).any(axis=1)
+    if ok.sum() < MIN_CONTACT_POINTS:
+        return "no ground"
+    p = hits[ok][:, :2]
+    if float(np.linalg.norm(np.median(p, axis=0) - shot.centre[:2])) < 0.3:
+        return "too close"
+    return "other"
+
+
 def footprint_from_pixels(
     shot: Shot,
     plane: tuple[float, float, float],
