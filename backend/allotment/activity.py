@@ -20,6 +20,7 @@ RECORDED = {
     "feature.bulk_replaced",
     "layer.created",
     "packet.created",
+    "packet.scanned",
     "tray.created",
     "tray.cells_updated",
     "measurements.applied",

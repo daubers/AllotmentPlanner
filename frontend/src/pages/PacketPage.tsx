@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { uploadMedia, useMediaActions } from "../media/hooks";
 import MonthGrid from "../seeds/MonthGrid";
 import { ACTIVITIES, STOCK, SUN, toggleMonth, type Calendar } from "../seeds/calendar";
-import { usePacket, usePacketActions, type PacketPatch } from "../seeds/hooks";
+import { FIELD_OF_MISSING, usePacket, usePacketActions, useScans, type PacketPatch } from "../seeds/hooks";
 import { summarise } from "../trays/grid";
 import { useTrays } from "../trays/hooks";
 import { useAllotment } from "./AllotmentLayout";
@@ -18,6 +18,7 @@ export default function PacketPage() {
   const actions = usePacketActions(id);
   const mediaActions = useMediaActions(id);
   const trays = useTrays(id, { packetId });
+  const scans = useScans(id);
   const fileInput = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<{ key: string; calendar: Calendar } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +29,11 @@ export default function PacketPage() {
   const p = packet.data;
   if (packet.isLoading) return <main className="page"><p className="muted">Loading…</p></main>;
   if (!p) return <main className="page"><p>Packet not found. <Link to="..">Back to seeds</Link></p></main>;
+
+  const isDraft = p.status === "draft";
+  const scan = scans.data?.find((s) => s.packet_id === packetId);
+  const missing = new Set((scan?.missing ?? []).map((m) => FIELD_OF_MISSING[m] ?? m));
+  const flag = (name: string) => (isDraft && missing.has(name) ? "missing" : undefined);
 
   // The calendar being edited, reset whenever the saved packet changes.
   const stamp = `${p.id}-${p.updated_at}`;
@@ -58,12 +64,14 @@ export default function PacketPage() {
       maturity_days_min: num(f.get("maturity_days_min")),
       maturity_days_max: num(f.get("maturity_days_max")),
       best_before_year: num(f.get("best_before_year")),
+      seeds_in_packet: num(f.get("seeds_in_packet")),
       calendar,
+      ...(isDraft ? { status: "active" as const } : {}),
     };
     try {
       await actions.patch.mutateAsync(body);
       setError(null);
-      setNotice("Saved");
+      setNotice(isDraft ? "Added to your library" : "Saved");
     } catch (err) {
       setNotice(null);
       setError((err as Error).message);
@@ -95,7 +103,7 @@ export default function PacketPage() {
   }
 
   const field = (name: string, label: string, value: number | null | undefined, unit?: string) => (
-    <label>
+    <label className={flag(name)}>
       {label}
       <input name={name} type="number" min={0} inputMode="numeric" defaultValue={value ?? ""} disabled={!canEdit} placeholder={unit} />
     </label>
@@ -104,20 +112,26 @@ export default function PacketPage() {
   return (
     <main className="page wide">
       <p><Link to="..">← All seeds</Link></p>
+      {isDraft && (
+        <p className="draft-banner" role="note">
+          <strong>Read from a photo.</strong> Check every field, correct anything wrong, then save to add it to your library.
+          {missing.size > 0 && " Fields it could not find are marked."}
+        </p>
+      )}
       <h1>{p.name}{p.variety ? <span className="muted"> · {p.variety}</span> : null}</h1>
 
       <form className="packet-form" onSubmit={(e) => void save(e)} key={stamp}>
         <fieldset disabled={!canEdit}>
           <legend>About</legend>
-          <label>Name<input name="name" defaultValue={p.name} required maxLength={200} /></label>
+          <label className={flag("name")}>Name<input name="name" defaultValue={p.name} required maxLength={200} /></label>
           <label>Variety<input name="variety" defaultValue={p.variety} maxLength={200} /></label>
-          <label>Supplier<input name="supplier" defaultValue={p.supplier} maxLength={200} /></label>
+          <label className={flag("supplier")}>Supplier<input name="supplier" defaultValue={p.supplier} maxLength={200} /></label>
           <label>Latin name<input name="latin_name" defaultValue={p.latin_name} maxLength={200} /></label>
           <label>
             Stock
             <select name="stock" defaultValue={p.stock}>{STOCK.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
           </label>
-          <label>Best before (year){" "}
+          <label className={flag("best_before_year")}>Best before (year){" "}
             <input name="best_before_year" type="number" min={2000} max={2100} defaultValue={p.best_before_year ?? ""} placeholder="e.g. 2027" />
           </label>
         </fieldset>
@@ -131,6 +145,7 @@ export default function PacketPage() {
               {SUN.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </label>
+          {field("seeds_in_packet", "Seeds in the packet", p.seeds_in_packet)}
           {field("sow_depth_mm", "Sowing depth (mm)", p.sow_depth_mm)}
           {field("spacing_plant_cm", "Space between plants (cm)", p.spacing_plant_cm)}
           {field("spacing_row_cm", "Space between rows (cm)", p.spacing_row_cm)}
@@ -142,6 +157,13 @@ export default function PacketPage() {
 
         <fieldset disabled={!canEdit}>
           <legend>When</legend>
+          {scan?.crop?.url && (
+            <figure className="calendar-crop">
+              <img src={scan.crop.url} alt="The calendar as read from your photo" />
+              <figcaption className="hint">As read from your photo. Correct any month below that is wrong.</figcaption>
+            </figure>
+          )}
+          {isDraft && scan && !scan.calendar_source && <p className="error">No calendar was found on the photo: set the months by hand.</p>}
           <p className="hint">{canEdit ? "Tap a month to switch it on or off for each job." : "The months from the packet."} Today's month is outlined.</p>
           <MonthGrid calendar={calendar} onToggle={canEdit ? toggle : undefined} />
           <ul className="muted legend">
@@ -153,7 +175,7 @@ export default function PacketPage() {
 
         {error && <p role="alert" className="error">{error}</p>}
         {notice && <p role="status" className="ok">{notice}</p>}
-        {canEdit && <button type="submit" disabled={actions.patch.isPending}>Save</button>}
+        {canEdit && <button type="submit" disabled={actions.patch.isPending}>{isDraft ? "Save to library" : "Save"}</button>}
       </form>
 
       <section>

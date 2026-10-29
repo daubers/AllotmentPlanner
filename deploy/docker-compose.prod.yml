@@ -132,6 +132,26 @@ services:
       - mapping:/data/mapping
       - models:/data/models  # recognition models (about 1.3 GB), downloaded on first use
 
+  # Reads photos of seed packets (OCR, CPU only) on its own queue, so a scan never waits behind a map
+  # job. Same image as the mapper. Optional: add `--profile vision`. It can run on another machine
+  # instead (WORKER_QUEUES=vision, see "Workers on other machines" in the README).
+  vision:
+    profiles: [vision]
+    image: ${REGISTRY:-git.daubney.dev/matt}/allotment-worker:${TAG:-latest}
+    user: "10001:10001"
+    env_file: .env
+    environment: *app-env
+    restart: unless-stopped
+    command: ["celery", "-A", "allotment.celery_app:celery", "worker", "-Q", "vision", "-c", "1", "-l", "INFO"]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+      volumes-init: {condition: service_completed_successfully}
+    volumes:
+      - media:/data/media
+      - mapping:/data/mapping
+
 volumes:
   pgdata:
   media:

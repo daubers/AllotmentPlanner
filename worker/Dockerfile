@@ -52,6 +52,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 RUN apt-get update && apt-get install -y --no-install-recommends gdal-bin python3-gdal \
     && rm -rf /var/lib/apt/lists/*
+# OpenCV (inside the OCR engine) wants these two
+RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Libraries the OpenSfM extensions need (OpenCV, Ceres, glog, ...), computed in the build stage.
 COPY --from=build /opt/opensfm-runtime-packages.txt /tmp/opensfm-runtime-packages.txt
@@ -84,6 +87,10 @@ RUN /opt/app-venv/bin/pip install --no-cache-dir --retries 10 --timeout 120 --no
               /opt/app-venv/lib/python3.12/site-packages/torch/include
 RUN /opt/app-venv/bin/pip install --no-cache-dir torch torchvision scipy "transformers>=4.45" \
     --extra-index-url https://download.pytorch.org/whl/${TORCH_INDEX}
+
+# Reading seed packets (the `vision` queue): a CPU OCR engine whose models ship inside the wheel,
+# so nothing downloads at run time.
+RUN /opt/app-venv/bin/pip install --no-cache-dir rapidocr-onnxruntime
 
 ENV PATH="/opt/app-venv/bin:$PATH" \
     HF_HOME=/data/models \

@@ -14,12 +14,16 @@ migrate: env
 # if there is none, and never removes one that was already there.
 prod-config:
 	@created=0; test -f deploy/.env || { cp deploy/.env.production.example deploy/.env; created=1; }; \
-	docker compose -f deploy/docker-compose.prod.yml --profile mapping config -q; r=$$?; \
+	docker compose -f deploy/docker-compose.prod.yml --profile mapping --profile vision config -q; r=$$?; \
 	if [ $$created = 1 ]; then rm deploy/.env; fi; exit $$r
 
 # The photogrammetry worker (large image, slow first build): needed for "Build map" jobs.
 mapper: env
 	docker compose --profile mapping up --build -d mapper
+
+# Reads photos of seed packets (Seeds > Scan packets); CPU only, on its own queue.
+vision: env
+	docker compose --profile vision up --build -d vision
 
 # Builds synthetic scenes (photos only, then photos plus a walk-through video), runs them through the
 # real pipeline and checks the results are in the right place and shape (needs `make up mapper`;
@@ -32,7 +36,7 @@ observability: env
 	docker compose --profile observability up --build -d
 
 down:
-	docker compose --profile observability --profile mapping down
+	docker compose --profile observability --profile mapping --profile vision down
 
 test: env
 	docker compose run --rm --no-deps api pytest -q

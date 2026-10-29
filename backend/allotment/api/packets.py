@@ -34,6 +34,7 @@ FIELDS = (
     "sun",
     "stock",
     "best_before_year",
+    "seeds_in_packet",
 )
 RANGES = (
     ("germinate_days_min", "germinate_days_max", "Days to germinate"),
@@ -72,7 +73,7 @@ def _photos(packet_ids: list[int]) -> dict[int, list[Media]]:
 
 
 def _apply(packet: SeedPacket, data: dict) -> None:
-    for key in FIELDS:
+    for key in (*FIELDS, "status"):
         if key in data:
             setattr(packet, key, data[key])
     if "calendar" in data:
@@ -110,6 +111,8 @@ class PacketList(MethodView):
             )
         if "stock" in args:
             q = q.filter(SeedPacket.stock == args["stock"])
+        if "status" in args:
+            q = q.filter(SeedPacket.status == args["status"])
         packets = q.order_by(SeedPacket.name, SeedPacket.variety, SeedPacket.id).all()
         if "month" in args:  # the calendar is a JSON list, so this is filtered here
             packets = [p for p in packets if is_due(p.calendar, args["month"], args["activity"])]

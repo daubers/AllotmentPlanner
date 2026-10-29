@@ -160,6 +160,8 @@ Open `http://<server>:8080`, register the first account, create your allotment. 
 
 To also run the photo-mapping worker: `docker compose --profile mapping up -d` (the first map build downloads about 1.3 GB of models).
 
+To read seed packets from photos (**Seeds → Scan packets**), also run the packet reader: `docker compose --profile vision up -d`. It needs no GPU and no model download (a CPU OCR engine ships in the image); a packet takes about 20 seconds. It is a separate worker so a scan never waits behind a map build, and it can run on another machine like any other worker (`WORKER_QUEUES=vision`).
+
 ### 4. Put TLS in front of it
 
 Serve it over HTTPS before exposing it to the internet; the phone app also needs HTTPS for anything outside your home network. The compose file publishes only `HTTP_PORT`, so point a reverse proxy at it. With Caddy, which gets certificates by itself (`Caddyfile`):
@@ -202,7 +204,7 @@ Nothing is shared as a volume: photos and map tiles go through S3 (SeaweedFS), a
 1. Give it a fixed LAN address. In `.env` set `LAN_IP`, `REDIS_PASSWORD`, `REDIS_URL=redis://:<REDIS_PASSWORD>@redis:6379/0`, `STORAGE_BACKEND=s3`, `S3_ENDPOINT_URL=http://s3:9000`, `S3_BUCKET`, `S3_ACCESS_KEY` and `S3_SECRET_KEY` (the last two become the S3 service's login; 8 or more characters). The commented block at the end of `.env.production.example` lists them.
 2. Start with the LAN add-on: `docker compose -f docker-compose.prod.yml -f docker-compose.lan.yml up -d`. It publishes Redis (password protected), Postgres and the S3 service on `LAN_IP` only.
 3. If you already have photos, copy them from the `media` volume into the bucket once: `docker compose run --rm api flask copy-media-to-s3` (add `--dry-run` to see what it would do). It leaves the files where they are and can be repeated.
-4. A queue can be served from several machines to share the load, but stop serving it here when you move it: do not leave `--profile mapping` running on the main server by accident.
+4. A queue can be served from several machines to share the load, but stop serving it here when you move it: do not leave `--profile mapping` (or `--profile vision`) running on the main server by accident.
 
 **Worker machine** (Docker installed, the repository checked out)
 
@@ -221,7 +223,7 @@ docker compose --env-file .env.remote-worker -f docker-compose.remote-worker.yml
 docker compose --env-file .env.remote-worker -f docker-compose.remote-worker.yml logs -f worker
 ```
 
-`WORKER_QUEUES` (default `mapping`) says which queues this machine serves and `WORKER_CONCURRENCY` (default 1) how many jobs at once; a map job can use several GB of RAM. The general worker (queue `celery`) needs none of OpenSfM or PyTorch: to run it elsewhere use the published API image with the same environment and `celery -A allotment.celery_app:celery worker`.
+`WORKER_QUEUES` (default `mapping`; `vision` reads seed packets, and `mapping,vision` does both) says which queues this machine serves and `WORKER_CONCURRENCY` (default 1) how many jobs at once; a map job can use several GB of RAM. The general worker (queue `celery`) needs none of OpenSfM or PyTorch: to run it elsewhere use the published API image with the same environment and `celery -A allotment.celery_app:celery worker`.
 
 The first build takes a while (OpenSfM is compiled; the GPU builds of PyTorch alone are 3 to 6 GB and the finished AMD image is about 20 GB), and the image is built here instead of pulled because a registry will not take layers that large. The recognition models (about 1.3 GB) download on the first job. With a GPU, the log line `detector_loading ... device=cuda gpu=...` shows the card in use; once it works, set `TORCH_DEVICE=cuda` so a broken GPU setup fails loudly instead of quietly running on the CPU.
 
@@ -263,6 +265,7 @@ To pin a known-good version, set `TAG` in `.env`. Rolling back the *code* is `TA
 | `pull access denied` | `docker login git.daubney.dev` with a token that has `read:package`, and check `REGISTRY` |
 | Uploads stay "pending" | the `worker` container is down: `docker compose logs worker` |
 | Map builds stay "queued" | the mapper isn't running: start it with `--profile mapping` |
+| Packet photos stay "waiting its turn" | the packet reader isn't running: start it with `--profile vision` |
 | Big uploads fail through your proxy | raise its body-size limit and timeouts (see TLS above) |
 | The phone app can't connect | use the address the *phone* can reach (not `localhost`), with `https://` if it is on the internet |
 

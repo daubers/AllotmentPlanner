@@ -93,6 +93,25 @@ services:
       redis: {condition: service_healthy}
       migrate: {condition: service_completed_successfully}
 
+  # Reads photos of seed packets (OCR, CPU only) on its own queue so a scan never waits behind a map job.
+  # Same image as the mapper. `make vision` starts it.
+  vision:
+    profiles: [vision]
+    build:
+      context: ./backend
+      dockerfile: ../worker/Dockerfile
+    env_file: .env
+    user: root
+    command: celery -A allotment.celery_app:celery worker -Q vision -c 1 -l INFO
+    volumes:
+      - ./backend/allotment:/app/allotment
+      - media:/data/media
+      - mapping:/data/mapping
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+
   beat:
     <<: *backend
     command: celery -A allotment.celery_app:celery beat -l INFO

@@ -16,7 +16,15 @@ from .crypto import decrypt
 from .extensions import db
 from .fediverse import MastodonClient, MastodonError
 from .metrics import MASTODON_POSTS
-from .models import Allotment, MapJob, MastodonAccount, MastodonPost, Media
+from .models import (
+    Allotment,
+    MapJob,
+    MastodonAccount,
+    MastodonPost,
+    Media,
+    PacketScan,
+    SeedPacket,
+)
 from .storage import get_storage
 
 log = structlog.get_logger(__name__)
@@ -332,3 +340,110 @@ def run_map_job(job_id: int) -> str:
                 "MAPPING_KEEP_WORK"
             ):  # set it to inspect a run's files afterwards
                 shutil.rmtree(work, ignore_errors=True)
+
+
+def _save_crop(scan: PacketScan, crop) -> Media:
+    """Keep the calendar as read as a photo of the packet, so the review screen can show it."""
+    import io
+    import uuid
+
+    buf = io.BytesIO()
+    crop.convert("RGB").save(buf, "JPEG", quality=88)
+    key = f"allotments/{scan.allotment_id}/{uuid.uuid4().hex}.jpg"
+    with tempfile.NamedTemporaryFile(suffix=".jpg") as f:
+        f.write(buf.getvalue())
+        f.flush()
+        get_storage().put(key, f.name, "image/jpeg")
+    media = Media(
+        allotment_id=scan.allotment_id,
+        uploaded_by=scan.created_by,
+        kind="photo",
+        filename="calendar.jpg",
+        content_type="image/jpeg",
+        size_bytes=len(buf.getvalue()),
+        storage_key=key,
+        thumb_key=key,  # small already
+        width=crop.width,
+        height=crop.height,
+        caption="Calendar as read from the packet",
+        status="ready",
+    )
+    db.session.add(media)
+    db.session.flush()
+    return media
+
+
+@celery.task(name="allotment.run_packet_scan")
+def run_packet_scan(scan_id: int) -> str:
+    """Read a packet photo into a draft packet. CPU only; runs on the ``vision`` queue."""
+    from PIL import Image, ImageOps
+
+    from . import packet_scan
+
+    with _app().app_context():
+        scan = db.session.get(PacketScan, scan_id)
+        if scan is None or scan.status != "queued":
+            return "skipped"
+        structlog.contextvars.bind_contextvars(
+            packet_scan_id=scan_id, allotment_id=scan.allotment_id
+        )
+        scan.status, scan.started_at = "running", datetime.now(UTC)
+        db.session.commit()
+
+        def fail(message: str) -> str:
+            db.session.rollback()
+            scan.status, scan.error = "failed", message[:500]
+            scan.finished_at = datetime.now(UTC)
+            db.session.commit()
+            return "failed"
+
+        media = db.session.get(Media, scan.media_id) if scan.media_id else None
+        if media is None:
+            return fail("The photo is gone")
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                path = os.path.join(tmp, "photo")
+                get_storage().download(media.storage_key, path)
+                with Image.open(path) as opened:
+                    image = ImageOps.exif_transpose(opened).convert("RGB")
+            result = packet_scan.scan(image)
+            facts = result.facts
+            packet = SeedPacket(
+                allotment_id=scan.allotment_id,
+                created_by=scan.created_by,
+                status="draft",
+                name=(result.name or "Unnamed packet")[:200],
+                variety=(result.variety or "")[:200],
+                supplier=facts.supplier or "",
+                sow_depth_mm=facts.sow_depth_mm,
+                germinate_days_min=facts.germinate_days_min,
+                germinate_days_max=facts.germinate_days_max,
+                best_before_year=facts.best_before_year,
+                seeds_in_packet=facts.seeds_in_packet,
+                raw_text=result.raw_text[:20000],
+                calendar=result.calendar or {},
+            )
+            db.session.add(packet)
+            db.session.flush()
+            media.packet_id = packet.id
+            if result.calendar_crop is not None:
+                crop = _save_crop(scan, result.calendar_crop)
+                crop.packet_id = packet.id
+                scan.crop_media_id = crop.id
+            scan.packet_id = packet.id
+            scan.calendar_source = result.calendar_source
+            scan.rotation = result.rotation
+            scan.missing = result.missing
+            scan.status, scan.finished_at = "ready", datetime.now(UTC)
+            db.session.commit()
+        except Exception as exc:  # noqa: BLE001 - record any failure on the scan
+            log.exception("packet_scan_failed")
+            return fail(f"Could not read the photo: {exc.__class__.__name__}")
+        events.emit(
+            "packet.scanned",
+            actor_id=scan.created_by,
+            allotment_id=scan.allotment_id,
+            subject={"packet_id": packet.id, "packet_scan_id": scan.id},
+            payload={"missing": scan.missing, "calendar": scan.calendar_source},
+        )
+        return "ready"

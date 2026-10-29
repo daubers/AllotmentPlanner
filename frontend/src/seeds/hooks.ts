@@ -7,7 +7,14 @@ export type Packet = components["schemas"]["Packet"];
 export type PacketInput = components["schemas"]["PacketIn"];
 export type PacketPatch = components["schemas"]["PacketPatch"];
 
-export type PacketFilters = { q?: string; stock?: StockLevel; month?: number; activity?: "sow" | Activity };
+export type PacketFilters = {
+  q?: string;
+  stock?: StockLevel;
+  month?: number;
+  activity?: "sow" | Activity;
+  status?: "draft" | "active";
+};
+export type Scan = components["schemas"]["PacketScan"];
 
 const path = (allotmentId: number) => ({ path: { allotment_id: allotmentId } });
 const packetPath = (allotmentId: number, id: number) => ({ path: { allotment_id: allotmentId, packet_id: id } });
@@ -73,3 +80,55 @@ export function usePacketActions(allotmentId: number) {
     }),
   };
 }
+
+/** Packet photos being read. Polls while any is still waiting or running. */
+export function useScans(allotmentId: number) {
+  return useQuery({
+    queryKey: ["scans", allotmentId],
+    queryFn: async (): Promise<Scan[]> =>
+      (await api.GET("/api/v1/allotments/{allotment_id}/packet-scans", { params: path(allotmentId) })).data ?? [],
+    refetchInterval: (q) => (q.state.data?.some((s) => s.status === "queued" || s.status === "running") ? 3000 : false),
+  });
+}
+
+export function useScanActions(allotmentId: number) {
+  const qc = useQueryClient();
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ["scans", allotmentId] });
+    void qc.invalidateQueries({ queryKey: ["packets", allotmentId] });
+  };
+  return {
+    start: useMutation({
+      mutationFn: async (mediaId: number): Promise<Scan> => {
+        const { data, error } = await api.POST("/api/v1/allotments/{allotment_id}/packet-scans", {
+          params: path(allotmentId),
+          body: { media_id: mediaId },
+        });
+        if (!data) throw new Error(message(error, "Couldn't start reading that photo"));
+        return data;
+      },
+      onSuccess: refresh,
+    }),
+    retry: useMutation({
+      mutationFn: async (scanId: number): Promise<Scan> => {
+        const { data, error } = await api.POST("/api/v1/allotments/{allotment_id}/packet-scans/{scan_id}/retry", {
+          params: { path: { allotment_id: allotmentId, scan_id: scanId } },
+        });
+        if (!data) throw new Error(message(error, "Couldn't try again"));
+        return data;
+      },
+      onSuccess: refresh,
+    }),
+  };
+}
+
+/** Which fields the reader could not find, in the words the form uses. */
+export const FIELD_OF_MISSING: Record<string, string> = {
+  name: "name",
+  supplier: "supplier",
+  seeds_in_packet: "seeds_in_packet",
+  sow_depth_mm: "sow_depth_mm",
+  best_before_year: "best_before_year",
+  germinate_days: "germinate_days_min",
+  calendar: "calendar",
+};
