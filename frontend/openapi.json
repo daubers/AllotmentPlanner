@@ -2664,7 +2664,7 @@
             }
           }
         },
-        "summary": "Rename a suggestion or change what kind of thing it is before accepting it.",
+        "summary": "Rename a suggestion, change its kind, or move or reshape it before accepting it.",
         "tags": [
           "suggestions"
         ]
@@ -5802,6 +5802,16 @@
               "boundary",
               "other"
             ]
+          },
+          "geometry": {
+            "type": "object",
+            "description": "Moved or reshaped: GeoJSON of the same type as before",
+            "additionalProperties": {}
+          },
+          "radius_m": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 1000.0
           }
         },
         "additionalProperties": false

@@ -77,3 +77,8 @@ export function suggestionBox(s: Pick<Suggestion, "geometry" | "radius_m">): [[n
   const lngs = shape.ring.map((p) => p[1]);
   return [[Math.min(...lats), Math.min(...lngs)], [Math.max(...lats), Math.max(...lngs)]];
 }
+
+/** The list as it will be once a change is saved, so the screen can show it straight away. */
+export function applyPatch(list: Suggestion[], id: number, patch: Partial<Suggestion>): Suggestion[] {
+  return list.map((s) => (s.id === id ? { ...s, ...patch } : s));
+}

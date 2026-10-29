@@ -1,34 +1,78 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useIsMutating, useMutationState } from "@tanstack/react-query";
+import type L from "leaflet";
 import { Circle, Polygon, Tooltip } from "react-leaflet";
 import { colourFor, KINDS } from "./kinds";
-import { useSuggestionActions } from "../suggestions/hooks";
+import { patchKey, useSuggestionActions } from "../suggestions/hooks";
+import { layerToGeometry } from "./convert";
 import { confidenceWord, mergeTicks, photosOf, seenIn, shapeOf, type Sighting, type Suggestion } from "../suggestions/model";
 import { SightingDialog, SightingPhoto } from "../suggestions/SightingPhoto";
 
+/** Put a layer's label back on the layer after it was moved or reshaped. */
+function replaceLabel(layer: L.Layer) {
+  const l = layer as L.Layer & { closeTooltip(): void; openTooltip(): void };
+  l.closeTooltip();
+  l.openTooltip();
+}
+
+/** One suggestion on the map. Its shape is given to Leaflet only when the saved shape changes, so
+ *  re-rendering (hovering the list, say) never puts a moved footprint back; moving or reshaping it
+ *  with the editing tools saves the new shape. */
+function SuggestionShape({ suggestion: s, on, focused, onMove }: { suggestion: Suggestion; on: boolean; focused: boolean; onMove(id: number, change: { geometry: Record<string, unknown>; radius_m?: number }): void }) {
+  const shape = useMemo(() => shapeOf(s), [s.geometry, s.radius_m]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!shape) return null;
+  const options = {
+    color: colourFor(s.kind),
+    weight: focused ? 4 : 2,
+    dashArray: "6 6",
+    fillOpacity: on ? 0.25 : 0.05,
+    opacity: on ? 1 : 0.5,
+  };
+  const save = (e: { target: L.Layer }) => {
+    const { geometry, radius_m } = layerToGeometry(e.target);
+    onMove(s.id!, { geometry: geometry as unknown as Record<string, unknown>, ...(radius_m ? { radius_m } : {}) });
+    replaceLabel(e.target);
+  };
+  // Geoman's events are not in Leaflet's types. The label follows while the shape is dragged or its
+  // corners are, not just once it is let go.
+  const eventHandlers = {
+    "pm:edit": save,
+    "pm:dragend": save,
+    "pm:drag": (e: { target: L.Layer }) => replaceLabel(e.target),
+    "pm:markerdrag": (e: { target: L.Layer }) => replaceLabel(e.target),
+  } as unknown as L.LeafletEventHandlerFnMap;
+  const label = <Tooltip permanent direction="top" className="suggestion-label">{s.name}</Tooltip>;
+  return shape.type === "circle" ? (
+    <Circle center={shape.centre} radius={shape.radius} pathOptions={options} eventHandlers={eventHandlers}>{label}</Circle>
+  ) : (
+    <Polygon positions={shape.ring} pathOptions={options} eventHandlers={eventHandlers}>{label}</Polygon>
+  );
+}
+
 /** The pending suggestions drawn on the map as dashed outlines, so they can be told from real shapes. */
-export function SuggestionShapes({ suggestions, ticked, focused }: { suggestions: Suggestion[]; ticked: Set<number>; focused: number | null }) {
+export function SuggestionShapes({ allotmentId, suggestions, ticked, focused }: { allotmentId: number; suggestions: Suggestion[]; ticked: Set<number>; focused: number | null }) {
+  const { patch } = useSuggestionActions(allotmentId);
+  const move = (id: number, change: { geometry: Record<string, unknown>; radius_m?: number }) => patch.mutate({ id, ...change });
   return (
     <>
-      {suggestions.map((s) => {
-        const shape = shapeOf(s);
-        if (!shape) return null;
-        const on = ticked.has(s.id!);
-        const options = {
-          color: colourFor(s.kind),
-          weight: focused === s.id ? 4 : 2,
-          dashArray: "6 6",
-          fillOpacity: on ? 0.25 : 0.05,
-          opacity: on ? 1 : 0.5,
-        };
-        const label = <Tooltip permanent direction="top" className="suggestion-label">{s.name}</Tooltip>;
-        return shape.type === "circle" ? (
-          <Circle key={s.id} center={shape.centre} radius={shape.radius} pathOptions={options}>{label}</Circle>
-        ) : (
-          <Polygon key={s.id} positions={shape.ring} pathOptions={options}>{label}</Polygon>
-        );
-      })}
+      {suggestions.map((s) => (
+        <SuggestionShape key={s.id} suggestion={s} on={ticked.has(s.id!)} focused={focused === s.id} onMove={move} />
+      ))}
     </>
   );
+}
+
+/** Says whether changes to the found items are saved: saving, saved, or what went wrong. */
+export function SaveStatus({ allotmentId }: { allotmentId: number }) {
+  const saving = useIsMutating({ mutationKey: patchKey(allotmentId) }) > 0;
+  const last = useMutationState({
+    filters: { mutationKey: patchKey(allotmentId) },
+    select: (m) => ({ status: m.state.status, error: m.state.error as Error | null }),
+  }).at(-1);
+  if (saving) return <p role="status" className="save-status muted">Saving…</p>;
+  if (last?.status === "error") return <p role="alert" className="save-status error">Not saved: {last.error?.message ?? "something went wrong"}. The change was undone.</p>;
+  if (last?.status === "success") return <p role="status" className="save-status saved">✓ All changes saved</p>;
+  return null;
 }
 
 /** Review what was recognised: tick, rename or retype, then add to the map or dismiss. */
@@ -75,7 +119,8 @@ export function SuggestionsPanel({ allotmentId, suggestions, ticked, setTicked, 
   return (
     <section className="suggestions" aria-label="Suggestions from photos">
       <h2>Found in your photos <span className="badge">{suggestions.length}</span></h2>
-      <p className="muted">Check each one, fix the name or type, then add the ticked ones to the map.</p>
+      <p className="muted">Check each one, fix the name or type, drag a footprint if it is in the wrong place, then add the ticked ones to the map.</p>
+      <SaveStatus allotmentId={allotmentId} />
       <ul className="suggestion-list">
         {suggestions.map((s) => (
           <li key={s.id} className={focused === s.id ? "focused" : ""} onMouseEnter={() => setFocused(s.id!)} onMouseLeave={() => setFocused(null)}>

@@ -311,3 +311,6 @@ label.missing { color: var(--danger); }
 .sighting-photo polygon { fill: rgba(255, 213, 0, 0.25); stroke: #ffd500; stroke-width: 2.5; stroke-linejoin: round; paint-order: stroke; }
 .sighting-dialog { max-width: min(92vw, 64rem); }
 .sighting-dialog .sighting-photo { max-height: 80vh; margin: 0 auto; }
+
+.save-status { margin: 0.25rem 0; font-size: 0.9rem; }
+.save-status.saved { color: var(--ok, #2e7d32); }

@@ -2389,7 +2389,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Rename a suggestion or change what kind of thing it is before accepting it. */
+        /** Rename a suggestion, change its kind, or move or reshape it before accepting it. */
         patch: {
             parameters: {
                 query?: never;
@@ -3906,6 +3906,11 @@ export interface components {
             name?: string;
             /** @enum {string} */
             kind?: "bed" | "path" | "shed" | "tree" | "water" | "compost" | "boundary" | "other";
+            /** @description Moved or reshaped: GeoJSON of the same type as before */
+            geometry?: {
+                [key: string]: unknown;
+            };
+            radius_m?: number;
         };
         SuggestionIds: {
             ids: number[];
