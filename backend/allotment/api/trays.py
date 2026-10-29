@@ -5,9 +5,12 @@ from flask_smorest import Blueprint, abort
 
 from .. import events
 from ..extensions import db
-from ..models import Media, Role, SeedPacket, Tray, TrayCell
+from ..models import Media, Planting, Role, SeedPacket, Tray, TrayCell
+from ..plantings import PlantOutError, plant_out_groups
 from ..schemas import (
     CellsUpdateSchema,
+    PlantOutResultSchema,
+    PlantOutSchema,
     TrayInSchema,
     TrayPatchSchema,
     TrayQuerySchema,
@@ -69,7 +72,13 @@ def tray_to_dict(t: Tray, packets: dict[int, SeedPacket], detail: bool = False) 
     if detail:
         photos = db.session.query(Media).filter_by(tray_id=t.id).order_by(Media.taken_at, Media.id)
         out["cells"] = [
-            {"row": c.row, "col": c.col, **{f: getattr(c, f) for f in CELL_FIELDS}} for c in t.cells
+            {
+                "row": c.row,
+                "col": c.col,
+                **{f: getattr(c, f) for f in CELL_FIELDS},
+                "planting_id": c.planting_id,
+            }
+            for c in t.cells
         ]
         out["photos"] = [media_to_dict(m) for m in photos]
     return out
@@ -224,3 +233,76 @@ class TrayCells(MethodView):
             payload={"cells": len(refs), "status": change.get("status", "sown")},
         )
         return _detail(tray)
+
+
+@blp.route("/<int:tray_id>/plant-out")
+class TrayPlantOut(MethodView):
+    @require_role(Role.EDITOR)
+    @blp.arguments(PlantOutSchema)
+    @blp.response(200, PlantOutResultSchema)
+    def post(self, data, allotment, membership, tray_id):
+        """Plant the chosen cells out into a region of a bed, all or nothing.
+
+        One planting is made per packet among the cells, each filling the chosen region; the cells
+        become planted out and point at their planting. The region must lie inside the bed.
+        """
+        from datetime import date
+
+        from .plantings import check_region, get_bed, parse_region, planting_to_dict
+
+        tray = _get(allotment, tray_id)
+        bed = get_bed(allotment, data["feature_id"])
+        check_region(bed, data["region"])
+        existing = {(c.row, c.col): c for c in tray.cells}
+        refs = sorted({(c["row"], c["col"]) for c in data["cells"]})
+        chosen = []
+        for row, col in refs:
+            cell = existing.get((row, col))
+            chosen.append(
+                {
+                    "row": row,
+                    "col": col,
+                    "status": cell.status if cell else None,
+                    "packet_id": cell.packet_id if cell else None,
+                    "cell": cell,
+                }
+            )
+        try:
+            groups = plant_out_groups(chosen)
+        except PlantOutError as exc:
+            abort(422, message=str(exc))
+        planted_on = data["planted_on"] or date.today()
+        plantings = []
+        for packet_id, members in groups.items():
+            cells = [m["cell"] for m in members]
+            planting = Planting(
+                allotment_id=allotment.id,
+                feature_id=bed.id,
+                packet_id=packet_id,
+                tray_id=tray.id,
+                region=parse_region(data["region"]),
+                count=sum(c.count or 1 for c in cells),
+                method="transplant",
+                status="growing",
+                sown_on=min((c.sown_on for c in cells if c.sown_on), default=None),
+                planted_on=planted_on,
+                notes=data["notes"],
+                created_by=membership.user_id,
+            )
+            db.session.add(planting)
+            db.session.flush()
+            for cell in cells:
+                cell.status = "planted_out"
+                cell.planting_id = planting.id
+            plantings.append(planting)
+        if not any(c.status in ("sown", "germinated") for c in tray.cells):
+            tray.status = "planted_out"
+        db.session.commit()
+        events.emit(
+            "tray.planted_out",
+            actor_id=membership.user_id,
+            allotment_id=allotment.id,
+            subject={"tray_id": tray.id, "feature_id": bed.id},
+            payload={"cells": len(refs), "plantings": len(plantings), "bed": bed.name},
+        )
+        return {"plantings": [planting_to_dict(p) for p in plantings], "tray": _detail(tray)}

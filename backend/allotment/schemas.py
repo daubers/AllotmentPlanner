@@ -1,6 +1,8 @@
 from marshmallow import Schema, fields, validate
 
 from .models import FeatureKind
+from .plantings import METHODS
+from .plantings import STATUSES as PLANTING_STATUSES
 from .seeds import ACTIVITIES, CELL_STATUSES, MAX_TRAY_SIDE, STOCK_LEVELS, SUN_LEVELS
 
 ROLES = ["viewer", "editor", "owner"]
@@ -219,6 +221,7 @@ class MediaUploadFormSchema(Schema):
     task_id = fields.Integer(load_default=None)
     packet_id = fields.Integer(load_default=None, metadata={"description": "A seed packet's photo"})
     tray_id = fields.Integer(load_default=None, metadata={"description": "A seed tray's photo"})
+    planting_id = fields.Integer(load_default=None, metadata={"description": "A planting's photo"})
     caption = fields.String(load_default="", validate=validate.Length(max=500))
     lat = fields.Float(
         load_default=None,
@@ -254,6 +257,7 @@ class MediaQuerySchema(Schema):
     task_id = fields.Integer()
     packet_id = fields.Integer()
     tray_id = fields.Integer()
+    planting_id = fields.Integer()
     capture_session = fields.String()
     taken_from = fields.Date(metadata={"description": "On or after this date"})
     taken_to = fields.Date(metadata={"description": "On or before this date"})
@@ -268,6 +272,7 @@ class MediaPatchSchema(Schema):
     task_id = fields.Integer(allow_none=True)
     packet_id = fields.Integer(allow_none=True)
     tray_id = fields.Integer(allow_none=True)
+    planting_id = fields.Integer(allow_none=True)
     taken_at = fields.DateTime()
     lat = fields.Float(allow_none=True, validate=validate.Range(min=-90, max=90))
     lng = fields.Float(allow_none=True, validate=validate.Range(min=-180, max=180))
@@ -294,6 +299,7 @@ class MediaSchema(Schema):
     task_id = fields.Integer(allow_none=True)
     packet_id = fields.Integer(allow_none=True)
     tray_id = fields.Integer(allow_none=True)
+    planting_id = fields.Integer(allow_none=True)
     caption = fields.String()
     status = fields.String()
     error = fields.String(allow_none=True)
@@ -737,6 +743,7 @@ class TrayCellSchema(Schema):
     sown_on = fields.Date(allow_none=True)
     germinated_on = fields.Date(allow_none=True)
     note = fields.String()
+    planting_id = fields.Integer(allow_none=True, metadata={"description": "Where it went"})
 
 
 class TrayCountsSchema(Schema):
@@ -800,3 +807,77 @@ class PacketScanSchema(Schema):
     )
     created_at = fields.DateTime()
     finished_at = fields.DateTime(allow_none=True)
+
+
+class PlantingInSchema(Schema):
+    """A direct sow: seed put straight into the ground in a drawn region of a bed."""
+
+    feature_id = fields.Integer(required=True, metadata={"description": "The bed"})
+    packet_id = fields.Integer(load_default=None, allow_none=True)
+    region = fields.Dict(required=True, metadata={"description": "GeoJSON Polygon inside the bed"})
+    count = fields.Integer(
+        load_default=None, allow_none=True, validate=validate.Range(min=1, max=100000)
+    )
+    sown_on = fields.Date(load_default=None, allow_none=True)
+    notes = fields.String(load_default="", validate=validate.Length(max=5000))
+
+
+class PlantingPatchSchema(Schema):
+    packet_id = fields.Integer(allow_none=True)
+    region = fields.Dict()
+    count = fields.Integer(allow_none=True, validate=validate.Range(min=1, max=100000))
+    status = fields.String(validate=validate.OneOf(PLANTING_STATUSES))
+    sown_on = fields.Date(allow_none=True)
+    planted_on = fields.Date(allow_none=True)
+    harvested_on = fields.Date(allow_none=True)
+    notes = fields.String(validate=validate.Length(max=5000))
+
+
+class PlantingQuerySchema(Schema):
+    feature_id = fields.Integer(metadata={"description": "Only this bed"})
+    packet_id = fields.Integer()
+    tray_id = fields.Integer()
+    status = fields.String(validate=validate.OneOf(PLANTING_STATUSES))
+    growing = fields.Boolean(metadata={"description": "true: only what still occupies the ground"})
+
+
+class PlantingSchema(Schema):
+    id = fields.Integer()
+    feature_id = fields.Integer()
+    bed_name = fields.String()
+    packet_id = fields.Integer(allow_none=True)
+    packet_name = fields.String(allow_none=True)
+    packet_variety = fields.String(allow_none=True)
+    tray_id = fields.Integer(allow_none=True)
+    region = fields.Dict()
+    area_m2 = fields.Float()
+    count = fields.Integer(allow_none=True)
+    method = fields.String(validate=validate.OneOf(METHODS))
+    status = fields.String()
+    sown_on = fields.Date(allow_none=True)
+    planted_on = fields.Date(allow_none=True)
+    harvested_on = fields.Date(allow_none=True)
+    notes = fields.String()
+    warnings = fields.List(
+        fields.String(), metadata={"description": "e.g. overlaps another planting"}
+    )
+    photos = fields.List(fields.Nested(MediaSchema))
+    created_at = fields.DateTime()
+    updated_at = fields.DateTime()
+
+
+class PlantOutSchema(Schema):
+    cells = fields.List(
+        fields.Nested(CellRefSchema), required=True, validate=validate.Length(min=1, max=900)
+    )
+    feature_id = fields.Integer(required=True, metadata={"description": "The bed they go into"})
+    region = fields.Dict(required=True, metadata={"description": "GeoJSON Polygon inside the bed"})
+    planted_on = fields.Date(
+        load_default=None, allow_none=True, metadata={"description": "Default: today"}
+    )
+    notes = fields.String(load_default="", validate=validate.Length(max=5000))
+
+
+class PlantOutResultSchema(Schema):
+    plantings = fields.List(fields.Nested(PlantingSchema))
+    tray = fields.Nested(TraySchema)

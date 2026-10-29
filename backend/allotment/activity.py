@@ -23,6 +23,8 @@ RECORDED = {
     "packet.scanned",
     "tray.created",
     "tray.cells_updated",
+    "tray.planted_out",
+    "planting.created",
     "measurements.applied",
 }
 
