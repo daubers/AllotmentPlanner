@@ -818,6 +818,21 @@ def propose_gpx_boundary(job) -> bool:
 MAX_SIGHTINGS = 6
 
 
+def ground_summary(found, placed, refused, rec, plane, max_range) -> str:
+    """One log line on how many detections could be put on the ground, and why the rest could not,
+    with the numbers that decide it (camera height over the ground, how far away counts)."""
+    if not found:
+        return "no objects were detected in any photo"
+    height = float(np.median([s.centre[2] for s in rec.shots])) - plane[2]
+    line = (
+        f"{placed} of {found} detections could be put on the ground "
+        f"(cameras {height:.2f} m above it, ignoring anything beyond {max_range:.0f} m)"
+    )
+    if refused:
+        line += "; left out: " + ", ".join(f"{n} {why}" for why, n in sorted(refused.items()))
+    return line
+
+
 def media_id_of(shot_name: str) -> int | None:
     """Photos are written as m<media id>.jpg and video frames as v<media id>_<n>.jpg."""
     m = re.match(r"[mv](\d+)", shot_name)
@@ -888,6 +903,7 @@ def detect_objects(job: MapJob, work: Path, detector=None) -> int:
     observations: list[detection_geo.Observation] = []
     fence_points: list[np.ndarray] = []  # where posts and the foot of fences meet the ground
     fence_photos: set[str] = set()
+    refused: dict[str, int] = {}
     for r in raws:
         shot = by_name[r.shot]
         if r.role != "object":
@@ -903,6 +919,10 @@ def detect_objects(job: MapJob, work: Path, detector=None) -> int:
             observations.append(
                 detection_geo.Observation(r.label, r.kind, r.shape, fp, r.shot, r.outline)
             )
+        else:
+            why = detection_geo.why_no_footprint(shot, plane, r.pixels, max_range)
+            refused[why] = refused.get(why, 0) + 1
+    _append_log(job, ground_summary(len(raws), len(observations), refused, rec, plane, max_range))
     merged = detection_geo.fuse(observations)
     fused = [g for g in merged if detection_geo.worth_keeping(g)]
     _append_log(job, f"{len(merged)} candidates, {len(fused)} kept after dropping likely noise")

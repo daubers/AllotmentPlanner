@@ -673,3 +673,30 @@ def test_photos_that_are_not_media_are_skipped():
     assert pipeline.media_id_of("m42.jpg") == 42
     assert pipeline.media_id_of("v7_0003.jpg") == 7
     assert pipeline.media_id_of("view0.jpg") is None
+
+
+# --- saying why nothing was put on the ground -------------------------------------------------
+
+
+def test_a_run_that_places_nothing_says_why(job):
+    j, work = job
+    write_reconstruction(work, RING)
+    # A range of 1 m: every object in the scene is further than that from every camera.
+    pipeline.current_app.config["MAPPING_DETECT_MAX_RANGE_M"] = 1.0
+    assert pipeline.detect_objects(j, work, detector=SceneDetector(RING)) == 0
+    line = next(x for x in j.log.splitlines() if "could be put on the ground" in x)
+    assert "0 of " in line and "no ground" in line and "beyond 1 m" in line
+
+
+def test_the_ground_summary_reads_plainly():
+    class Rec:
+        shots = [type("S", (), {"centre": np.array([0.0, 0.0, 1.5])})()]
+
+    text = pipeline.ground_summary(10, 7, {"no ground": 2, "too close": 1}, Rec(), (0, 0, 0), 15)
+    assert text == (
+        "7 of 10 detections could be put on the ground (cameras 1.50 m above it, ignoring "
+        "anything beyond 15 m); left out: 2 no ground, 1 too close"
+    )
+    assert pipeline.ground_summary(0, 0, {}, Rec(), (0, 0, 0), 15) == (
+        "no objects were detected in any photo"
+    )
