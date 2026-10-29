@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Allotment: beds on a plan, with a measuring edge">
+  <title>Allotment: beds on a plan, with a measuring edge</title>
+  <rect width="512" height="512" rx="112" fill="#f1f4ee"/>
+  <g stroke="#17653a" stroke-width="18" stroke-linecap="round">
+    <path d="M96 88 H416"/>
+    <path d="M96 66 V110 M256 74 V102 M416 66 V110"/>
+  </g>
+  <rect x="96" y="148" width="152" height="124" rx="28" fill="#17653a"/>
+  <rect x="264" y="148" width="152" height="124" rx="28" fill="#2f8a52"/>
+  <rect x="96" y="288" width="152" height="124" rx="28" fill="#2f8a52"/>
+  <rect x="264" y="288" width="152" height="124" rx="28" fill="#17653a"/>
+  <path d="M172 252 L172 190" stroke="#f1f4ee" stroke-width="16" stroke-linecap="round"/>
+  <path d="M172 226 C146 228 128 212 126 186 C152 184 173 200 172 226 Z" fill="#f1f4ee"/>
+  <path d="M172 206 C172 180 190 166 214 164 C216 188 198 206 172 206 Z" fill="#b8efc9"/>
+</svg>

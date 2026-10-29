@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Allotment: sun over planted rows">
+  <title>Allotment: sun over planted rows</title>
+  <defs><clipPath id="round"><rect width="512" height="512" rx="112"/></clipPath></defs>
+  <g clip-path="url(#round)">
+    <rect width="512" height="512" fill="#0e1310"/>
+    <path d="M176 262 A80 80 0 0 1 336 262 Z" fill="#ffc766"/>
+    <g fill="none" stroke-linecap="round">
+      <path d="M70 288 H442" stroke="#74d492" stroke-width="16"/>
+      <path d="M52 340 H460" stroke="#58b377" stroke-width="22"/>
+      <path d="M30 404 H482" stroke="#3f9660" stroke-width="30"/>
+      <path d="M10 480 H502" stroke="#2c7a4a" stroke-width="40"/>
+    </g>
+    <g fill="#0e1310">
+      <circle cx="150" cy="340" r="6"/><circle cx="256" cy="340" r="6"/><circle cx="362" cy="340" r="6"/>
+      <circle cx="110" cy="404" r="8"/><circle cx="256" cy="404" r="8"/><circle cx="402" cy="404" r="8"/>
+    </g>
+  </g>
+</svg>
