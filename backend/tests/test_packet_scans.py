@@ -160,3 +160,44 @@ def test_only_photos_can_be_read(client, plot, fake_scan, monkeypatch):  # noqa:
         db.session.commit()
     resp = start(client, plot, media_id)
     assert resp.status_code == 422 and "photos" in resp.json["message"]
+
+
+def test_a_photo_can_be_uploaded_and_read_in_one_request(client, plot, fake_scan):  # noqa: F811
+    resp = client.post(
+        plot["url"],
+        data={"file": (io.BytesIO(make_jpeg(size=(120, 90))), "back.jpg"), "read_packet": "true"},
+        headers=plot["editor"],
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 201
+    scans = client.get(f"{plot['base']}/packet-scans", headers=plot["viewer"]).json
+    assert (
+        len(scans) == 1
+        and scans[0]["status"] == "ready"
+        and scans[0]["media_id"] == resp.json["id"]
+    )
+    drafts = client.get(f"{plot['base']}/packets?status=draft", headers=plot["viewer"]).json
+    assert [p["id"] for p in drafts] == [scans[0]["packet_id"]]
+
+
+def test_a_resent_scan_upload_does_not_read_the_photo_twice(client, plot, fake_scan):  # noqa: F811
+    def send():
+        return client.post(
+            plot["url"],
+            data={
+                "file": (io.BytesIO(make_jpeg(size=(120, 90))), "back.jpg"),
+                "read_packet": "true",
+                "client_id": "abc-1",
+            },
+            headers=plot["editor"],
+            content_type="multipart/form-data",
+        )
+
+    first, second = send(), send()
+    assert first.json["id"] == second.json["id"]
+    assert len(client.get(f"{plot['base']}/packet-scans", headers=plot["viewer"]).json) == 1
+
+
+def test_an_upload_without_the_flag_is_not_read(client, plot, fake_scan):  # noqa: F811
+    upload(client, plot)
+    assert client.get(f"{plot['base']}/packet-scans", headers=plot["viewer"]).json == []

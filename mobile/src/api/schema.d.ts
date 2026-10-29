@@ -3386,6 +3386,11 @@ export interface components {
              * @default null
              */
             planting_id?: number | null;
+            /**
+             * @description Read this photo as the back of a seed packet into a draft
+             * @default false
+             */
+            read_packet?: boolean;
             /** @default  */
             caption?: string;
             /**

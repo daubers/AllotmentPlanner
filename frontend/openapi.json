@@ -4245,6 +4245,11 @@
             "description": "A planting's photo",
             "nullable": true
           },
+          "read_packet": {
+            "type": "boolean",
+            "default": false,
+            "description": "Read this photo as the back of a seed packet into a draft"
+          },
           "caption": {
             "type": "string",
             "default": "",

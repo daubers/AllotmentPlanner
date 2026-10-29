@@ -222,6 +222,10 @@ class MediaUploadFormSchema(Schema):
     packet_id = fields.Integer(load_default=None, metadata={"description": "A seed packet's photo"})
     tray_id = fields.Integer(load_default=None, metadata={"description": "A seed tray's photo"})
     planting_id = fields.Integer(load_default=None, metadata={"description": "A planting's photo"})
+    read_packet = fields.Boolean(
+        load_default=False,
+        metadata={"description": "Read this photo as the back of a seed packet into a draft"},
+    )
     caption = fields.String(load_default="", validate=validate.Length(max=500))
     lat = fields.Float(
         load_default=None,
