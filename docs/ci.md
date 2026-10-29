@@ -4,6 +4,7 @@
 |---|---|---|
 | `.gitea/workflows/test.yml` | every push and PR | ruff lint and format check, pytest with coverage, frontend and phone app checks, `docker compose config` validation of the dev and production (`make prod-config`) files |
 | `.gitea/workflows/build.yml` | push to `main`, tags `v*` | repeats pytest, then builds the `prod` image target and pushes it to the Gitea container registry |
+| `.gitea/workflows/mobile.yml` | tags `v*`, or run by hand | builds the Android app (an installable APK, about 10 to 20 minutes) and keeps it as the `allotment-android` artifact; also repeats the phone app's type check and tests |
 
 ## Runner requirements
 An `act_runner` labelled `ubuntu-latest` with access to the Docker socket (needed for buildx).
@@ -16,6 +17,9 @@ Three images are pushed to `<gitea-host>/<owner>/`: `allotment-api`, `allotment-
 
 The worker image compiles OpenSfM from a pinned commit in a build stage (about 5 minutes on the runner, every time, and roughly 4 GB of RAM). Its layers are deliberately small and its cache is exported with `mode=min`: the registry sits behind an nginx that answers `413 Request Entity Too Large` to blobs above somewhere between 164 MB and 498 MB (compressed), so the build stage's large layers must never be uploaded. If you raise `client_max_body_size` on that nginx, the worker can use `mode=max` like the others and skip the recompile. The mapping pipeline itself is checked locally with `make mapping-check`, not in CI, because it needs that image.
 Release with `git tag v0.1.0 && git push origin v0.1.0`.
+
+## The Android app
+`mobile/scripts/build-android.sh` does the whole build (Expo prebuild, then Gradle `assembleRelease`) and CI runs exactly that, so a local run reproduces CI: it needs Node 22, JDK 17 and the Android SDK with its licences accepted. By default only `arm64-v8a` is built (every modern phone; all four architectures take about three times as long): `ANDROID_ABIS=arm64-v8a,x86_64` adds the emulator's. The APK is signed with Expo's debug key, so it installs on your own phone but cannot go to the Play Store. The workflow needs the runner to reach the internet (Gradle, the Android SDK, npm) and uses `actions/upload-artifact@v3` because Gitea's artifact server does not speak the v4 protocol. iOS is not built in CI: it needs a macOS runner and an Apple developer account. What publishing needs, store by store, is AM-63.
 
 ## Local equivalents
 ```

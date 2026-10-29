@@ -43,3 +43,6 @@ yarn-error.*
 # Generated native projects (Expo prebuild)
 /ios/
 /android/
+
+# Build output (scripts/build-android.sh)
+/dist/
