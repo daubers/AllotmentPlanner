@@ -252,7 +252,7 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
           <PlantingShapes allotmentId={allotmentId} />
         </LayersControl>
         <PhotoLayers allotmentId={allotmentId} />
-        <SuggestionShapes suggestions={suggestions.data ?? []} ticked={ticked} focused={focusedSuggestion} />
+        <SuggestionShapes allotmentId={allotmentId} suggestions={suggestions.data ?? []} ticked={ticked} focused={focusedSuggestion} />
         <InitialView drawn={drawnBounds} allotmentId={allotmentId} suggestions={{ pending: canEdit && suggestions.isPending, data: suggestions.data }} />
         <TaskPins group={group} tasks={tasks.data ?? []} version={items} />
         <Editor

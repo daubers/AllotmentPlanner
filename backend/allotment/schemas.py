@@ -542,6 +542,10 @@ class SuggestionQuerySchema(Schema):
 class SuggestionPatchSchema(Schema):
     name = fields.String(validate=validate.Length(min=1, max=120))
     kind = fields.String(validate=validate.OneOf([k.value for k in FeatureKind]))
+    geometry = fields.Dict(
+        metadata={"description": "Moved or reshaped: GeoJSON of the same type as before"}
+    )
+    radius_m = fields.Float(validate=validate.Range(min=0.01, max=1000))
 
 
 class SuggestionIdsSchema(Schema):

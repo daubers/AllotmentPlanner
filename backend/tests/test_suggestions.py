@@ -700,3 +700,58 @@ def test_the_ground_summary_reads_plainly():
     assert pipeline.ground_summary(0, 0, {}, Rec(), (0, 0, 0), 15) == (
         "no objects were detected in any photo"
     )
+
+
+# --- moving a suggestion before accepting it ---------------------------------------------------
+
+
+def test_a_moved_footprint_is_saved_and_accepted_where_it_now_is(client, plot):
+    pid = add_suggestion(plot["id"], kind="shed", name="Shed", geometry=SQUARE, radius_m=None)
+    moved = {
+        "type": "Polygon",
+        "coordinates": [
+            [[-0.11, 51.5], [-0.11, 51.5001], [-0.1099, 51.5001], [-0.1099, 51.5], [-0.11, 51.5]]
+        ],
+    }
+    out = client.patch(f"{plot['s']}/{pid}", json={"geometry": moved}, headers=plot["editor"])
+    assert out.status_code == 200 and out.json["geometry"] == moved
+    [feature] = client.post(f"{plot['s']}/accept", json={"ids": [pid]}, headers=plot["editor"]).json
+    assert feature["geometry"]["coordinates"][0][0] == [-0.11, 51.5]
+
+
+def test_a_moved_circle_can_change_its_radius(client, plot):
+    sid = add_suggestion(plot["id"], radius_m=0.5)
+    point = {"type": "Point", "coordinates": [-0.119, 51.501]}
+    out = client.patch(
+        f"{plot['s']}/{sid}", json={"geometry": point, "radius_m": 1.25}, headers=plot["editor"]
+    )
+    assert out.status_code == 200 and out.json["radius_m"] == 1.25
+    assert out.json["geometry"] == point
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[0, 0], [1, 1], [1, 0], [0, 1], [0, 0]]],
+            }
+        },
+        {"geometry": {"type": "Point", "coordinates": [-0.12, 51.5]}},  # a polygon can't be a point
+        {"geometry": {"type": "Point", "coordinates": [500, 500]}},
+        {"radius_m": 2.0},  # a radius with no geometry
+        {"geometry": SQUARE, "radius_m": 2.0},  # a radius on a polygon
+    ],
+)
+def test_a_bad_move_is_refused_and_nothing_changes(client, plot, body):
+    sid = add_suggestion(plot["id"], kind="shed", name="Shed", geometry=SQUARE, radius_m=None)
+    out = client.patch(f"{plot['s']}/{sid}", json=body, headers=plot["editor"])
+    assert out.status_code == 422
+    assert db.session.get(MapSuggestion, sid).geometry == SQUARE
+
+
+def test_a_viewer_cannot_move_a_suggestion(client, plot):
+    sid = add_suggestion(plot["id"], geometry=SQUARE, radius_m=None)
+    out = client.patch(f"{plot['s']}/{sid}", json={"geometry": SQUARE}, headers=plot["viewer"])
+    assert out.status_code == 403

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { confidenceWord, mergeTicks, outlinePoints, photosOf, seenIn, shapeOf, suggestionBox, tickedByDefault, type Suggestion } from "./model";
+import { applyPatch, confidenceWord, mergeTicks, outlinePoints, photosOf, seenIn, shapeOf, suggestionBox, tickedByDefault, type Suggestion } from "./model";
 
 const s = (id: number, extra: Partial<Suggestion> = {}): Suggestion => ({ id, confidence: 0.7, views: 3, ...extra }) as Suggestion;
 
@@ -87,5 +87,15 @@ describe("photos of a suggestion", () => {
   it("writes an outline as SVG points", () => {
     expect(outlinePoints([[0.25, 0.5], [0.75, 0.5], [0.5, 1]])).toBe("0.25,0.5 0.75,0.5 0.5,1");
     expect(outlinePoints(undefined)).toBe("");
+  });
+});
+
+describe("applyPatch", () => {
+  it("changes only the one suggestion and leaves the list as it was", () => {
+    const list = [s(1, { name: "Shed" }), s(2, { name: "Tree" })];
+    const out = applyPatch(list, 2, { name: "Elm" });
+    expect(out.map((x) => x.name)).toEqual(["Shed", "Elm"]);
+    expect(out[0]).toBe(list[0]);
+    expect(list[1].name).toBe("Tree");
   });
 });

@@ -76,6 +76,18 @@ def _get_all(allotment, ids: list[int]) -> list[MapSuggestion]:
     return rows
 
 
+def _check_moved(s: MapSuggestion, geometry: dict, radius_m: float | None) -> None:
+    """A moved suggestion must still be a valid shape of its own type (a circle stays a circle)."""
+    try:
+        parse_geometry(geometry)
+    except ValidationError as exc:
+        abort(422, message=str(exc.messages[0] if exc.messages else exc))
+    if geometry["type"] != s.geometry["type"]:
+        abort(422, message=f"A {s.geometry['type']} can't become a {geometry['type']}")
+    if geometry["type"] != "Point" and radius_m is not None:
+        abort(422, message="radius_m is only valid on Point geometries (circles)")
+
+
 @blp.route("")
 class SuggestionList(MethodView):
     @require_role(Role.EDITOR)
@@ -96,10 +108,14 @@ class SuggestionDetail(MethodView):
     @blp.arguments(SuggestionPatchSchema)
     @blp.response(200, SuggestionSchema)
     def patch(self, data, allotment, membership, suggestion_id):
-        """Rename a suggestion or change what kind of thing it is before accepting it."""
+        """Rename a suggestion, change its kind, or move or reshape it before accepting it."""
         [s] = _get_all(allotment, [suggestion_id])
         if s.status != "pending":
             abort(409, message=f"A {s.status} suggestion can't be edited")
+        if "geometry" in data:
+            _check_moved(s, data["geometry"], data.get("radius_m"))
+        elif "radius_m" in data:
+            abort(422, message="radius_m goes with a new geometry")
         for key, value in data.items():
             setattr(s, key, value)
         db.session.commit()
