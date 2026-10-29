@@ -101,3 +101,49 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${{ steps.reg.outputs.image }}:buildcache
           cache-to: type=registry,ref=${{ steps.reg.outputs.image }}:buildcache,mode=${{ matrix.cache_mode || 'max' }}
+
+  # Release tags only: once the test workflow for the same tag is green too, start the deploy in
+  # matt/Allotment-Deploy (Gitea cannot trigger one repo's workflow from another's tags). That
+  # workflow re-checks the commit is on main and both workflows succeeded before touching the host.
+  trigger-deploy:
+    needs: image
+    if: ${{ gitea.event_name == 'push' && startsWith(gitea.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch the deploy
+        env:
+          TAG: ${{ gitea.ref_name }}
+          SHA: ${{ gitea.sha }}
+          API: ${{ gitea.server_url }}/api/v1
+          REPO: ${{ gitea.repository }}
+          TOKEN: ${{ secrets.DEPLOY_DISPATCH_TOKEN }}
+        run: |
+          set -eu
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "unexpected tag $TAG"; exit 1 ;;
+          esac
+          rest="${TAG#v}"
+          # X.Y.Z only: pre-releases such as v1.0.0-rc1 are built but never deployed.
+          if ! printf '%s' "$rest" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "$TAG is not a plain X.Y.Z release; not deploying"; exit 0
+          fi
+          # Wait up to 30 minutes for the test workflow on this tag.
+          for i in $(seq 1 90); do
+            state=$(curl -fsS -H "Authorization: token $TOKEN" "$API/repos/$REPO/actions/runs?head_sha=$SHA&limit=50" |
+              TAG="$TAG" python3 -c '
+          import json, os, sys
+          runs = [r for r in json.load(sys.stdin).get("workflow_runs", []) if r.get("path") == "test.yml@refs/tags/" + os.environ["TAG"]]
+          if not runs: print("pending")
+          elif any(r.get("status") != "completed" and not r.get("conclusion") for r in runs): print("pending")
+          else: print("ok" if all(r.get("conclusion") == "success" for r in runs) else "failed")')
+            echo "test workflow: $state"
+            [ "$state" = ok ] && break
+            [ "$state" = failed ] && { echo "test workflow failed; not deploying"; exit 1; }
+            sleep 20
+          done
+          [ "$state" = ok ] || { echo "timed out waiting for the test workflow"; exit 1; }
+          curl -fsS -X POST -H "Authorization: token $TOKEN" -H "Content-Type: application/json" \
+            -d "{\"ref\":\"main\",\"inputs\":{\"tag\":\"$TAG\",\"sha\":\"$SHA\"}}" \
+            "$API/repos/matt/Allotment-Deploy/actions/workflows/deploy.yml/dispatches"
+          echo "deploy of $TAG dispatched"
