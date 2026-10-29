@@ -44,6 +44,12 @@ Sow by DEC 2027 B"""
         ('Sow 1.5cm (1/2") deep directly into soil', 15),
         ('Sow thinly direct into soil at a depth of 13mm (1/2").', 13),
         ("Sow outdoors 5cm deep in flat drills", 50),
+        ('drills 15cm (6") wide and 5cm (2) deep.Sow in a zig-zag', 50),
+        ("OR TO GROW INDOORS:SoWO.5cm deep,thinly in small pots", 5),
+        (
+            "Sow indoors 0.5cm (1/4) deep in a tray. Sow outdoors in a seed bed, 1.5cm (1/2) deep",
+            15,
+        ),
         ('Sow seeds in a well-drained soil 13mm (1/2") deep in a lightly-shaded site', 13),
         ('Sow 0.5cm (1/4") deep, thinly in small pots', 5),
         ("Sow thinly into pots covering seed lightly", None),
@@ -79,6 +85,9 @@ def test_germination(text, want):
         ("Sow by\nDEC 2027 B", 2027),
         ("SOW BY YE 2028\nPKD YE 2025", 2028),
         ("Sow by: 7/2024", 2024),
+        ("Sowby year ending Packed in | SOND | DEC2028O | OCT2024 | Well drained soil", 2028),
+        ("year ending JUL2024 | Kentford, Sowby | CB87QB,UK DEC 2026 R | Botanical name", 2026),
+        ("Sow by: | YE 2027 | PKD YE 2025", 2027),
         ("Best before end 2027", 2027),
         ("Sow by 2099", None),
         ("Packed in year ending OCT 2024", None),
@@ -95,6 +104,7 @@ def test_sow_by_year(text, want):
         ("Average Contents 70 Seeds", 70),
         ("Average 1,500 seeds", 1500),
         ("250 seeds", 250),
+        ("Average Contents | 350 | HERMAJESTY | Seeds | ROCKET", 350),
         ("Sow seeds thinly", None),
     ],
 )
@@ -131,6 +141,13 @@ def test_calendar_from_words_for_a_packet_with_no_graphic():
         "sow_indoors": list(range(1, 13)),
         "harvest": list(range(1, 13)),
     }
+
+
+def test_calendar_from_words_when_ocr_runs_the_lines_together():
+    ocr = (
+        "For outdoor sowing | CORIANDER When March to June | Where In the bed | Harvest May to July"
+    )
+    assert months_from_words(ocr) == {"sow_outdoors": [3, 4, 5, 6], "harvest": [5, 6, 7]}
 
 
 def test_a_whole_packet():

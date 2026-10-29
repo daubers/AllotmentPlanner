@@ -48,21 +48,42 @@ def _num(text: str) -> float:
     return float(text.replace(",", "."))
 
 
+_NUM = r"([0-9oO]+(?:[.,][0-9]+)?|[oO]?[.,][0-9]+)"  # OCR often reads the 0 of "0.5" as a letter
+_OTHER_MEASURE = r"(?!\s?[0-9oO.,]+\s?(?:mm|cm)\b)"  # do not skip over another measurement
+_OUTDOORS = re.compile(r"outdoor|direct|drill|crop|seed ?bed|where they are", re.I)
+
+
+def _to_mm(number: str, unit: str) -> int | None:
+    value = float(number.replace(",", ".").replace("o", "0").replace("O", "0"))
+    value *= 10 if unit.lower() == "cm" else 1
+    return round(value) if 0 < value <= 500 else None
+
+
 def find_depth_mm(text: str) -> int | None:
-    """Sowing depth in millimetres, from "1.5cm (1/2") deep", "depth of 13mm", "5cm deep"."""
+    """Sowing depth in millimetres, from "1.5cm (1/2") deep", "depth of 13mm", "5cm deep".
+
+    A packet often gives two depths (outdoors and in pots). The one for sowing outdoors wins, since
+    that is what a bed gets.
+    """
     t = text.replace("\n", " ")
     patterns = [
-        r"(\d+(?:[.,]\d+)?)\s?(mm|cm)\b[^.]{0,30}?\bdeep",
-        r"\bdepth\s+of\s+(\d+(?:[.,]\d+)?)\s?(mm|cm)\b",
-        r"\bdeep\b[^.\d]{0,10}(\d+(?:[.,]\d+)?)\s?(mm|cm)\b",
-        r"\bsow(?:ing)?\b[^.]{0,40}?(\d+(?:[.,]\d+)?)\s?(mm|cm)\s*\(",
+        rf"{_NUM}\s?(mm|cm)\b(?:{_OTHER_MEASURE}[^.]){{0,30}}?\bdeep",
+        rf"\bdepth\s+of\s+{_NUM}\s?(mm|cm)\b",
+        rf"\bdeep\b[^.\d]{{0,10}}{_NUM}\s?(mm|cm)\b",
     ]
+    found: list[tuple[int, int]] = []  # (position, mm)
     for pattern in patterns:
-        m = re.search(pattern, t, re.I)
-        if m:
-            value = _num(m.group(1)) * (10 if m.group(2).lower() == "cm" else 1)
-            return round(value) if 0 < value <= 500 else None
-    return None
+        for m in re.finditer(pattern, t, re.I):
+            mm = _to_mm(m.group(1), m.group(2))
+            if mm is not None:
+                found.append((m.start(), mm))
+    if not found:
+        return None
+    found.sort()
+    for position, mm in found:
+        if _OUTDOORS.search(t[max(0, position - 90) : position + 20]):
+            return mm
+    return found[0][1]
 
 
 def find_germination_days(text: str) -> tuple[int, int] | None:
@@ -85,32 +106,33 @@ def find_germination_days(text: str) -> tuple[int, int] | None:
     return None
 
 
+_YEAR_TOKENS = re.compile(rf"(?:{_MONTH}\s*|ye\s*|end\s*|\d{{1,2}}\s*/\s*)(20\d\d)", re.I)
+
+
 def find_sow_by_year(text: str, today: date | None = None) -> int | None:
-    """The "sow by" year: "Sow by DEC 2027", "SOW BY YE 2028", "Sow by: 7/2024"."""
+    """The "sow by" year: "Sow by DEC 2027", "SOW BY YE 2028", "Sow by: 7/2024", "Sowby DEC2028".
+
+    The sticker also has a "packed in" date, and OCR shuffles the two, so the dates near the label
+    are collected and the latest wins: a packet is always sown by after it was packed.
+    """
     t = text.replace("\n", " ")
-    m = re.search(
-        rf"sow\s*by\W{{0,12}}(?:ye\s*)?(?:{_MONTH}\s*)?(?:\d{{1,2}}\s*/\s*)?(20\d\d)",
-        t,
-        re.I,
-    )
-    if not m:
-        m = re.search(
-            rf"best\s*before\W{{0,12}}(?:end\s*)?(?:{_MONTH}\s*)?(?:\d{{1,2}}\s*/\s*)?(20\d\d)",
-            t,
-            re.I,
-        )
-    if not m:
-        return None
-    year = int(m.group(m.lastindex))
-    return year if 2000 <= year <= (today or date.today()).year + 15 else None
+    limit = (today or date.today()).year + 15
+    years: list[int] = []
+    for label in re.finditer(r"sow\s*by|best\s*before", t, re.I):
+        window = t[max(0, label.start() - 160) : label.end() + 160]
+        years += [int(m.group(m.lastindex)) for m in _YEAR_TOKENS.finditer(window)]
+    years = [y for y in years if 2000 <= y <= limit]
+    return max(years) if years else None
 
 
 def find_seed_count(text: str) -> int | None:
-    """ "Average 500 seeds", "Average Contents 70 Seeds", "250 seeds"."""
+    """ "Average 500 seeds", "Average Contents 70 Seeds", "Average | 350 | Seeds", "250 seeds"."""
     t = text.replace("\n", " ")
-    m = re.search(
-        r"(?:average|avg)\W{0,6}(?:contents?\W{0,3})?(\d[\d,]*)\s*seeds?", t, re.I
-    ) or re.search(r"\b(\d[\d,]{1,5})\s*seeds\b", t, re.I)
+    m = (
+        re.search(r"(?:average|avg)\W{0,6}(?:contents?\W{0,3})?(\d[\d,]*)\s*seeds?", t, re.I)
+        or re.search(r"\b(\d[\d,]{1,5})\s*seeds\b", t, re.I)
+        or re.search(r"(?:average|avg)\s*contents?\W{0,6}(\d[\d,]{1,5})\b", t, re.I)
+    )
     if not m:
         return None
     count = int(m.group(1).replace(",", ""))
@@ -145,24 +167,24 @@ def months_in(text: str) -> list[int]:
 
 
 def months_from_words(text: str) -> dict[str, list[int]]:
-    """The calendar of a packet that has no graphic, from lines like "When  March to June".
+    """The calendar of a packet that has no graphic, from "When March to June" and "Harvest" rows.
 
-    Handles the "For outdoor sowing / For indoor sowing" blocks with When and Harvest rows.
-    Only what is stated is returned; an activity with no months is left out.
+    Handles the "For outdoor sowing / For indoor sowing" blocks. OCR runs lines together, so each
+    block is searched for the first months after "When" and after "Harvest". Only what is stated is
+    returned; an activity with no months is left out.
     """
+    t = re.sub(r"\s+", " ", text)
+    marks = [(m.start(), "sow_outdoors") for m in re.finditer(r"for outdoor sowing", t, re.I)]
+    marks += [(m.start(), "sow_indoors") for m in re.finditer(r"for indoor sowing", t, re.I)]
+    marks.sort()
     out: dict[str, set[int]] = {}
-    section = None
-    for raw in text.splitlines():
-        line = raw.strip()
-        low = line.lower()
-        if "outdoor sowing" in low or "sow outdoors" in low and len(line) < 40:
-            section = "sow_outdoors"
-        elif "indoor sowing" in low or "sow indoors" in low and len(line) < 40:
-            section = "sow_indoors"
-        elif low.startswith("when") and section:
-            out.setdefault(section, set()).update(months_in(line[4:]))
-        elif low.startswith("harvest"):
-            out.setdefault("harvest", set()).update(months_in(line[7:]))
+    for i, (start, section) in enumerate(marks):
+        chunk = t[start : marks[i + 1][0] if i + 1 < len(marks) else len(t)]
+        when = re.search(r"\bwhen\b\W*([^|]{0,45})", chunk, re.I)
+        if when and (months := months_in(when.group(1))):
+            out.setdefault(section, set()).update(months)
+        for harvest in re.finditer(r"\bharvest\b\W*([^|.]{0,45})", chunk, re.I):
+            out.setdefault("harvest", set()).update(months_in(harvest.group(1)))
     return {k: sorted(v) for k, v in out.items() if v}
 
 
