@@ -552,6 +552,8 @@ class MapSuggestion(db.Model):
     radius_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     views: Mapped[int] = mapped_column(default=1)  # how many photos saw it
+    # Where it was seen, best first: [{media_id, outline: [[x, y]...] (0..1 of the photo), score}]
+    sightings: Mapped[list | None] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(
         String(10), default="pending", index=True
     )  # pending | accepted | dismissed

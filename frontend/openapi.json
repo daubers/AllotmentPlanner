@@ -5695,6 +5695,44 @@
         },
         "additionalProperties": false
       },
+      "Sighting": {
+        "type": "object",
+        "properties": {
+          "media_id": {
+            "type": "integer"
+          },
+          "outline": {
+            "type": "array",
+            "description": "[x, y] points, 0 to 1 across and down the picture",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "score": {
+            "type": "number"
+          },
+          "url": {
+            "type": "string",
+            "description": "Signed link to the full photo"
+          },
+          "thumb_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "width": {
+            "type": "integer",
+            "nullable": true
+          },
+          "height": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "Suggestion": {
         "type": "object",
         "properties": {
@@ -5733,6 +5771,13 @@
           "feature_id": {
             "type": "integer",
             "nullable": true
+          },
+          "sightings": {
+            "type": "array",
+            "description": "The photos it was seen in",
+            "items": {
+              "$ref": "#/components/schemas/Sighting"
+            }
           }
         },
         "additionalProperties": false

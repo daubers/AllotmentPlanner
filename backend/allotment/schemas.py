@@ -504,6 +504,19 @@ class LimitsSchema(Schema):
     max_upload_bytes = fields.Integer(metadata={"description": "Largest accepted upload"})
 
 
+class SightingSchema(Schema):
+    media_id = fields.Integer()
+    outline = fields.List(
+        fields.List(fields.Float()),
+        metadata={"description": "[x, y] points, 0 to 1 across and down the picture"},
+    )
+    score = fields.Float()
+    url = fields.String(metadata={"description": "Signed link to the full photo"})
+    thumb_url = fields.String(allow_none=True)
+    width = fields.Integer(allow_none=True)
+    height = fields.Integer(allow_none=True)
+
+
 class SuggestionSchema(Schema):
     id = fields.Integer()
     job_id = fields.Integer(allow_none=True)
@@ -515,6 +528,9 @@ class SuggestionSchema(Schema):
     views = fields.Integer(metadata={"description": "How many photos showed it"})
     status = fields.String()
     feature_id = fields.Integer(allow_none=True)
+    sightings = fields.List(
+        fields.Nested(SightingSchema), metadata={"description": "The photos it was seen in"}
+    )
 
 
 class SuggestionQuerySchema(Schema):

@@ -1,6 +1,21 @@
 import type { components } from "../api/schema";
 
 export type Suggestion = components["schemas"]["Suggestion"];
+export type Sighting = components["schemas"]["Sighting"];
+
+/** How many photos a row shows before "+N more". */
+export const SHOWN_PHOTOS = 3;
+
+/** The photos to show for a suggestion (best first, as the API sends them) and how many are left. */
+export function photosOf(s: Pick<Suggestion, "sightings">, shown = SHOWN_PHOTOS): { shown: Sighting[]; more: number } {
+  const all = (s.sightings ?? []).filter((x) => x.outline && x.outline.length >= 3);
+  return { shown: all.slice(0, shown), more: Math.max(0, all.length - shown) };
+}
+
+/** An outline as the `points` of an SVG polygon in a 0..1 box (the photo is stretched to that box). */
+export function outlinePoints(outline: number[][] | undefined): string {
+  return (outline ?? []).map(([x, y]) => `${x},${y}`).join(" ");
+}
 
 /** How much to trust a detection, in words. Confidence is the detector's score, discounted when
  *  only one photo showed the object. */

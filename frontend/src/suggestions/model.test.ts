@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { confidenceWord, mergeTicks, seenIn, shapeOf, suggestionBox, tickedByDefault, type Suggestion } from "./model";
+import { confidenceWord, mergeTicks, outlinePoints, photosOf, seenIn, shapeOf, suggestionBox, tickedByDefault, type Suggestion } from "./model";
 
 const s = (id: number, extra: Partial<Suggestion> = {}): Suggestion => ({ id, confidence: 0.7, views: 3, ...extra }) as Suggestion;
 
@@ -63,4 +63,29 @@ describe("suggestionBox", () => {
     expect(suggestionBox({ geometry: g, radius_m: null })).toEqual([[1, 0], [3, 2]]);
   });
   it("has none for what it can't draw", () => expect(suggestionBox({ geometry: { type: "LineString" }, radius_m: null })).toBeNull());
+});
+
+describe("photos of a suggestion", () => {
+  const sighting = (id: number, outline: number[][] = [[0, 0], [1, 0], [1, 1]]) => ({ media_id: id, outline, score: 0.8, url: `/u${id}` });
+
+  it("shows the first few and counts the rest", () => {
+    const s = { sightings: [1, 2, 3, 4, 5].map((i) => sighting(i)) };
+    const { shown, more } = photosOf(s);
+    expect(shown.map((x) => x.media_id)).toEqual([1, 2, 3]);
+    expect(more).toBe(2);
+  });
+
+  it("copes with no photos, as for suggestions made before they were kept", () => {
+    expect(photosOf({})).toEqual({ shown: [], more: 0 });
+    expect(photosOf({ sightings: [] })).toEqual({ shown: [], more: 0 });
+  });
+
+  it("ignores a sighting with no usable outline", () => {
+    expect(photosOf({ sightings: [sighting(1, [[0, 0]]), sighting(2)] }).shown.map((x) => x.media_id)).toEqual([2]);
+  });
+
+  it("writes an outline as SVG points", () => {
+    expect(outlinePoints([[0.25, 0.5], [0.75, 0.5], [0.5, 1]])).toBe("0.25,0.5 0.75,0.5 0.5,1");
+    expect(outlinePoints(undefined)).toBe("");
+  });
 });

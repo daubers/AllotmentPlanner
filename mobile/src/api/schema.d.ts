@@ -3873,6 +3873,17 @@ export interface components {
             /** @description Largest accepted upload */
             max_upload_bytes?: number;
         };
+        Sighting: {
+            media_id?: number;
+            /** @description [x, y] points, 0 to 1 across and down the picture */
+            outline?: number[][];
+            score?: number;
+            /** @description Signed link to the full photo */
+            url?: string;
+            thumb_url?: string | null;
+            width?: number | null;
+            height?: number | null;
+        };
         Suggestion: {
             id?: number;
             job_id?: number | null;
@@ -3888,6 +3899,8 @@ export interface components {
             views?: number;
             status?: string;
             feature_id?: number | null;
+            /** @description The photos it was seen in */
+            sightings?: components["schemas"]["Sighting"][];
         };
         SuggestionPatch: {
             name?: string;

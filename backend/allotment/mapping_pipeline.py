@@ -8,6 +8,7 @@ GDAL. The geometry lives in :mod:`mapping_geo`.
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -814,6 +815,32 @@ def propose_gpx_boundary(job) -> bool:
     return True
 
 
+MAX_SIGHTINGS = 6
+
+
+def media_id_of(shot_name: str) -> int | None:
+    """Photos are written as m<media id>.jpg and video frames as v<media id>_<n>.jpg."""
+    m = re.match(r"[mv](\d+)", shot_name)
+    return int(m.group(1)) if m else None
+
+
+def sightings_of(g: detection_geo.FusedObject) -> list[dict]:
+    """Where a found object was seen, to show the person reviewing it: the best sighting from each
+    photo, highest score first, with its outline (0..1 of the picture)."""
+    best: dict[int, detection_geo.Observation] = {}
+    for m in g.members:
+        media_id = media_id_of(m.shot)
+        if media_id is None or not m.outline:
+            continue
+        if media_id not in best or m.footprint.score > best[media_id].footprint.score:
+            best[media_id] = m
+    ranked = sorted(best.items(), key=lambda kv: -kv[1].footprint.score)[:MAX_SIGHTINGS]
+    return [
+        {"media_id": i, "outline": m.outline, "score": round(m.footprint.score, 3)}
+        for i, m in ranked
+    ]
+
+
 def detect_objects(job: MapJob, work: Path, detector=None) -> int:
     """Find objects in the placed photos, put them on the ground and save them as suggestions
     to review. Returns how many were found."""
@@ -837,7 +864,14 @@ def detect_objects(job: MapJob, work: Path, detector=None) -> int:
                 t = d.type
                 raws.append(
                     calibration.RawDetection(
-                        shot.name, t.name, t.kind, t.shape, d.score, pixels * d.scale, t.role
+                        shot.name,
+                        t.name,
+                        t.kind,
+                        t.shape,
+                        d.score,
+                        pixels * d.scale,
+                        t.role,
+                        detection_geo.silhouette(d.mask),
                     )
                 )
         _append_log(job, f"looked at photo {n} of {len(shots)}: {len(found)} objects")
@@ -866,7 +900,9 @@ def detect_objects(job: MapJob, work: Path, detector=None) -> int:
             continue
         fp = detection_geo.footprint_from_pixels(shot, plane, r.pixels, r.score, r.shape, max_range)
         if fp:
-            observations.append(detection_geo.Observation(r.label, r.kind, r.shape, fp, r.shot))
+            observations.append(
+                detection_geo.Observation(r.label, r.kind, r.shape, fp, r.shot, r.outline)
+            )
     merged = detection_geo.fuse(observations)
     fused = [g for g in merged if detection_geo.worth_keeping(g)]
     _append_log(job, f"{len(merged)} candidates, {len(fused)} kept after dropping likely noise")
@@ -903,6 +939,7 @@ def detect_objects(job: MapJob, work: Path, detector=None) -> int:
                 radius_m=radius,
                 confidence=g.confidence,
                 views=g.views,
+                sightings=sightings_of(g),
             )
         )
     if boundary is not None:
