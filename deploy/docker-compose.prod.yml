@@ -22,6 +22,9 @@ x-app-env: &app-env
   STORAGE_BACKEND: ${STORAGE_BACKEND:-file}
   MEDIA_ROOT: /data/media
   MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-4096}
+  # Closed by default here: see "Who can sign up" in the README.
+  REGISTRATION: ${REGISTRATION:-invite}
+  INVITE_TTL_DAYS: ${INVITE_TTL_DAYS:-7}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   # The apps run as an unprivileged user with no home folder.
   HOME: /tmp

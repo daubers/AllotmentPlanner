@@ -143,6 +143,7 @@ Edit `.env`. The ones that matter:
 | `JWT_SECRET_KEY` | a different long random value; signs logins. Compose refuses to start without it |
 | `TOKEN_ENCRYPTION_KEY` | another random value; encrypts stored Mastodon tokens. **Keep it safe**: losing it means reconnecting Mastodon |
 | `REGISTRY`, `TAG` | where the images are (`git.daubney.dev/matt`) and which version (`latest`, `0.2.0`, or `sha-…` to pin) |
+| `REGISTRATION` | `invite` (the default in the production file) or `open`; see [Who can sign up](#5-who-can-sign-up) |
 | `HTTP_PORT` | the one port the web app and API are served on (default 8080) |
 
 The full list, including S3 storage and mapping limits, is in the file and in [Configuration](#configuration).
@@ -182,7 +183,13 @@ proxy_send_timeout 3600s;
 
 ### 5. Who can sign up
 
-Anyone who can reach the server can register an account. They get an empty account and cannot see anyone else's allotments (access is by invitation, per allotment), but the server does accept the sign-up. There is no switch to turn registration off yet (ticket AM-54), so keep the service on a private network or behind your proxy's access control until there is.
+The production compose file starts with `REGISTRATION=invite`, so the server is closed to strangers. The very first account can be created on an empty server (do this straight after the first start, before the server is reachable by anyone else), and from then on `POST /auth/register` is refused unless the request carries an invite code.
+
+To bring someone in, an allotment owner opens **Settings → Invite someone**, enters the person's email and a role, and sends them the link it makes. The link opens the registration form with the code and email filled in; they choose a name and password and are added to that allotment. Details worth knowing:
+
+- An invite is tied to one email address and expires after `INVITE_TTL_DAYS` (7). It cannot be used for another address, and once that address has an account it is spent. It is a signed code, not a database row, so it cannot be revoked individually; rotating `JWT_SECRET_KEY` cancels every outstanding invite (and signs everyone out).
+- People who already have an account are added with the members API instead (`POST /api/v1/allotments/{id}/members`).
+- With `REGISTRATION=open` anyone who can reach the server can still create an empty account, though they see nothing of other people's allotments. Use that only on a private network.
 
 ### Backups
 
@@ -258,6 +265,8 @@ Set in `.env` (development: `.env.example`; production: `deploy/.env.production.
 | `STORAGE_BACKEND` | `file` | `file` (a volume) or `s3` |
 | `MEDIA_ROOT` | `/data/media` | where the `file` backend stores photos |
 | `S3_ENDPOINT_URL`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | | for `s3` |
+| `REGISTRATION` | `open` (the production compose file sets `invite`) | `open`: anyone can register. `invite`: only the first account on an empty server, then people an owner has invited |
+| `INVITE_TTL_DAYS` | `7` | how long an invite link stays valid |
 | `MAX_UPLOAD_MB` | `4096` | largest accepted upload; keep nginx's `client_max_body_size` in step |
 | `LOG_LEVEL` | `INFO` | |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | send traces to an OpenTelemetry collector |
