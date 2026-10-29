@@ -1050,6 +1050,14 @@
           },
           {
             "in": "query",
+            "name": "tray_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
             "name": "capture_session",
             "schema": {
               "type": "string"
@@ -1629,6 +1637,247 @@
         {
           "in": "path",
           "name": "packet_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/trays": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "planted_out",
+                "finished"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "packet_id",
+            "description": "Only trays with this packet sown in them",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TraySummary"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "trays"
+        ]
+      },
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tray"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrayIn"
+              }
+            }
+          }
+        },
+        "tags": [
+          "trays"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/trays/{tray_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tray"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "trays"
+        ]
+      },
+      "patch": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tray"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrayPatch"
+              }
+            }
+          }
+        },
+        "tags": [
+          "trays"
+        ]
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Remove the tray and its cells. Its photos stay in the photo timeline, unlinked.",
+        "tags": [
+          "trays"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "tray_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/trays/{tray_id}/cells": {
+      "patch": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tray"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CellsUpdate"
+              }
+            }
+          }
+        },
+        "summary": "Sow, germinate, fail or clear the chosen cells in one go. All or nothing.",
+        "tags": [
+          "trays"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "tray_id",
           "required": true,
           "schema": {
             "type": "integer",
@@ -2690,6 +2939,10 @@
       "description": "The seed library"
     },
     {
+      "name": "trays",
+      "description": "Seed trays: a grid of cells, each sown with a packet"
+    },
+    {
       "name": "mastodon",
       "description": "Post allotment activity to a Mastodon account"
     },
@@ -3465,6 +3718,10 @@
             "type": "integer",
             "nullable": true
           },
+          "tray_id": {
+            "type": "integer",
+            "nullable": true
+          },
           "caption": {
             "type": "string"
           },
@@ -3517,6 +3774,12 @@
             "type": "integer",
             "default": null,
             "description": "A seed packet's photo",
+            "nullable": true
+          },
+          "tray_id": {
+            "type": "integer",
+            "default": null,
+            "description": "A seed tray's photo",
             "nullable": true
           },
           "caption": {
@@ -3589,6 +3852,10 @@
             "nullable": true
           },
           "packet_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "tray_id": {
             "type": "integer",
             "nullable": true
           },
@@ -4048,6 +4315,383 @@
             "$ref": "#/components/schemas/Calendar"
           }
         },
+        "additionalProperties": false
+      },
+      "TrayCounts": {
+        "type": "object",
+        "properties": {
+          "empty": {
+            "type": "integer"
+          },
+          "sown": {
+            "type": "integer"
+          },
+          "germinated": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          },
+          "planted_out": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TrayKind": {
+        "type": "object",
+        "properties": {
+          "packet_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "variety": {
+            "type": "string"
+          },
+          "cells": {
+            "type": "integer"
+          },
+          "seeds": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TraySummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "integer"
+          },
+          "cols": {
+            "type": "integer"
+          },
+          "tray_type": {
+            "type": "string"
+          },
+          "sown_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "location": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/TrayCounts"
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrayKind"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TrayIn": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "rows": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30
+          },
+          "cols": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30
+          },
+          "tray_type": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "sown_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "planted_out",
+              "finished"
+            ]
+          }
+        },
+        "required": [
+          "cols",
+          "name",
+          "rows"
+        ],
+        "additionalProperties": false
+      },
+      "TrayCell": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "type": "integer"
+          },
+          "col": {
+            "type": "integer"
+          },
+          "packet_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "count": {
+            "type": "integer",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "sown",
+              "germinated",
+              "failed",
+              "planted_out"
+            ]
+          },
+          "sown_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "germinated_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Tray": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "integer"
+          },
+          "cols": {
+            "type": "integer"
+          },
+          "tray_type": {
+            "type": "string"
+          },
+          "sown_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "location": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/TrayCounts"
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrayKind"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cells": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrayCell"
+            }
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Media"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "TrayPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "rows": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30
+          },
+          "cols": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30
+          },
+          "tray_type": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "sown_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "planted_out",
+              "finished"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "CellRef": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 29
+          },
+          "col": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 29
+          }
+        },
+        "required": [
+          "col",
+          "row"
+        ],
+        "additionalProperties": false
+      },
+      "CellSet": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "empty",
+              "sown",
+              "germinated",
+              "failed"
+            ]
+          },
+          "packet_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "nullable": true
+          },
+          "sown_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "germinated_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "additionalProperties": false
+      },
+      "CellsUpdate": {
+        "type": "object",
+        "properties": {
+          "cells": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 900,
+            "items": {
+              "$ref": "#/components/schemas/CellRef"
+            }
+          },
+          "set": {
+            "$ref": "#/components/schemas/CellSet"
+          }
+        },
+        "required": [
+          "cells",
+          "set"
+        ],
         "additionalProperties": false
       },
       "MastodonSettings": {

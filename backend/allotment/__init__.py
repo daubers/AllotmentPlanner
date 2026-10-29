@@ -18,6 +18,7 @@ from .api import (
     suggestions,
     tasks,
     todo,
+    trays,
 )
 from .celery_app import celery
 from .config import Config
@@ -47,6 +48,7 @@ def create_app(config: type = Config) -> Flask:
     api.register_blueprint(media.files_blp)
     api.register_blueprint(overview.blp)
     api.register_blueprint(packets.blp)
+    api.register_blueprint(trays.blp)
     api.register_blueprint(mastodon.blp)
     api.register_blueprint(limits.blp)
     api.register_blueprint(suggestions.blp)

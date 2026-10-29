@@ -1029,6 +1029,7 @@ export interface paths {
                     feature_id?: number;
                     task_id?: number;
                     packet_id?: number;
+                    tray_id?: number;
                     capture_session?: string;
                     /** @description On or after this date */
                     taken_from?: string;
@@ -1479,6 +1480,218 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Packet"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/trays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    status?: "active" | "planted_out" | "finished";
+                    /** @description Only trays with this packet sown in them */
+                    packet_id?: number;
+                };
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TraySummary"][];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TrayIn"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Tray"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/trays/{tray_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                tray_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    tray_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Tray"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Remove the tray and its cells. Its photos stay in the photo timeline, unlinked. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    tray_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    tray_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TrayPatch"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Tray"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/trays/{tray_id}/cells": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                tray_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Sow, germinate, fail or clear the chosen cells in one go. All or nothing. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    tray_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CellsUpdate"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Tray"];
                     };
                 };
                 422: components["responses"]["UNPROCESSABLE_CONTENT"];
@@ -2760,6 +2973,7 @@ export interface components {
             feature_id?: number | null;
             task_id?: number | null;
             packet_id?: number | null;
+            tray_id?: number | null;
             caption?: string;
             status?: string;
             error?: string | null;
@@ -2785,6 +2999,11 @@ export interface components {
              * @default null
              */
             packet_id?: number | null;
+            /**
+             * @description A seed tray's photo
+             * @default null
+             */
+            tray_id?: number | null;
             /** @default  */
             caption?: string;
             /**
@@ -2821,6 +3040,7 @@ export interface components {
             feature_id?: number | null;
             task_id?: number | null;
             packet_id?: number | null;
+            tray_id?: number | null;
             /** Format: date-time */
             taken_at?: string;
             lat?: number | null;
@@ -2935,6 +3155,114 @@ export interface components {
             stock?: "full" | "part" | "low" | "empty";
             best_before_year?: number | null;
             calendar?: components["schemas"]["Calendar"];
+        };
+        TrayCounts: {
+            empty?: number;
+            sown?: number;
+            germinated?: number;
+            failed?: number;
+            planted_out?: number;
+        };
+        TrayKind: {
+            packet_id?: number;
+            name?: string;
+            variety?: string;
+            cells?: number;
+            seeds?: number;
+        };
+        TraySummary: {
+            id?: number;
+            name?: string;
+            rows?: number;
+            cols?: number;
+            tray_type?: string;
+            /** Format: date */
+            sown_on?: string | null;
+            location?: string;
+            notes?: string;
+            status?: string;
+            counts?: components["schemas"]["TrayCounts"];
+            kinds?: components["schemas"]["TrayKind"][];
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        TrayIn: {
+            name: string;
+            rows: number;
+            cols: number;
+            tray_type?: string;
+            /** Format: date */
+            sown_on?: string | null;
+            location?: string;
+            notes?: string;
+            /** @enum {string} */
+            status?: "active" | "planted_out" | "finished";
+        };
+        TrayCell: {
+            row?: number;
+            col?: number;
+            packet_id?: number | null;
+            count?: number | null;
+            /** @enum {string} */
+            status?: "sown" | "germinated" | "failed" | "planted_out";
+            /** Format: date */
+            sown_on?: string | null;
+            /** Format: date */
+            germinated_on?: string | null;
+            note?: string;
+        };
+        Tray: {
+            id?: number;
+            name?: string;
+            rows?: number;
+            cols?: number;
+            tray_type?: string;
+            /** Format: date */
+            sown_on?: string | null;
+            location?: string;
+            notes?: string;
+            status?: string;
+            counts?: components["schemas"]["TrayCounts"];
+            kinds?: components["schemas"]["TrayKind"][];
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+            cells?: components["schemas"]["TrayCell"][];
+            photos?: components["schemas"]["Media"][];
+        };
+        TrayPatch: {
+            name?: string;
+            rows?: number;
+            cols?: number;
+            tray_type?: string;
+            /** Format: date */
+            sown_on?: string | null;
+            location?: string;
+            notes?: string;
+            /** @enum {string} */
+            status?: "active" | "planted_out" | "finished";
+        };
+        CellRef: {
+            row: number;
+            col: number;
+        };
+        CellSet: {
+            /** @enum {string} */
+            status?: "empty" | "sown" | "germinated" | "failed";
+            packet_id?: number | null;
+            count?: number | null;
+            /** Format: date */
+            sown_on?: string | null;
+            /** Format: date */
+            germinated_on?: string | null;
+            note?: string;
+        };
+        CellsUpdate: {
+            cells: components["schemas"]["CellRef"][];
+            set: components["schemas"]["CellSet"];
         };
         MastodonSettings: {
             configured?: boolean;

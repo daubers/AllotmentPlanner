@@ -225,6 +225,9 @@ class Media(db.Model):
     packet_id: Mapped[int | None] = mapped_column(
         ForeignKey("seed_packets.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    tray_id: Mapped[int | None] = mapped_column(
+        ForeignKey("trays.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     caption: Mapped[str] = mapped_column(String(500), default="")
     status: Mapped[str] = mapped_column(String(10), default="pending")  # pending | ready | failed
     error: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -266,6 +269,60 @@ class SeedPacket(db.Model):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, onupdate=_now
     )
+
+
+class Tray(db.Model):
+    """A seed tray: a grid of cells, each sown with a packet (several kinds per tray)."""
+
+    __tablename__ = "trays"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(200))
+    rows: Mapped[int] = mapped_column()
+    cols: Mapped[int] = mapped_column()
+    tray_type: Mapped[str] = mapped_column(String(100), default="")  # e.g. "24-cell module tray"
+    sown_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    location: Mapped[str] = mapped_column(String(200), default="")  # e.g. "greenhouse, left shelf"
+    notes: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(
+        String(12), default="active"
+    )  # active | planted_out | finished
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
+
+    cells: Mapped[list["TrayCell"]] = relationship(
+        back_populates="tray", cascade="all, delete-orphan", order_by="TrayCell.row, TrayCell.col"
+    )
+
+
+class TrayCell(db.Model):
+    """One occupied cell of a tray. A cell with no row is empty."""
+
+    __tablename__ = "tray_cells"
+    __table_args__ = (UniqueConstraint("tray_id", "row", "col", name="uq_tray_cell"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tray_id: Mapped[int] = mapped_column(ForeignKey("trays.id", ondelete="CASCADE"), index=True)
+    row: Mapped[int] = mapped_column()  # 0-based
+    col: Mapped[int] = mapped_column()
+    packet_id: Mapped[int | None] = mapped_column(
+        ForeignKey("seed_packets.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    count: Mapped[int | None] = mapped_column(nullable=True)  # seeds sown in the cell
+    status: Mapped[str] = mapped_column(String(12), default="sown")
+    sown_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    germinated_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    note: Mapped[str] = mapped_column(String(500), default="")
+
+    tray: Mapped[Tray] = relationship(back_populates="cells")
 
 
 class ActivityLog(db.Model):
