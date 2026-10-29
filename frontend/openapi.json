@@ -5714,9 +5714,18 @@
           "score": {
             "type": "number"
           },
+          "at_s": {
+            "type": "number",
+            "description": "Seconds into the video, if it is a video",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "description": "photo or video"
+          },
           "url": {
             "type": "string",
-            "description": "Signed link to the full photo"
+            "description": "Signed link to the full photo or video"
           },
           "thumb_url": {
             "type": "string",

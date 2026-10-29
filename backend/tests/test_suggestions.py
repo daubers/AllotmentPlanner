@@ -755,3 +755,47 @@ def test_a_viewer_cannot_move_a_suggestion(client, plot):
     sid = add_suggestion(plot["id"], geometry=SQUARE, radius_m=None)
     out = client.patch(f"{plot['s']}/{sid}", json={"geometry": SQUARE}, headers=plot["viewer"])
     assert out.status_code == 403
+
+
+# --- sightings in videos ---------------------------------------------------------------------
+
+
+def test_a_sighting_in_a_video_says_which_second_and_that_it_is_a_video(client, plot):
+    m = Media(
+        allotment_id=plot["id"],
+        kind="video",
+        filename="walk.mp4",
+        content_type="video/mp4",
+        storage_key="allotments/1/walk.mp4",
+        thumb_key="allotments/1/walk_t.jpg",
+        status="ready",
+        duration_s=60,
+    )
+    db.session.add(m)
+    db.session.commit()
+    add_suggestion(
+        plot["id"],
+        sightings=[{"media_id": m.id, "outline": RECT, "score": 0.7, "at_s": 12.5}],
+    )
+    [out] = client.get(plot["s"], headers=plot["editor"]).json
+    [seen] = out["sightings"]
+    assert (seen["kind"], seen["at_s"]) == ("video", 12.5)
+
+
+def test_detection_notes_the_second_of_a_video_frame(job, monkeypatch):
+    j, work = job
+    write_reconstruction(work, RING)
+    (work / "frame_times.json").write_text(json.dumps({s.name: 3.5 for s in RING}))
+    monkeypatch.setattr(pipeline, "media_id_of", lambda n: int(re.search(r"\d+", n).group()) + 1)
+    pipeline.detect_objects(j, work, detector=SceneDetector(RING))
+    seen = [x for s in db.session.query(MapSuggestion).filter_by(job_id=j.id) for x in s.sightings]
+    assert seen and all(x["at_s"] == 3.5 for x in seen)
+
+
+def test_a_photo_has_no_second(job, monkeypatch):
+    j, work = job
+    write_reconstruction(work, RING)  # no frame_times.json: the job only had photos
+    monkeypatch.setattr(pipeline, "media_id_of", lambda n: int(re.search(r"\d+", n).group()) + 1)
+    pipeline.detect_objects(j, work, detector=SceneDetector(RING))
+    seen = [x for s in db.session.query(MapSuggestion).filter_by(job_id=j.id) for x in s.sightings]
+    assert seen and all("at_s" not in x for x in seen)

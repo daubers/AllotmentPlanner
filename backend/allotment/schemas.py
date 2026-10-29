@@ -511,7 +511,11 @@ class SightingSchema(Schema):
         metadata={"description": "[x, y] points, 0 to 1 across and down the picture"},
     )
     score = fields.Float()
-    url = fields.String(metadata={"description": "Signed link to the full photo"})
+    at_s = fields.Float(
+        allow_none=True, metadata={"description": "Seconds into the video, if it is a video"}
+    )
+    kind = fields.String(metadata={"description": "photo or video"})
+    url = fields.String(metadata={"description": "Signed link to the full photo or video"})
     thumb_url = fields.String(allow_none=True)
     width = fields.Integer(allow_none=True)
     height = fields.Integer(allow_none=True)

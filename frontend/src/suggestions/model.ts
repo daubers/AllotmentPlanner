@@ -8,8 +8,15 @@ export const SHOWN_PHOTOS = 3;
 
 /** The photos to show for a suggestion (best first, as the API sends them) and how many are left. */
 export function photosOf(s: Pick<Suggestion, "sightings">, shown = SHOWN_PHOTOS): { shown: Sighting[]; more: number } {
-  const all = (s.sightings ?? []).filter((x) => x.outline && x.outline.length >= 3);
+  // A video sighting needs its second to show the right frame; ones saved without it are left out
+  // rather than drawn over the wrong picture.
+  const all = (s.sightings ?? []).filter((x) => x.outline && x.outline.length >= 3 && (x.kind !== "video" || x.at_s != null));
   return { shown: all.slice(0, shown), more: Math.max(0, all.length - shown) };
+}
+
+/** Where a video sighting's frame is: the video link opened at that second (a media fragment). */
+export function frameSrc(x: Pick<Sighting, "url" | "kind" | "at_s">): string | undefined {
+  return x.kind === "video" && x.at_s != null ? `${x.url}#t=${x.at_s}` : undefined;
 }
 
 /** An outline as the `points` of an SVG polygon in a 0..1 box (the photo is stretched to that box). */

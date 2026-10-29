@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPatch, confidenceWord, mergeTicks, outlinePoints, photosOf, seenIn, shapeOf, suggestionBox, tickedByDefault, type Suggestion } from "./model";
+import { applyPatch, confidenceWord, frameSrc, mergeTicks, outlinePoints, photosOf, seenIn, shapeOf, suggestionBox, tickedByDefault, type Suggestion } from "./model";
 
 const s = (id: number, extra: Partial<Suggestion> = {}): Suggestion => ({ id, confidence: 0.7, views: 3, ...extra }) as Suggestion;
 
@@ -97,5 +97,19 @@ describe("applyPatch", () => {
     expect(out.map((x) => x.name)).toEqual(["Shed", "Elm"]);
     expect(out[0]).toBe(list[0]);
     expect(list[1].name).toBe("Tree");
+  });
+});
+
+describe("sightings in videos", () => {
+  const shot = (extra: object) => ({ media_id: 1, outline: [[0, 0], [1, 0], [1, 1]], score: 0.8, url: "/v.mp4?t=tok", ...extra });
+
+  it("opens the video at the second the object was seen", () => {
+    expect(frameSrc(shot({ kind: "video", at_s: 12.5 }))).toBe("/v.mp4?t=tok#t=12.5");
+    expect(frameSrc(shot({ kind: "photo" }))).toBeUndefined();
+  });
+
+  it("leaves out a video sighting saved without its second, rather than show the wrong frame", () => {
+    const { shown } = photosOf({ sightings: [shot({ kind: "video" }), shot({ kind: "photo", media_id: 2 })] });
+    expect(shown.map((x) => x.media_id)).toEqual([2]);
   });
 });
