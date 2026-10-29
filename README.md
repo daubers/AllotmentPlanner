@@ -191,36 +191,39 @@ To bring someone in, an allotment owner opens **Settings → Invite someone**, e
 - People who already have an account are added with the members API instead (`POST /api/v1/allotments/{id}/members`).
 - With `REGISTRATION=open` anyone who can reach the server can still create an empty account, though they see nothing of other people's allotments. Use that only on a private network.
 
-### 6. A worker on another machine (GPU)
+### 6. Workers on other machines
 
-Building maps and recognising objects is the heavy job. It can run on a second machine, ideally one with a GPU, while the main server keeps the API, web app, database and Redis. Recognition (Grounding DINO and SAM) uses the GPU; map building (OpenSfM) is CPU only, so the second machine's CPU and RAM matter as much as its graphics card.
+Only the API, web app, database, Redis and the scheduler (`beat`, which must run exactly once) have to live together on the main server. Every **Celery worker can run on any machine on your network**, with or without a GPU: the general worker (thumbnails, Mastodon posts), the mapping worker (photo mapping and object recognition) and, later, the packet reader. The map job is the heavy one; OpenSfM is CPU only, so a second machine's cores and RAM matter as much as any graphics card, and recognition (Grounding DINO and SAM) is about ten times faster on a GPU than on the same machine's CPU.
 
-Nothing is shared as a volume between the two: photos and map tiles go through S3 (SeaweedFS), and the worker talks to Redis and Postgres over the LAN. **Keep those ports off the internet**: they are for your home network only, and your server's firewall should allow them from the worker's address alone.
+Nothing is shared as a volume: photos and map tiles go through S3 (SeaweedFS), and a worker talks to Redis and Postgres over the LAN. That is a rule for all new code too (the tests enforce it): workers reach files only through the storage layer, never a path on disk, except their own scratch space. **Keep these ports off the internet**: they are for your home network only, and your server's firewall should allow them from the workers' addresses alone.
 
 **Main server**
 
 1. Give it a fixed LAN address. In `.env` set `LAN_IP`, `REDIS_PASSWORD`, `REDIS_URL=redis://:<REDIS_PASSWORD>@redis:6379/0`, `STORAGE_BACKEND=s3`, `S3_ENDPOINT_URL=http://s3:9000`, `S3_BUCKET`, `S3_ACCESS_KEY` and `S3_SECRET_KEY` (the last two become the S3 service's login; 8 or more characters). The commented block at the end of `.env.production.example` lists them.
 2. Start with the LAN add-on: `docker compose -f docker-compose.prod.yml -f docker-compose.lan.yml up -d`. It publishes Redis (password protected), Postgres and the S3 service on `LAN_IP` only.
 3. If you already have photos, copy them from the `media` volume into the bucket once: `docker compose run --rm api flask copy-media-to-s3` (add `--dry-run` to see what it would do). It leaves the files where they are and can be repeated.
-4. Do not run `--profile mapping` here any more, or two workers would share the queue.
+4. A queue can be served from several machines to share the load, but stop serving it here when you move it: do not leave `--profile mapping` running on the main server by accident.
 
-**GPU machine** (Docker installed, the repository checked out)
+**Worker machine** (Docker installed, the repository checked out)
 
 | Card | On the host | `TORCH_INDEX` | Compose add-on |
 |---|---|---|---|
-| NVIDIA | the NVIDIA driver and the NVIDIA Container Toolkit (`nvidia-ctk runtime configure --runtime=docker`, then restart Docker). `docker run --rm --gpus all ubuntu nvidia-smi` must list the card | `cu126` | `docker-compose.gpu-worker.nvidia.yml` |
-| AMD (RX 6000 series and similar) | the normal `amdgpu` kernel driver; `/dev/kfd` and `/dev/dri` must exist. Nothing else: ROCm's libraries come inside the image | `rocm7.1` | `docker-compose.gpu-worker.amd.yml` |
-| none | nothing | `cpu` | none |
+| none (CPU only) | nothing | `cpu` | none |
+| NVIDIA | the NVIDIA driver and the NVIDIA Container Toolkit (`nvidia-ctk runtime configure --runtime=docker`, then restart Docker). `docker run --rm --gpus all ubuntu nvidia-smi` must list the card | `cu126` | `docker-compose.remote-worker.nvidia.yml` |
+| AMD (RX 6000 series and similar) | the normal `amdgpu` kernel driver; `/dev/kfd` and `/dev/dri` must exist. Nothing else: ROCm's libraries come inside the image | `rocm7.1` | `docker-compose.remote-worker.amd.yml` |
 
 ```sh
 cd deploy
-cp .env.gpu-worker.example .env.gpu-worker     # MAIN_SERVER, the same secrets as the main server, TORCH_INDEX
-./build-gpu-worker.sh                          # builds the image on this machine
-docker compose --env-file .env.gpu-worker -f docker-compose.gpu-worker.yml -f docker-compose.gpu-worker.amd.yml up -d
-docker compose --env-file .env.gpu-worker -f docker-compose.gpu-worker.yml logs -f mapper
+cp .env.remote-worker.example .env.remote-worker   # MAIN_SERVER, the same secrets as the main server, WORKER_QUEUES, TORCH_INDEX
+./build-remote-worker.sh                           # builds the image on this machine
+docker compose --env-file .env.remote-worker -f docker-compose.remote-worker.yml up -d                                      # CPU only
+docker compose --env-file .env.remote-worker -f docker-compose.remote-worker.yml -f docker-compose.remote-worker.amd.yml up -d  # or with a GPU
+docker compose --env-file .env.remote-worker -f docker-compose.remote-worker.yml logs -f worker
 ```
 
-The first build takes a while (OpenSfM is compiled, and the GPU build of PyTorch alone is 3 to 6 GB; the finished image is about 20 GB for AMD), and it is built here instead of pulled because a registry will not take layers that large. The recognition models (about 1.3 GB) download on the first job. The log line `detector_loading ... device=cuda gpu=...` shows the card in use; once it works, set `TORCH_DEVICE=cuda` so a broken GPU setup fails loudly instead of quietly running on the CPU.
+`WORKER_QUEUES` (default `mapping`) says which queues this machine serves and `WORKER_CONCURRENCY` (default 1) how many jobs at once; a map job can use several GB of RAM. The general worker (queue `celery`) needs none of OpenSfM or PyTorch: to run it elsewhere use the published API image with the same environment and `celery -A allotment.celery_app:celery worker`.
+
+The first build takes a while (OpenSfM is compiled; the GPU builds of PyTorch alone are 3 to 6 GB and the finished AMD image is about 20 GB), and the image is built here instead of pulled because a registry will not take layers that large. The recognition models (about 1.3 GB) download on the first job. With a GPU, the log line `detector_loading ... device=cuda gpu=...` shows the card in use; once it works, set `TORCH_DEVICE=cuda` so a broken GPU setup fails loudly instead of quietly running on the CPU.
 
 *AMD notes.* RX 6600/6700 cards (gfx1031/1032) are not on ROCm's supported list; the add-on sets `HSA_OVERRIDE_GFX_VERSION=10.3.0` so they run as the supported gfx1030. Without it the worker crashes on its first GPU call. Set `RENDER_GID` to your host's `render` group id (`getent group render`). Cards with 8 GB of memory are enough for the recognition models.
 

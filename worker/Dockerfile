@@ -68,7 +68,7 @@ COPY . /app
 RUN /opt/app-venv/bin/pip install --no-cache-dir /app
 
 # Which PyTorch build: "cpu" (default), "cu126" (NVIDIA), or "rocm7.1" (AMD). GPU builds are several
-# GB larger and are meant to be built on the GPU machine itself (deploy/docker-compose.gpu-worker.yml),
+# GB larger and are meant to be built on the GPU machine itself (deploy/docker-compose.remote-worker.yml),
 # not pushed to a registry that caps layer size. Set TORCH_DEVICE=auto (default) to use the GPU.
 ARG TORCH_INDEX=cpu
 

@@ -1,0 +1,58 @@
+# A Celery worker on a SEPARATE machine: the mapping worker (photo mapping and object recognition),
+# later the packet reader, or any other queue. With or without a GPU. The main server keeps the API,
+# web app, database, Redis and the scheduler (beat); this machine only pulls jobs off the queues you
+# name and reaches everything over the LAN. See the README, "Workers on other machines".
+#
+#   cp .env.remote-worker.example .env.remote-worker    # then edit it
+#   ./build-remote-worker.sh                            # builds the image here (reads TORCH_INDEX)
+#   docker compose --env-file .env.remote-worker -f docker-compose.remote-worker.yml up -d
+#   # with a GPU, add the file that matches the card:
+#   docker compose --env-file .env.remote-worker -f docker-compose.remote-worker.yml -f docker-compose.remote-worker.amd.yml up -d
+#   docker compose --env-file .env.remote-worker -f docker-compose.remote-worker.yml -f docker-compose.remote-worker.nvidia.yml up -d
+#
+# The image is built on this machine, not pulled: the GPU builds of PyTorch are several GB and the
+# registry in front of the CI images refuses layers that large (a CPU-only build is fine to push).
+# Run each queue in ONE place: do not also run the main server's `--profile mapping` mapper.
+
+name: allotment-remote
+
+x-env: &env
+  DATABASE_URL: postgresql+psycopg://allotment:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@${MAIN_SERVER:?set MAIN_SERVER}:5432/allotment
+  REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD}@${MAIN_SERVER}:6379/0
+  JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY (same as the main server)}
+  TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+  # Photos and map tiles live in the main server's S3 (SeaweedFS); nothing is shared as a volume.
+  STORAGE_BACKEND: s3
+  S3_ENDPOINT_URL: http://${MAIN_SERVER}:${S3_PORT:-9000}
+  S3_BUCKET: ${S3_BUCKET:-allotment-media}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY}
+  TORCH_DEVICE: ${TORCH_DEVICE:-auto}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  FLASK_APP: allotment:create_app
+  HOME: /tmp
+
+services:
+  worker:
+    image: allotment-worker-remote:${TAG:-local}
+    # Which queues this machine serves, and how many jobs at once (a map job uses a lot of RAM).
+    command:
+      - celery
+      - -A
+      - allotment.celery_app:celery
+      - worker
+      - -Q
+      - ${WORKER_QUEUES:-mapping}
+      - -c
+      - "${WORKER_CONCURRENCY:-1}"
+      - -l
+      - INFO
+    environment: *env
+    restart: unless-stopped
+    volumes:
+      - mapping:/data/mapping   # scratch space for a job
+      - models:/data/models     # recognition models (about 1.3 GB), downloaded on first use
+
+volumes:
+  mapping:
+  models:

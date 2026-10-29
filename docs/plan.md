@@ -125,6 +125,9 @@ What is being grown, not just what is being done. A **seed library** is filled b
 - **Dev observability stack** (compose profile `observability`): Prometheus, Grafana, Jaeger.
 - **Tests**: events asserted per operation; smoke test for `/metrics`, `/healthz`, `/readyz` and request-ID propagation into a Celery task.
 
+## Workers can run anywhere (rule)
+Every Celery worker must be able to run on a different machine from the API: with or without a GPU, and for any queue (`celery` general, `mapping`, the planned `vision`). So a worker shares nothing with the API but Redis, Postgres and S3: files go through `get_storage()` and never a path on disk (a worker's own scratch space is fine, `MAPPING_WORK_DIR` or `tempfile`), and each queue is a name a worker opts into with `-Q`. `tests/test_workers_portable.py` fails the build if code outside `storage.py`, `config.py` and `cli.py` mentions `MEDIA_ROOT` or `/data/media`. `beat` stays on the main server, exactly once. The remote setup is `deploy/docker-compose.remote-worker.yml` (queues and concurrency from `WORKER_QUEUES` and `WORKER_CONCURRENCY`, an AMD or NVIDIA add-on if there is a card) plus `docker-compose.lan.yml` on the main server; see the README, "Workers on other machines".
+
 ## Docker
 `docker-compose.yml`: `db` (postgis), `redis`, `api`, `worker`, `beat`, `flower`, plus `prometheus`/`grafana`/`jaeger` under the `observability` profile. `.env.example`, `Makefile` (`up`, `down`, `test`, `observability`, `logs`). `frontend` and the shared `media` volume are in the stack. Planned: `flask seed-demo`, a compose test overlay. Risk: OpenSfM builds are slow; use a multi-stage worker Dockerfile with pinned versions, built separately so the rest of the stack starts quickly.
 

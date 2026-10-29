@@ -1,8 +1,8 @@
-# Add-on for an AMD GPU (ROCm). Use with docker-compose.gpu-worker.yml and TORCH_INDEX=rocm7.1.
+# Add-on for an AMD GPU (ROCm). Use with docker-compose.remote-worker.yml and TORCH_INDEX=rocm7.1.
 # The host needs only the normal amdgpu kernel driver (check `ls /dev/kfd /dev/dri`); ROCm's
 # libraries come inside the image with PyTorch.
 services:
-  mapper:
+  worker:
     devices:
       - /dev/kfd:/dev/kfd
       - /dev/dri:/dev/dri
