@@ -30,18 +30,22 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      # The setup action answers sdkmanager's licence prompts on stdin, which this runner's
-      # containers do not pass through ("8 of 8 SDK package licenses not accepted"), so the accepted
-      # licence hashes are put in place first. They are the public hashes every Android CI uses.
-      - name: Accept the Android SDK licences
+      # android-actions/setup-android fails on this runner: it feeds sdkmanager's licence prompts
+      # through stdin, which the containers do not pass, and its --licenses pass also trips on
+      # add-on licences the build never uses. So set the SDK up by hand; Gradle fetches the rest.
+      - name: Set up the Android SDK
         run: |
-          mkdir -p "$HOME/.android/sdk/licenses"
-          printf '%s\n' 8933bad161af4178b1185d1a37fbf41ea5269c55 d56f5187479451eabf01fb78af6dfcb131a6481e 24333f8a63b6825ea9c5514f83c2829b004d1fee > "$HOME/.android/sdk/licenses/android-sdk-license"
-          printf '%s\n' 84831b9409646a918e30573bab4c9c91346d8abd > "$HOME/.android/sdk/licenses/android-sdk-preview-license"
-      - uses: android-actions/setup-android@v3
-        with:
-          # Its own --licenses pass fails for add-on licences (Google TV, XR) the build never uses.
-          accept-android-sdk-licenses: false
+          sdk="$HOME/.android/sdk"
+          mkdir -p "$sdk/licenses" "$sdk/cmdline-tools"
+          printf '%s\n' 8933bad161af4178b1185d1a37fbf41ea5269c55 d56f5187479451eabf01fb78af6dfcb131a6481e 24333f8a63b6825ea9c5514f83c2829b004d1fee > "$sdk/licenses/android-sdk-license"
+          printf '%s\n' 84831b9409646a918e30573bab4c9c91346d8abd > "$sdk/licenses/android-sdk-preview-license"
+          curl -fsSL -o /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-12266719_latest.zip
+          unzip -q /tmp/cmdline-tools.zip -d /tmp/cmdline-tools
+          rm -rf "$sdk/cmdline-tools/latest"
+          mv /tmp/cmdline-tools/cmdline-tools "$sdk/cmdline-tools/latest"
+          echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$sdk" >> "$GITHUB_ENV"
+          echo "$sdk/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
