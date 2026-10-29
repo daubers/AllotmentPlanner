@@ -10,23 +10,23 @@ Tickets live in YouTrack project **AM** (Allotment Manager) at pm.daubney.dev. W
 ## Status
 | Phase | Ticket | State |
 |---|---|---|
-| 1 Scaffold, Docker, observability | AM-1 | Merged |
-| 2 Auth, allotments, roles | AM-2 | Merged (in Review) |
-| 3 Map features CRUD + editor | AM-3 | Merged (in Review) |
-| 4 Tasks pinned to features | AM-4 | Merged (in Review) |
-| 5 Printable daily todo | AM-5 | Merged (in Review) |
-| 6 Media upload, EXIF, timeline | AM-6 | Merged (in Review) |
-| 7 Progress overview | AM-7 | Merged (in Review) |
-| 8 Mastodon posting | AM-8 | Merged (in Review) |
-| 9 Map from media (OpenSfM) | AM-9 | Merged (in Review) |
+| 1 Scaffold, Docker, observability | AM-1 | Done |
+| 2 Auth, allotments, roles | AM-2 | Done |
+| 3 Map features CRUD + editor | AM-3 | Done |
+| 4 Tasks pinned to features | AM-4 | Done |
+| 5 Printable daily todo | AM-5 | Done |
+| 6 Media upload, EXIF, timeline | AM-6 | Done |
+| 7 Progress overview | AM-7 | Done |
+| 8 Mastodon posting | AM-8 | Done |
+| 9 Map from media (OpenSfM) | AM-9 | Done |
 | 10 Polish: seed data, e2e, docs | AM-10 | Backlog |
-| 11 Measuring checklist (map accuracy) | AM-17 | Backend and phone screen merged (in Review); web page is AM-36 |
-| Recognise objects in photos | AM-25 | Merged (in Review) |
-| Plot boundary from fences | AM-26 | Merged; no outline from the real set (see AM-26 notes) |
-| Per-frame GPS from video telemetry | AM-22 | Merged (in Review) |
-| 12 Mobile app: shell, auth, offline queue | AM-27 | Merged (in Review); see [mobile.md](mobile.md) |
-| 13 Mobile app: guided photo capture | AM-28 | Merged (in Review); see [mobile.md](mobile.md) |
-| 14 Mobile app: Measure screen | AM-29 | Merged (in Review); see [mobile.md](mobile.md) |
+| 11 Measuring checklist (map accuracy) | AM-17 | Backend and phone screen done; web page is AM-36 |
+| Recognise objects in photos | AM-25 | Done |
+| Plot boundary from fences | AM-26 | Done; no outline from the real set (see AM-26 notes) |
+| Per-frame GPS from video telemetry | AM-22 | Done |
+| 12 Mobile app: shell, auth, offline queue | AM-27 | Done; see [mobile.md](mobile.md) |
+| 13 Mobile app: guided photo capture | AM-28 | Done; see [mobile.md](mobile.md) |
+| 14 Mobile app: Measure screen | AM-29 | Done; see [mobile.md](mobile.md) |
 | 15 Mobile app: walk the boundary with GPS | AM-30 | Backlog |
 | 16 Mobile app: tasks and quick photos | AM-31 | Backlog |
 | 17 Seed library | AM-38 | Backlog |
@@ -36,8 +36,10 @@ Tickets live in YouTrack project **AM** (Allotment Manager) at pm.daubney.dev. W
 | 21 Packet scanning pipeline | AM-42 | Backlog |
 | 22 Suggested tasks and overview | AM-43 | Backlog |
 | 23 Mobile: library, trays, bed plantings | AM-44 | Backlog |
-| CI: Gitea Actions | AM-11 | Merged (in Review) |
-| README, production compose, automatic migrations | AM-45 | Merged (in Review) |
+| CI: Gitea Actions | AM-11 | Done |
+| README, production compose, automatic migrations | AM-45 | Done |
+| Logo and app icon | AM-46 | Done |
+| Mobile app design pass | AM-37 | Done |
 
 ## Repo layout (monorepo)
 ```
