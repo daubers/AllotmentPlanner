@@ -150,6 +150,16 @@ def test_calendar_from_words_when_ocr_runs_the_lines_together():
     assert months_from_words(ocr) == {"sow_outdoors": [3, 4, 5, 6], "harvest": [5, 6, 7]}
 
 
+def test_each_row_stops_at_the_next_label():
+    one_line = "For outdoor sowing When March to June Where In the bed Harvest May to July Tip x"
+    assert months_from_words(one_line) == {"sow_outdoors": [3, 4, 5, 6], "harvest": [5, 6, 7]}
+    rows = "For outdoor sowing\nWhen March to June\nHarvest May to November"
+    assert months_from_words(rows) == {
+        "sow_outdoors": [3, 4, 5, 6],
+        "harvest": [5, 6, 7, 8, 9, 10, 11],
+    }
+
+
 def test_a_whole_packet():
     facts = parse_packet_text(FOTHERGILLS_CARROT, TODAY)
     assert (facts.supplier, facts.sow_depth_mm, facts.best_before_year) == (

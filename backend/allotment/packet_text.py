@@ -166,6 +166,11 @@ def months_in(text: str) -> list[int]:
     return sorted(found)
 
 
+def _until_next_label(phrase: str) -> str:
+    """Cut a phrase where the next row of the table starts ("When March to June Where ...")."""
+    return re.split(r"\b(?:where|how|care|tip|harvest|when)\b", phrase, maxsplit=1, flags=re.I)[0]
+
+
 def months_from_words(text: str) -> dict[str, list[int]]:
     """The calendar of a packet that has no graphic, from "When March to June" and "Harvest" rows.
 
@@ -173,18 +178,18 @@ def months_from_words(text: str) -> dict[str, list[int]]:
     block is searched for the first months after "When" and after "Harvest". Only what is stated is
     returned; an activity with no months is left out.
     """
-    t = re.sub(r"\s+", " ", text)
+    t = re.sub(r"[ \t]+", " ", text)
     marks = [(m.start(), "sow_outdoors") for m in re.finditer(r"for outdoor sowing", t, re.I)]
     marks += [(m.start(), "sow_indoors") for m in re.finditer(r"for indoor sowing", t, re.I)]
     marks.sort()
     out: dict[str, set[int]] = {}
     for i, (start, section) in enumerate(marks):
         chunk = t[start : marks[i + 1][0] if i + 1 < len(marks) else len(t)]
-        when = re.search(r"\bwhen\b\W*([^|]{0,45})", chunk, re.I)
-        if when and (months := months_in(when.group(1))):
+        when = re.search(r"\bwhen\b\W*([^|\n]{0,60})", chunk, re.I)
+        if when and (months := months_in(_until_next_label(when.group(1)))):
             out.setdefault(section, set()).update(months)
-        for harvest in re.finditer(r"\bharvest\b\W*([^|.]{0,45})", chunk, re.I):
-            out.setdefault("harvest", set()).update(months_in(harvest.group(1)))
+        for harvest in re.finditer(r"\bharvest\b\W*([^|.\n]{0,60})", chunk, re.I):
+            out.setdefault("harvest", set()).update(months_in(_until_next_label(harvest.group(1))))
     return {k: sorted(v) for k, v in out.items() if v}
 
 

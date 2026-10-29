@@ -1,6 +1,6 @@
 # Seed packet reading: spike results (AM-39)
 
-**Verdict: go, with a different design from the plan.** The calendar can be read from pixels very
+**Verdict: go, with a different design from the plan. (Update, section 4: CPU OCR plus a parser beat the vision model, so no GPU or VLM is needed.)** The calendar can be read from pixels very
 reliably. A 2B vision-language model reads *who and what* a packet is well, but not the small-print
 numbers, so numbers come from transcribing the text and parsing it in code. Every value goes to a
 draft the user reviews; nothing is trusted blindly.
@@ -93,6 +93,35 @@ Run on the host's GPU (M2 Pro, fp16). Images went in as the phone took them.
   pays that once per restart. One packet with both passes is about 50 s on this card, so scanning
   a handful of packets at a time is fine and a whole drawer is a coffee-break job.
 - Everything runs locally; nothing about a packet leaves the network.
+
+## 4. CPU OCR plus the parser (AM-42, step 0): the plan changed
+
+Same 23 packets, no GPU. RapidOCR (PaddleOCR models through ONNX Runtime) and Tesseract, each over
+all four rotations on the worker machine's 12 cores, the text then read by the pure parser
+(`allotment/packet_text.py`).
+
+| Field | Qwen2-VL-2B, transcribe + parse (GPU) | **RapidOCR + parser (CPU)** | Tesseract + parser (CPU) |
+|---|---|---|---|
+| Supplier | | **100%** | 74% |
+| Plant name found in the text | | **100%** | 71% |
+| Seeds in packet | 35% | **87%** | 30% |
+| Sow depth | 65% | **87%** | 78% |
+| Days to germinate | 78% | **91%** | 91% |
+| "Sow by" year | 48% | **87%** | 52% |
+| Calendar months from words (Johnsons, 4 fields) | | 3 of 4 | 2 of 4 |
+| Seconds per packet | 33 | **11** (all four rotations) | 10 |
+
+So a plain CPU engine plus code beats the vision model on every field, in a third of the time and
+with no GPU. RapidOCR is the better engine. Getting from 65% to 87% on "sow by" and depth was
+parser work, not model work: OCR drops spaces (`Sowby`, `DEC2028`), shuffles the "packed in" and
+"sow by" dates (the latest date near the label wins), reads `0.5` as `O.5`, and packets often give
+two depths (the one for sowing outdoors wins). Name and variety come from a plant vocabulary plus
+the nearest title line: 20 of 21 names and 21 of 23 varieties; the one miss is a photo with two
+packets in frame.
+
+The calendar reader was ported to `allotment/calendar_cv.py` and gives 955 of 960 month-cells on
+the same packets (99.5%). Everything here was tuned on these 23 photos, so expect less on new ones.
+**The vision-language model is no longer needed**, which is why AM-42 now runs on a CPU.
 
 ## Recommended design for AM-42
 

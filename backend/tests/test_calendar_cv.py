@@ -15,7 +15,7 @@ CELL, HEIGHT = 50, 40
 def draw_calendar(
     cells: dict[int, list[tuple]], rotate: int = 0, noise: bool = False
 ) -> Image.Image:
-    """A packet-like image with a framed 12-cell bar; ``cells[m]`` lists month m's colours, top down."""
+    """A packet-like image with a framed 12-cell bar. ``cells[m]``: month m's colours, top down."""
     img = Image.new("RGB", (1000, 800), (245, 245, 240))
     d = ImageDraw.Draw(img)
     x0, y0 = 150, 300
