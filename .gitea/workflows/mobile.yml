@@ -31,6 +31,14 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v3
+        with:
+          # The action answers the licence prompts on stdin, which the Gitea runner's container
+          # does not pass through ("8 of 8 SDK package licenses not accepted"), so accept them here.
+          accept-android-sdk-licenses: false
+      - name: Accept the Android SDK licences
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          test -s "$ANDROID_HOME/licenses/android-sdk-license"
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
