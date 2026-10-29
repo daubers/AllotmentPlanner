@@ -1,0 +1,12 @@
+# Add-on for an NVIDIA GPU. Use with docker-compose.gpu-worker.yml and TORCH_INDEX=cu126.
+# The host needs the NVIDIA driver and the NVIDIA Container Toolkit (`nvidia-ctk runtime configure
+# --runtime=docker`); `docker run --rm --gpus all ubuntu nvidia-smi` should list the card.
+services:
+  mapper:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

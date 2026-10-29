@@ -1,9 +1,10 @@
 """Finds objects in a photo and outlines them. Runs on the mapper worker only.
 
 Grounding DINO finds things from a text description ("water butt. shed. tree."), then SAM draws
-an accurate outline inside each box. Both are open models that run on the CPU; they are
-downloaded into ``HF_HOME`` the first time they are needed (they are too big to bake into the
-image: the registry in front of it limits the size of a single layer).
+an accurate outline inside each box. Both are open models. They run on the CPU, or on a GPU (NVIDIA
+CUDA or AMD ROCm, which PyTorch both calls "cuda") when the worker has one: see ``TORCH_DEVICE``.
+They are downloaded into ``HF_HOME`` the first time they are needed (they are too big to bake into
+the image: the registry in front of it limits the size of a single layer).
 """
 
 import os
@@ -15,6 +16,7 @@ import structlog
 from PIL import Image
 
 from .detection_labels import MAX_MASK_FRACTION, TYPES, ObjectType, prompt_text, type_for_phrase
+from .devices import pick_device
 
 log = structlog.get_logger(__name__)
 
@@ -62,11 +64,19 @@ class TransformersDetector:
         )
 
         self.torch = torch
-        log.info("detector_loading", detector=DETECTOR_MODEL, segmenter=SEGMENTER_MODEL)
+        self.device = pick_device(os.environ.get("TORCH_DEVICE"), torch.cuda.is_available())
+        log.info(
+            "detector_loading",
+            detector=DETECTOR_MODEL,
+            segmenter=SEGMENTER_MODEL,
+            device=self.device,
+            gpu=torch.cuda.get_device_name(self.device) if self.device.startswith("cuda") else None,
+        )
         self.det_processor = AutoProcessor.from_pretrained(DETECTOR_MODEL)
-        self.det_model = AutoModelForZeroShotObjectDetection.from_pretrained(DETECTOR_MODEL).eval()
+        self.det_model = AutoModelForZeroShotObjectDetection.from_pretrained(DETECTOR_MODEL)
+        self.det_model = self.det_model.to(self.device).eval()
         self.seg_processor = SamProcessor.from_pretrained(SEGMENTER_MODEL)
-        self.seg_model = SamModel.from_pretrained(SEGMENTER_MODEL).eval()
+        self.seg_model = SamModel.from_pretrained(SEGMENTER_MODEL).to(self.device).eval()
         self.text = prompt_text()
 
     def detect(self, image: Image.Image) -> list[Detection]:
@@ -75,7 +85,9 @@ class TransformersDetector:
         small = image.convert("RGB")
         small.thumbnail((MAX_SIDE, MAX_SIDE))
         scale = full_w / small.width
-        inputs = self.det_processor(images=small, text=self.text, return_tensors="pt")
+        inputs = self.det_processor(images=small, text=self.text, return_tensors="pt").to(
+            self.device
+        )
         with torch.no_grad():
             out = self.det_model(**inputs)
         target = [small.size[::-1]]
@@ -106,7 +118,7 @@ class TransformersDetector:
             small,
             input_boxes=[[result["boxes"][i].tolist() for i, _ in picked]],
             return_tensors="pt",
-        )
+        ).to(self.device)
         with torch.no_grad():
             seg_out = self.seg_model(**seg_in, multimask_output=False)
         masks = self.seg_processor.image_processor.post_process_masks(

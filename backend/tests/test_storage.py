@@ -75,3 +75,26 @@ def test_delete_prefix_removes_only_that_folder(storage, source):
     assert storage.get_bytes("layers/1/tiles/1/0/0.png") is None
     assert storage.get_bytes("layers/10/tiles/0/0/0.png") == DATA  # a different layer, same digits
     storage.delete_prefix("layers/nothing-here")  # a missing prefix is fine
+
+
+def test_copy_tree_moves_files_under_their_keys_and_can_be_rerun(tmp_path):
+    from allotment.storage import copy_tree
+
+    src = tmp_path / "media"
+    (src / "allotments/1/layers/7/tiles").mkdir(parents=True)
+    (src / "allotments/1/a.jpg").write_bytes(b"photo")
+    (src / "allotments/1/layers/7/tiles/0.png").write_bytes(b"tile")
+    source = FileStorage(str(src))
+    with mock_aws():
+        dest = S3Storage(boto3.client("s3", region_name="us-east-1"), "bucket")
+        assert copy_tree(source, dest, dry_run=True) == (2, 0)
+        with pytest.raises(Exception):  # noqa: B017 - a dry run must not create the bucket's objects
+            dest.size("allotments/1/a.jpg")
+        assert copy_tree(source, dest) == (2, 0)
+        assert dest.get_bytes("allotments/1/layers/7/tiles/0.png") == b"tile"
+        assert (
+            dest.client.head_object(Bucket="bucket", Key="allotments/1/a.jpg")["ContentType"]
+            == "image/jpeg"
+        )
+        (src / "allotments/1/b.jpg").write_bytes(b"new")  # arrives later
+        assert copy_tree(source, dest) == (1, 2)

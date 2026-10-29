@@ -1,5 +1,6 @@
 """Object storage for uploaded media: plain files (default) or any S3-compatible service."""
 
+import mimetypes
 import shutil
 from collections.abc import Iterator
 from pathlib import Path
@@ -164,3 +165,28 @@ def safe_delete(*keys: str | None) -> None:
                 storage.delete(key)
             except Exception:  # noqa: BLE001 - best effort, logged by caller context
                 current_app.logger.warning("could not delete %s", key)
+
+
+def copy_tree(source: FileStorage, dest: Storage, dry_run: bool = False) -> tuple[int, int]:
+    """Copy every file under ``source`` into ``dest`` under the same key (the path below the root).
+
+    Files already there with the same size are skipped, so it can be run again after an
+    interruption or to pick up what arrived since. Returns ``(copied, skipped)``.
+    """
+    copied = skipped = 0
+    root = source.root.resolve()
+    for path in sorted(p for p in root.rglob("*") if p.is_file()):
+        key = path.relative_to(root).as_posix()
+        size = path.stat().st_size
+        try:
+            if dest.size(key) == size:
+                skipped += 1
+                continue
+        except Exception:  # noqa: BLE001 - not there yet (FileNotFoundError or a 404 from S3)
+            pass
+        if not dry_run:
+            dest.put(
+                key, str(path), mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+            )
+        copied += 1
+    return copied, skipped
