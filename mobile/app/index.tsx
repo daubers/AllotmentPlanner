@@ -175,6 +175,14 @@ export default function Home() {
         </Section>
       ) : null}
 
+      {current ? (
+        <Section title="Seeds and beds">
+          <Tile title="Seeds" body="Your packets: what to sow this month, and scan a new one by photographing its back." onPress={() => router.push("/seeds")} />
+          <Tile title="Seed trays" body="See what is sown where, and mark what has come up. Works without signal." onPress={() => router.push("/trays")} />
+          <Tile title="Beds" body="What is growing in each bed, and how it is getting on." onPress={() => router.push("/beds")} />
+        </Section>
+      ) : null}
+
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.md, marginTop: space.md }}>
         <View style={{ flex: 1 }}>
           <T kind="caption" muted numberOfLines={1}>

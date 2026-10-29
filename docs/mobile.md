@@ -1,6 +1,6 @@
 # Mobile app (Expo / React Native)
 
-`mobile/` is the field app for Android and iOS: TypeScript, Expo SDK 58, Expo Router. It uses the same API as the web app. Phases and tickets: see "Mobile app" in [plan.md](plan.md) (AM-27 to AM-31).
+`mobile/` is the field app for Android and iOS: TypeScript, Expo SDK 58, Expo Router. It uses the same API as the web app. Phases and tickets: see "Mobile app" in [plan.md](plan.md) (AM-27 to AM-31, AM-44).
 
 ## What exists (AM-27)
 - Sign in with a server address, email and password. Tokens and the server address live in the phone's secure storage; an expiring token is refreshed automatically, and only a refused refresh signs the person out (no signal never does).
@@ -22,6 +22,14 @@ Not yet checked on a real phone: the compass reading for a camera held upright (
 ## Measure the plot (AM-29, server side AM-17)
 "Measure the plot" lists the distances to take. The server makes the list from the shapes drawn on the map ("Make the checklist" / "Update from the map"): a polygon gets its sides plus a diagonal from corner 1 to each non-neighbouring corner (2n-3 distances fix a shape exactly), a line gets one per segment, a circle its radius. Each row opens a screen with a sketch of the shape, the two corners being measured drawn bold, what the map says, and an entry box that understands `3.2`, `320cm`, `10ft 6in` and `10'6"`; **Save and next** goes to the next unmeasured distance. Values are saved at once on screen and sent through the offline queue, so measuring works without signal (making the checklist and applying need to be online). The unit shown (m, cm, ft/in) is a setting of the allotment; the owner picks it.
 **Apply to map** previews the correction: the drawn outline dashed, the corrected one solid on the same scale, how far corners move, and warnings (a measurement that disagrees with the others, which probably means a misread; shapes that still need more measurements, whose other corners stay as drawn). Applying is all or nothing and counts as a map edit on the overview. The fit itself is least squares on local metres, pinned to the drawn position so the shape is not shifted, turned or mirrored (`backend/allotment/measure.py`). Adding a spare distance by hand (`POST /measurements`) gives the fit something to check the others against; exactly 2n-3 measurements always fit perfectly, so mistakes only show up when there is a spare.
+
+## Seeds, trays and beds (AM-44)
+Three tiles on the home screen, built on the web phases (AM-38, AM-40, AM-41, AM-42):
+- **Seeds**: the library with search and a "Sow this month" switch (a packet counts if it can be sown indoors or outdoors that month), packets waiting under "To review", and a packet screen with every field, the 12-month by 4-activity strip (tap a month to flip it) and photos. **Scan a packet** opens the camera; the photo goes through the offline queue as an upload with `read_packet=true`, so the one queued request both stores the photo and has the server read it into a draft (a resent upload carries the same `client_id`, so it is never read twice). The draft screen says what the reader could not find, shows the calendar as it was read, and Save to library makes it active. Saving a packet needs signal (it says so).
+- **Seed trays**: a grid you can tap (a row or column number picks the whole line), coloured per kind of seed with a tick for came up and a cross for failed. With cells chosen: Came up, Failed, Back to sown, Clear, or sow a packet with a seed count. Changes show at once and go through the queue, so it works in the greenhouse without signal (`src/trays/model.ts` applies them locally and builds the request). Photos of the tray link to it.
+- **Beds**: each bed with what is growing, a sketch of the bed with its planting areas as labelled regions, and for each planting its state (change it with one tap; queued like tray changes) and a photo. Drawing a planting area and planting out a tray are done on the web for now (clicking the corners of an area is a poor fit for a thumb; AM-58 and AM-59 cover better ways).
+
+One camera screen (`app/photo.tsx`) serves all of these: scanning a packet, or a photo of a packet, tray or planting (`?mode=scan`, `?packetId=`, `?trayId=`, `?plantingId=`).
 
 ## Design
 Used outdoors, in sun, often with muddy hands, so: strong contrast in both themes (text and buttons all clear 4.5:1; the light theme is the one for bright days), 48 px touch targets, large type, and status always written as words as well as colour. Tokens (colours, type scale, spacing) are in `src/ui/theme.ts`; the shared pieces (screen with back button, cards, list rows, buttons, chips, banners, progress, fields, segmented control, loading/empty states) in `src/ui/kit.tsx`. Screens follow one pattern: a clear title and one line saying what it is for, content in cards, the one action that matters pinned at the bottom. The home screen leads with the allotment's name and the two things you do there; anything waiting to send shows as a banner that opens the Sending screen (retry or discard failures).
@@ -46,4 +54,4 @@ On the sign-in screen, enter the address the phone can reach. For the developmen
 `npm run typecheck`, `npm test` (Jest: session, queue, request handlers), and `npx expo export` (bundling) run in CI as the `mobile` job. Sensors, camera, background transfer and the native screens can only be checked on a device or simulator.
 
 ## Not yet
-Video capture, Measure (AM-29), boundary trace (AM-30), tasks and quick photos (AM-31), app store distribution.
+Video capture, boundary trace (AM-30), tasks and quick photos (AM-31), drawing planting areas and planting out on the phone, app store distribution.

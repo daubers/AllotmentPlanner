@@ -35,7 +35,7 @@ Tickets live in YouTrack project **AM** (Allotment Manager) at pm.daubney.dev. W
 | 20 Bed plantings | AM-41 | Merged (in Review); web only, mobile is AM-44 |
 | 21 Packet scanning pipeline | AM-42 | Merged (in Review); web only, CPU OCR, mobile scan is AM-44 |
 | 22 Suggested tasks and overview | AM-43 | Backlog |
-| 23 Mobile: library, trays, bed plantings | AM-44 | Backlog |
+| 23 Mobile: library, trays, bed plantings | AM-44 | Merged (in Review); see [mobile.md](mobile.md) |
 | Later: a GPU for packet reading and faster mapping (parked: money) | AM-56 | Backlog |
 | CI: Gitea Actions | AM-11 | Done |
 | README, production compose, automatic migrations | AM-45 | Done |
