@@ -17,6 +17,13 @@ function Gate() {
       <Stack.Screen name="measure/index" />
       <Stack.Screen name="measure/[id]" />
       <Stack.Screen name="measure/apply" />
+      <Stack.Screen name="seeds/index" />
+      <Stack.Screen name="seeds/[id]" />
+      <Stack.Screen name="trays/index" />
+      <Stack.Screen name="trays/[id]" />
+      <Stack.Screen name="beds/index" />
+      <Stack.Screen name="beds/[id]" />
+      <Stack.Screen name="photo" options={{ animation: "slide_from_bottom" }} />
       <Stack.Screen name="demo" />
       <Stack.Screen name="capture" options={{ animation: "slide_from_bottom" }} />
     </Stack>

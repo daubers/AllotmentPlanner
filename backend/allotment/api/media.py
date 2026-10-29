@@ -238,6 +238,10 @@ class MediaList(MethodView):
             payload={"kind": kind, "size_bytes": size},
         )
         _enqueue(media)
+        if form["read_packet"] and kind == "photo":
+            from .packet_scans import start_scan  # here, not at the top: it imports this module
+
+            start_scan(allotment.id, media, membership.user_id)
         return media_to_dict(media)
 
 

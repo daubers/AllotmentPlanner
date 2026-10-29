@@ -52,6 +52,15 @@ def _enqueue(scan: PacketScan) -> None:
         db.session.expire_all()  # the eager task committed through its own session
 
 
+def start_scan(allotment_id: int, media: Media, user_id: int | None) -> PacketScan:
+    """Queue reading ``media`` as the back of a packet (the scan API and photo uploads use it)."""
+    scan = PacketScan(allotment_id=allotment_id, media_id=media.id, created_by=user_id)
+    db.session.add(scan)
+    db.session.commit()
+    _enqueue(scan)
+    return scan
+
+
 @blp.route("")
 class ScanList(MethodView):
     @require_role(Role.VIEWER)
@@ -76,13 +85,7 @@ class ScanList(MethodView):
             abort(422, message="media_id does not belong to this allotment")
         if media.kind != "photo":
             abort(422, message="Only photos can be read")
-        scan = PacketScan(
-            allotment_id=allotment.id, media_id=media.id, created_by=membership.user_id
-        )
-        db.session.add(scan)
-        db.session.commit()
-        _enqueue(scan)
-        return scan_to_dict(scan)
+        return scan_to_dict(start_scan(allotment.id, media, membership.user_id))
 
 
 @blp.route("/<int:scan_id>")

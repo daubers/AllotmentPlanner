@@ -60,6 +60,71 @@ function checklist() {
   };
 }
 
+// --- seeds, trays and plantings (the screens added in AM-44) ----------------------------------------
+let packets: any[] = [
+  { id: 1, status: "active", name: "Tomato", variety: "Moneymaker", supplier: "Suttons", stock: "part", sow_depth_mm: 5, germinate_days_min: 7, germinate_days_max: 14, best_before_year: 2027, seeds_in_packet: 50, maturity_days_min: 70, maturity_days_max: 90, notes: "", calendar: { sow_indoors: [2, 3, 4], plant_out: [5, 6], harvest: [8, 9, 10] }, photos: [], updated_at: "2026-10-01T10:00:00Z" },
+  { id: 2, status: "active", name: "Carrot", variety: "Flyaway F1", supplier: "Mr Fothergill's", stock: "full", sow_depth_mm: 15, germinate_days_min: 14, germinate_days_max: 21, best_before_year: 2028, seeds_in_packet: 500, notes: "", calendar: { sow_outdoors: [3, 4, 5, 6, 7], harvest: [6, 7, 8, 9, 10, 11] }, photos: [], updated_at: "2026-10-01T10:00:00Z" },
+  { id: 3, status: "active", name: "Kale", variety: "", supplier: "Johnsons", stock: "low", notes: "", calendar: { sow_outdoors: [4, 5], plant_out: [6, 7], harvest: [10, 11, 12, 1, 2] }, photos: [], updated_at: "2026-10-01T10:00:00Z" },
+  { id: 4, status: "draft", name: "Parsley", variety: "Moss Curled 2", supplier: "Mr Fothergill's", stock: "full", sow_depth_mm: 15, germinate_days_min: 14, germinate_days_max: 21, best_before_year: null, seeds_in_packet: 500, notes: "", calendar: { sow_indoors: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], sow_outdoors: [3, 4, 5, 6, 7], harvest: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] }, photos: [], updated_at: "2026-10-29T10:00:00Z" },
+];
+const scans = [{ id: 1, status: "ready", packet_id: 4, media_id: 1, calendar_source: "graphic", rotation: 0, missing: ["best_before_year"], crop: null, finished_at: "2026-10-29T10:00:00Z" }];
+let tray: any = {
+  id: 1, name: "Greenhouse 1", rows: 3, cols: 4, tray_type: "12-cell", location: "left shelf", status: "active", sown_on: "2026-03-01", updated_at: "2026-03-02T10:00:00Z",
+  kinds: [{ packet_id: 1, name: "Tomato", variety: "Moneymaker", cells: 3, seeds: 3 }, { packet_id: 3, name: "Kale", variety: "", cells: 2, seeds: 2 }],
+  cells: [
+    { row: 0, col: 0, packet_id: 1, count: 1, status: "germinated" },
+    { row: 0, col: 1, packet_id: 1, count: 1, status: "germinated" },
+    { row: 0, col: 2, packet_id: 1, count: 1, status: "sown" },
+    { row: 1, col: 0, packet_id: 3, count: 1, status: "sown" },
+    { row: 1, col: 1, packet_id: 3, count: 1, status: "failed" },
+  ],
+  photos: [],
+};
+const counts = () => {
+  const c: any = { empty: tray.rows * tray.cols, sown: 0, germinated: 0, failed: 0, planted_out: 0 };
+  for (const cell of tray.cells) { c[cell.status] += 1; c.empty -= 1; }
+  return c;
+};
+let plantings: any[] = [
+  { id: 1, feature_id: 1, bed_name: "Raised bed 1", packet_id: 2, packet_name: "Carrot", packet_variety: "Flyaway F1", region: polygon([0.5, 0.5], [5, 0.5], [5, 4], [0.5, 4]), area_m2: 15.7, count: 60, method: "direct_sow", status: "growing", sown_on: "2026-04-10", notes: "", warnings: [] },
+  { id: 2, feature_id: 1, bed_name: "Raised bed 1", packet_id: 1, packet_name: "Tomato", packet_variety: "Moneymaker", region: polygon([5.5, 0.5], [9.5, 0.5], [9.5, 4.5], [5.5, 4.5]), area_m2: 16, count: 6, method: "transplant", status: "harvesting", sown_on: "2026-03-01", planted_on: "2026-05-20", notes: "", warnings: [] },
+];
+
+function seedDemo(path: string, method: string, body: any, query: URLSearchParams): Response | null {
+  const base = path.replace(/^\/api\/v1\/allotments\/\d+/, "");
+  if (base === "/packets") {
+    const status = query.get("status");
+    return json(packets.filter((p) => !status || p.status === status));
+  }
+  const packet = base.match(/^\/packets\/(\d+)$/);
+  if (packet) {
+    const i = packets.findIndex((p) => p.id === Number(packet[1]));
+    if (method === "PATCH") packets[i] = { ...packets[i], ...body, updated_at: new Date().toISOString() };
+    return json(packets[i]);
+  }
+  if (base === "/packet-scans") return json(scans);
+  if (base === "/trays") return json([{ ...tray, counts: counts(), cells: undefined }]);
+  if (base === "/trays/1") return json({ ...tray, counts: counts() });
+  if (base === "/trays/1/cells" && method === "PATCH") {
+    const keys = new Set((body.cells as { row: number; col: number }[]).map((c) => `${c.row},${c.col}`));
+    tray.cells = tray.cells.filter((c: any) => !(keys.has(`${c.row},${c.col}`) && body.set.status === "empty"));
+    for (const k of keys) {
+      const [row, col] = k.split(",").map(Number);
+      const cell = tray.cells.find((c: any) => c.row === row && c.col === col);
+      if (cell) Object.assign(cell, body.set);
+      else if (body.set.packet_id) tray.cells.push({ row, col, count: 1, status: "sown", ...body.set });
+    }
+    return json({ ...tray, counts: counts() });
+  }
+  if (base === "/plantings") return json(plantings);
+  const planting = base.match(/^\/plantings\/(\d+)$/);
+  if (planting && method === "PATCH") {
+    plantings = plantings.map((p) => (p.id === Number(planting[1]) ? { ...p, ...body } : p));
+    return json(plantings.find((p) => p.id === Number(planting[1])));
+  }
+  return null;
+}
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -95,6 +160,8 @@ async function handle(url: string, method: string, body: any): Promise<Response>
   }
   if (path.endsWith("/measurements/sync") || path.endsWith("/measurements")) return json(checklist());
   if (path.endsWith("/map-jobs")) return json({ id: 1 }, 202);
+  const seeds = seedDemo(path, method, body, new URL(url).searchParams);
+  if (seeds) return seeds;
   return json({ message: "not in the demo" }, 404);
 }
 
