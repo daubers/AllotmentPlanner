@@ -30,15 +30,15 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
-        with:
-          # The action answers the licence prompts on stdin, which the Gitea runner's container
-          # does not pass through ("8 of 8 SDK package licenses not accepted"), so accept them here.
-          accept-android-sdk-licenses: false
+      # The setup action answers sdkmanager's licence prompts on stdin, which this runner's
+      # containers do not pass through ("8 of 8 SDK package licenses not accepted"), so the accepted
+      # licence hashes are put in place first. They are the public hashes every Android CI uses.
       - name: Accept the Android SDK licences
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          test -s "$ANDROID_HOME/licenses/android-sdk-license"
+          mkdir -p "$HOME/.android/sdk/licenses"
+          printf '%s\n' 8933bad161af4178b1185d1a37fbf41ea5269c55 d56f5187479451eabf01fb78af6dfcb131a6481e 24333f8a63b6825ea9c5514f83c2829b004d1fee > "$HOME/.android/sdk/licenses/android-sdk-license"
+          printf '%s\n' 84831b9409646a918e30573bab4c9c91346d8abd > "$HOME/.android/sdk/licenses/android-sdk-preview-license"
+      - uses: android-actions/setup-android@v3
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
