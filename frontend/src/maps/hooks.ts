@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../api/client";
+import { api, authHeader } from "../api/client";
 import type { components } from "../api/schema";
 import { anyActive, type MapJob, type MapLayer } from "./status";
 
@@ -92,4 +92,21 @@ export function useMapActions(allotmentId: number) {
       onSuccess: refresh,
     }),
   };
+}
+
+export type GpxOutline = components["schemas"]["BoundaryFromGpx"];
+
+/** Ask the server what outline a GPX trace gives. Nothing is stored: the result is checked, then sent with the build. */
+export async function readGpx(allotmentId: number, file: File): Promise<GpxOutline> {
+  const form = new FormData();
+  form.append("file", file);
+  const header = await authHeader();
+  const res = await fetch(`/api/v1/allotments/${allotmentId}/boundary-from-gpx`, {
+    method: "POST",
+    headers: { Accept: "application/json", ...(header ? { Authorization: header } : {}) },
+    body: form,
+  });
+  const body = (await res.json().catch(() => null)) as (GpxOutline & { message?: string }) | null;
+  if (!res.ok || !body) throw new Error(body?.message ?? "Couldn't read that file");
+  return body;
 }

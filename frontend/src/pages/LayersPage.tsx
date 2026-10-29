@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { formatDuration } from "../media/group";
 import { useMedia } from "../media/hooks";
-import { useMapActions, useLayers, useMapJobDetail, useMapJobs } from "../maps/hooks";
+import { readGpx, useMapActions, useLayers, useMapJobDetail, useMapJobs, type GpxOutline } from "../maps/hooks";
+import OutlinePreview from "../maps/OutlinePreview";
 import { anyActive, clampOpacity, defaultHeight, isActive, jobSummary, readiness, videoFrames, type MapJob } from "../maps/status";
 import { useAllotment } from "./AllotmentLayout";
 
@@ -20,6 +21,9 @@ export default function LayersPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [openJob, setOpenJob] = useState<number | null>(null);
+  const [outline, setOutline] = useState<GpxOutline | null>(null);
+  const [gpxError, setGpxError] = useState<string | null>(null);
+  const [gpxBusy, setGpxBusy] = useState(false);
 
   const files = media.data ?? [];
   const readyFiles = files.filter((m) => m.status === "ready");
@@ -38,7 +42,21 @@ export default function LayersPage() {
   function build(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const name = String(new FormData(e.currentTarget).get("name") ?? "").trim();
-    void attempt(() => actions.build.mutateAsync({ name, view, camera_height_m: height, detect_objects: detect, overlay, media_ids: choosing ? [...selected] : null }));
+    void attempt(() => actions.build.mutateAsync({ name, view, camera_height_m: height, detect_objects: detect, overlay, media_ids: choosing ? [...selected] : null, boundary: outline?.polygon ?? null }));
+  }
+
+  async function chooseGpx(file: File | undefined) {
+    if (!file) return;
+    setGpxBusy(true);
+    setGpxError(null);
+    try {
+      setOutline(await readGpx(id, file));
+    } catch (err) {
+      setOutline(null);
+      setGpxError((err as Error).message);
+    } finally {
+      setGpxBusy(false);
+    }
   }
 
   const toggle = (photoId: number) =>
@@ -146,6 +164,31 @@ export default function LayersPage() {
               <input type="number" inputMode="decimal" min={0.3} max={120} step={0.1} value={height} onChange={(e) => setHeight(Number(e.target.value))} />
               <span className="hint">Roughly how high the camera was above the ground. Hand-held is about 1.7.</span>
             </label>
+            {detect && (
+              <fieldset>
+                <legend>Plot boundary (optional)</legend>
+                <p className="hint">
+                  A GPX trace of a walk round the edge of the plot (from a phone or a watch). Things the photos show outside it are
+                  left out, and it is offered as the plot boundary to add to the map.
+                </p>
+                <label>
+                  GPX file
+                  <input type="file" accept=".gpx,application/gpx+xml,text/xml" disabled={gpxBusy} onChange={(e) => void chooseGpx(e.target.files?.[0])} />
+                </label>
+                {gpxBusy && <p className="muted">Reading the trace…</p>}
+                {gpxError && <p role="alert" className="error">{gpxError}</p>}
+                {outline && (
+                  <div role="status">
+                    <p className="ok">
+                      Outline found: {Math.round(outline.area_m2 ?? 0)} m², {Math.round(outline.perimeter_m ?? 0)} m round, {outline.points_out} corners.
+                    </p>
+                    <OutlinePreview polygon={outline.polygon as { coordinates?: unknown }} label="The outline the trace gives" />
+                    {(outline.warnings ?? []).map((w) => <p key={w} className="hint">{w}</p>)}
+                    <button type="button" className="secondary" onClick={() => setOutline(null)}>Don't use it</button>
+                  </div>
+                )}
+              </fieldset>
+            )}
             <fieldset>
               <legend>Photos and videos</legend>
               <label className="check">

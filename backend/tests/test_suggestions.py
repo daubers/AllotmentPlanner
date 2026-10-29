@@ -523,3 +523,67 @@ def test_posts_on_only_two_sides_give_a_rough_outline_that_is_not_ticked_by_defa
     pipeline.detect_objects(j, work, detector=PostDetector(shots, two_sides))
     plot = db.session.query(MapSuggestion).filter_by(kind="boundary").one()
     assert plot.name == "Plot boundary (rough)" and plot.confidence < 0.4
+
+
+# --- a plot boundary from a GPX trace -----------------------------------------------------------
+
+
+def gpx_boundary(x0, y0, x1, y1):
+    """A GeoJSON polygon for a rectangle given in metres east/north of the scene's origin."""
+    lat_m, lon_m = geo.metres_per_degree(REF[0])
+    pts = [(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)]
+    return {
+        "type": "Polygon",
+        "coordinates": [[[REF[1] + x / lon_m, REF[0] + y / lat_m] for x, y in pts]],
+    }
+
+
+def test_a_gpx_boundary_leaves_out_objects_outside_it_and_is_offered_as_the_boundary(job):
+    j, work = job
+    write_reconstruction(work, RING)
+    # covers the water butt, the shed and four of the six camera positions, but not the tree
+    j.boundary = gpx_boundary(-9, -0.5, 9, 9)
+    db.session.commit()
+    found = pipeline.detect_objects(j, work, detector=SceneDetector(RING))
+    assert found == 2
+    rows = {s.name: s for s in db.session.query(MapSuggestion).filter_by(job_id=j.id)}
+    assert set(rows) == {"Water butt", "Shed", "Plot boundary (from GPX)"}
+    plot = rows["Plot boundary (from GPX)"]
+    assert plot.kind == "boundary" and plot.geometry == j.boundary and plot.confidence >= 0.9
+    assert j.objects_found == 3
+    assert "GPX boundary: 2 objects inside it, left out 1 outside it" in j.log
+
+
+def test_a_gpx_boundary_replaces_the_fence_fit(job):
+    j, work = job
+    shots = outward_ring()
+    write_reconstruction(
+        work,
+        shots,
+        spread_m=60.0,
+        ground=np.c_[np.random.default_rng(3).uniform(-9, 9, (80, 2)), np.zeros(80)],
+    )
+    j.boundary = gpx_boundary(-5, -8, 5, 8)
+    db.session.commit()
+    pipeline.detect_objects(j, work, detector=PostDetector(shots, fence_posts()))
+    rows = db.session.query(MapSuggestion).filter_by(job_id=j.id, kind="boundary").all()
+    assert [r.name for r in rows] == ["Plot boundary (from GPX)"]
+    assert "plot's 4 sides" not in j.log
+
+
+def test_a_trace_far_from_the_photos_is_reported_and_not_used_to_drop_objects(job):
+    j, work = job
+    write_reconstruction(work, RING)
+    j.boundary = gpx_boundary(200, 200, 230, 220)  # on the other side of the hill
+    db.session.commit()
+    found = pipeline.detect_objects(j, work, detector=SceneDetector(RING))
+    assert found == 3  # nothing thrown away on the strength of a trace that disagrees
+    assert "photo positions are inside the GPX boundary" in j.log
+    assert "not used to leave objects out" in j.log
+
+
+def test_without_a_boundary_nothing_changes(job):
+    j, work = job
+    write_reconstruction(work, RING)
+    assert pipeline.detect_objects(j, work, detector=SceneDetector(RING)) == 3
+    assert "GPX" not in j.log

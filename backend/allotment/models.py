@@ -490,6 +490,8 @@ class MapJob(db.Model):
     detect_objects: Mapped[bool] = mapped_column(Boolean, default=True, server_default="false")
     overlay: Mapped[bool] = mapped_column(Boolean, default=False, server_default="true")
     objects_found: Mapped[int | None] = mapped_column(nullable=True)
+    # The plot boundary as a GeoJSON Polygon (from a GPX trace): helps place what the photos found.
+    boundary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     error: Mapped[str | None] = mapped_column(String(500), nullable=True)
     log: Mapped[str] = mapped_column(Text, default="")

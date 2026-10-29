@@ -23,7 +23,7 @@ from flask import current_app
 from PIL import Image
 
 from . import boundary as boundary_fit
-from . import calibration, detection_geo, media_meta, video_telemetry
+from . import calibration, detection_geo, media_meta, plot_boundary, video_telemetry
 from . import detector as detector_module
 from . import mapping_geo as geo
 from .extensions import db
@@ -775,6 +775,45 @@ def calibrated_ground(job, rec, shots, raws, spread):
     return scaled_rec, geo.ground_plane_for(scaled_rec)
 
 
+def use_boundary(job, rec, shots, fused):
+    """Leave out objects outside the GPX boundary, if the job has one and the photos agree with it.
+
+    Returns the objects to keep and the boundary in metres (None if there is none to use). If most
+    photo positions are outside the trace, the trace (or the photos' GPS) is out of place, and it
+    must not be used to throw objects away: that is said in the log instead."""
+    if not job.boundary:
+        return fused, None
+    poly = plot_boundary.to_enu(job.boundary, rec.reference)
+    check = plot_boundary.check_cameras(poly, [tuple(s.centre[:2]) for s in shots])
+    if (warning := check.message()) is not None:
+        _append_log(job, f"GPX boundary: {warning}. It was not used to leave objects out")
+        return fused, poly
+    kept, dropped = plot_boundary.keep_inside(poly, fused)
+    _append_log(
+        job,
+        f"GPX boundary: {len(kept)} objects inside it"
+        + (f", left out {len(dropped)} outside it" if dropped else ""),
+    )
+    return kept, poly
+
+
+def propose_gpx_boundary(job) -> bool:
+    """Offer the GPX trace's outline as the Plot boundary suggestion, ticked by default."""
+    db.session.add(
+        MapSuggestion(
+            allotment_id=job.allotment_id,
+            job_id=job.id,
+            kind="boundary",
+            name="Plot boundary (from GPX)",
+            geometry=job.boundary,
+            radius_m=None,
+            confidence=0.95,
+            views=0,
+        )
+    )
+    return True
+
+
 def detect_objects(job: MapJob, work: Path, detector=None) -> int:
     """Find objects in the placed photos, put them on the ground and save them as suggestions
     to review. Returns how many were found."""
@@ -831,6 +870,7 @@ def detect_objects(job: MapJob, work: Path, detector=None) -> int:
     merged = detection_geo.fuse(observations)
     fused = [g for g in merged if detection_geo.worth_keeping(g)]
     _append_log(job, f"{len(merged)} candidates, {len(fused)} kept after dropping likely noise")
+    fused, boundary = use_boundary(job, rec, shots, fused)
     # Suggestions from an earlier run are replaced by this one.
     db.session.query(MapSuggestion).filter_by(
         allotment_id=job.allotment_id, status="pending"
@@ -865,7 +905,10 @@ def detect_objects(job: MapJob, work: Path, detector=None) -> int:
                 views=g.views,
             )
         )
-    outline = propose_boundary(job, rec, shots, fence_points, fence_photos, fused, work)
+    if boundary is not None:
+        outline = propose_gpx_boundary(job)
+    else:
+        outline = propose_boundary(job, rec, shots, fence_points, fence_photos, fused, work)
     job.objects_found = len(fused) + (1 if outline else 0)
     db.session.commit()
     return len(fused)
