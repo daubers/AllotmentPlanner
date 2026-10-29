@@ -11,6 +11,12 @@ class RegisterSchema(Schema):
     password = fields.String(
         required=True, load_only=True, validate=validate.Length(min=8, max=128)
     )
+    invite_code = fields.String(
+        load_default=None,
+        metadata={
+            "description": "From an allotment owner; needed when registration is invite-only"
+        },
+    )
 
 
 class LoginSchema(Schema):
@@ -59,6 +65,24 @@ class AllotmentSchema(Schema):
 class MemberAddSchema(Schema):
     email = fields.Email(required=True)
     role = fields.String(load_default="viewer", validate=validate.OneOf(ROLES))
+
+
+class InviteCreateSchema(Schema):
+    email = fields.Email(required=True)
+    role = fields.String(load_default="viewer", validate=validate.OneOf(ROLES))
+
+
+class InviteSchema(Schema):
+    email = fields.Email()
+    role = fields.String()
+    invite_code = fields.String(
+        metadata={"description": "Give this to the invitee; works only with their email"}
+    )
+    expires_in_days = fields.Integer()
+
+
+class AuthConfigSchema(Schema):
+    registration = fields.String(metadata={"description": "open or invite"})
 
 
 class MemberUpdateSchema(Schema):

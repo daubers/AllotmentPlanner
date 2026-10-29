@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMastodon, useMastodonActions, useMastodonPosts } from "../mastodon/hooks";
 import { canRetry, kindLabel, postStatus } from "../mastodon/status";
 import { useAllotment } from "./AllotmentLayout";
+import InvitePanel from "./InvitePanel";
 
 const VISIBILITIES = [
   ["unlisted", "Unlisted: public, but kept out of public timelines"],
@@ -149,6 +150,8 @@ export default function SettingsPage() {
       ) : (
         <p className="muted">Nothing posted yet.</p>
       )}
+
+      {isOwner && <InvitePanel allotmentId={id} />}
     </main>
   );
 }

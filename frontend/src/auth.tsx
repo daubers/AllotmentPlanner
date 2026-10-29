@@ -7,7 +7,7 @@ type AuthState = {
   user: User | null;
   loading: boolean;
   login(email: string, password: string): Promise<string | null>;
-  register(email: string, displayName: string, password: string): Promise<string | null>;
+  register(email: string, displayName: string, password: string, inviteCode?: string): Promise<string | null>;
   logout(): void;
 };
 
@@ -55,9 +55,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(data.user ?? null);
         return null;
       },
-      async register(email, display_name, password) {
+      async register(email, display_name, password, inviteCode) {
         const { data, error } = await api.POST("/api/v1/auth/register", {
-          body: { email, display_name, password },
+          body: { email, display_name, password, ...(inviteCode ? { invite_code: inviteCode } : {}) },
         });
         if (!data) return errorMessage(error, "Registration failed");
         setSession({ access_token: data.access_token!, refresh_token: data.refresh_token! });

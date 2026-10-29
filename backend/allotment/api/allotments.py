@@ -1,14 +1,18 @@
+from flask import current_app
 from flask.views import MethodView
 from flask_jwt_extended import jwt_required
 from flask_smorest import Blueprint, abort
 
 from .. import events
 from ..extensions import db
+from ..invites import make_invite
 from ..models import Allotment, Media, Membership, Role, User
 from ..schemas import (
     AllotmentCreateSchema,
     AllotmentSchema,
     AllotmentUpdateSchema,
+    InviteCreateSchema,
+    InviteSchema,
     MemberAddSchema,
     MemberSchema,
     MemberUpdateSchema,
@@ -140,6 +144,31 @@ class MemberList(MethodView):
             payload={"role": new.role},
         )
         return _member(new)
+
+
+@blp.route("/<int:allotment_id>/invites")
+class InviteList(MethodView):
+    @require_role(Role.OWNER)
+    @blp.arguments(InviteCreateSchema)
+    @blp.response(201, InviteSchema)
+    def post(self, data, allotment, membership):
+        """Invite someone without an account: they register with this code and the same email."""
+        email = data["email"].lower()
+        if db.session.query(User).filter_by(email=email).first():
+            abort(409, message="That email already has an account; add them as a member instead")
+        code = make_invite(allotment.id, email, data["role"], membership.user_id)
+        events.emit(
+            "member.invited",
+            actor_id=membership.user_id,
+            allotment_id=allotment.id,
+            payload={"role": data["role"]},
+        )
+        return {
+            "email": email,
+            "role": data["role"],
+            "invite_code": code,
+            "expires_in_days": current_app.config["INVITE_TTL_DAYS"],
+        }
 
 
 @blp.route("/<int:allotment_id>/members/<int:user_id>")

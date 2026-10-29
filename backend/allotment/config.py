@@ -41,6 +41,10 @@ class Config:
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-only-insecure-secret-change-me-in-prod")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=30)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
+    # "open": anyone who can reach the server may register. "invite": only the very first account
+    # (to bootstrap an empty server) and people holding an invite from an allotment owner.
+    REGISTRATION = os.environ.get("REGISTRATION", "open").lower()
+    INVITE_TTL_DAYS = int(os.environ.get("INVITE_TTL_DAYS", "7"))
     API_TITLE = "Allotment Planner API"
     API_VERSION = "v1"
     OPENAPI_VERSION = "3.0.3"

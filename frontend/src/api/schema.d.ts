@@ -4,6 +4,43 @@
  */
 
 export interface paths {
+    "/api/v1/auth/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How accounts can be created here, so the sign-in page can ask for an invite code. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuthConfig"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/register": {
         parameters: {
             query?: never;
@@ -361,6 +398,52 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Member"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Invite someone without an account: they register with this code and the same email. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InviteCreate"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Invite"];
                     };
                 };
                 422: components["responses"]["UNPROCESSABLE_CONTENT"];
@@ -2269,11 +2352,20 @@ export interface components {
             /** @description Next page number. */
             next_page?: number;
         };
+        AuthConfig: {
+            /** @description open or invite */
+            registration?: string;
+        };
         Register: {
             /** Format: email */
             email: string;
             display_name: string;
             password: string;
+            /**
+             * @description From an allotment owner; needed when registration is invite-only
+             * @default null
+             */
+            invite_code?: string | null;
         };
         User: {
             readonly id?: number;
@@ -2329,6 +2421,23 @@ export interface components {
              * @enum {string}
              */
             role?: "viewer" | "editor" | "owner";
+        };
+        InviteCreate: {
+            /** Format: email */
+            email: string;
+            /**
+             * @default viewer
+             * @enum {string}
+             */
+            role?: "viewer" | "editor" | "owner";
+        };
+        Invite: {
+            /** Format: email */
+            email?: string;
+            role?: string;
+            /** @description Give this to the invitee; works only with their email */
+            invite_code?: string;
+            expires_in_days?: number;
         };
         MemberUpdate: {
             /** @enum {string} */
@@ -2806,8 +2915,8 @@ export interface components {
         };
     };
     responses: {
-        /** @description Unprocessable Content */
-        UNPROCESSABLE_CONTENT: {
+        /** @description Default error response */
+        DEFAULT_ERROR: {
             headers: {
                 [name: string]: unknown;
             };
@@ -2815,8 +2924,8 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Default error response */
-        DEFAULT_ERROR: {
+        /** @description Unprocessable Content */
+        UNPROCESSABLE_CONTENT: {
             headers: {
                 [name: string]: unknown;
             };
