@@ -36,17 +36,17 @@ function toFormData(body: Record<string, unknown>): FormData {
   return form;
 }
 
-export type UploadInput = { file: File; featureId?: number | null; caption?: string };
+export type UploadInput = { file: File; featureId?: number | null; packetId?: number | null; caption?: string };
 
 /** Upload one file, reporting progress (0 to 1). Large videos take minutes, so this uses XHR:
  *  fetch can't report upload progress. */
 export function uploadMedia(
   allotmentId: number,
-  { file, featureId, caption }: UploadInput,
+  { file, featureId, packetId, caption }: UploadInput,
   onProgress?: (fraction: number) => void,
   maxBytes?: number,
 ): Promise<Media> {
-  const form = toFormData({ file, feature_id: featureId, caption });
+  const form = toFormData({ file, feature_id: featureId, packet_id: packetId, caption });
   return sendUpload(`/api/v1/allotments/${allotmentId}/media`, form, { file, onProgress, maxBytes });
 }
 

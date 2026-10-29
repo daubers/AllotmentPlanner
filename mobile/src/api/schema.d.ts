@@ -1028,6 +1028,7 @@ export interface paths {
                     kind?: "photo" | "video";
                     feature_id?: number;
                     task_id?: number;
+                    packet_id?: number;
                     capture_session?: string;
                     /** @description On or after this date */
                     taken_from?: string;
@@ -1316,6 +1317,174 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/packets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Search name, variety, supplier, latin name, notes */
+                    q?: string;
+                    stock?: "full" | "part" | "low" | "empty";
+                    /** @description Only packets with the activity in this month (1 to 12) */
+                    month?: number;
+                    /** @description With month: sow (indoors or outdoors) or one activity */
+                    activity?: "sow" | "sow_indoors" | "sow_outdoors" | "plant_out" | "harvest";
+                };
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Packet"][];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PacketIn"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Packet"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/packets/{packet_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                packet_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    packet_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Packet"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Remove the packet. Its photos stay in the photo timeline, no longer linked to it. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    packet_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    packet_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PacketPatch"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Packet"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
         trace?: never;
     };
     "/api/v1/allotments/{allotment_id}/mastodon": {
@@ -2590,6 +2759,7 @@ export interface components {
             capture_session?: string | null;
             feature_id?: number | null;
             task_id?: number | null;
+            packet_id?: number | null;
             caption?: string;
             status?: string;
             error?: string | null;
@@ -2610,6 +2780,11 @@ export interface components {
             feature_id?: number | null;
             /** @default null */
             task_id?: number | null;
+            /**
+             * @description A seed packet's photo
+             * @default null
+             */
+            packet_id?: number | null;
             /** @default  */
             caption?: string;
             /**
@@ -2645,6 +2820,7 @@ export interface components {
             caption?: string;
             feature_id?: number | null;
             task_id?: number | null;
+            packet_id?: number | null;
             /** Format: date-time */
             taken_at?: string;
             lat?: number | null;
@@ -2684,6 +2860,81 @@ export interface components {
             recent_done?: {
                 [key: string]: unknown;
             }[];
+        };
+        Calendar: {
+            sow_indoors?: number[];
+            sow_outdoors?: number[];
+            plant_out?: number[];
+            harvest?: number[];
+        };
+        Packet: {
+            id?: number;
+            status?: string;
+            name?: string;
+            variety?: string;
+            supplier?: string;
+            latin_name?: string;
+            notes?: string;
+            raw_text?: string;
+            sow_depth_mm?: number | null;
+            spacing_plant_cm?: number | null;
+            spacing_row_cm?: number | null;
+            germinate_days_min?: number | null;
+            germinate_days_max?: number | null;
+            maturity_days_min?: number | null;
+            maturity_days_max?: number | null;
+            sun?: string | null;
+            stock?: string;
+            best_before_year?: number | null;
+            calendar?: components["schemas"]["Calendar"];
+            photos?: components["schemas"]["Media"][];
+            created_by?: number | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        PacketIn: {
+            name: string;
+            variety?: string;
+            supplier?: string;
+            latin_name?: string;
+            notes?: string;
+            raw_text?: string;
+            sow_depth_mm?: number | null;
+            spacing_plant_cm?: number | null;
+            spacing_row_cm?: number | null;
+            germinate_days_min?: number | null;
+            germinate_days_max?: number | null;
+            maturity_days_min?: number | null;
+            maturity_days_max?: number | null;
+            /** @enum {string|null} */
+            sun?: "full" | "partial" | "shade" | null;
+            /** @enum {string} */
+            stock?: "full" | "part" | "low" | "empty";
+            best_before_year?: number | null;
+            calendar?: components["schemas"]["Calendar"];
+        };
+        PacketPatch: {
+            name?: string;
+            variety?: string;
+            supplier?: string;
+            latin_name?: string;
+            notes?: string;
+            raw_text?: string;
+            sow_depth_mm?: number | null;
+            spacing_plant_cm?: number | null;
+            spacing_row_cm?: number | null;
+            germinate_days_min?: number | null;
+            germinate_days_max?: number | null;
+            maturity_days_min?: number | null;
+            maturity_days_max?: number | null;
+            /** @enum {string|null} */
+            sun?: "full" | "partial" | "shade" | null;
+            /** @enum {string} */
+            stock?: "full" | "part" | "low" | "empty";
+            best_before_year?: number | null;
+            calendar?: components["schemas"]["Calendar"];
         };
         MastodonSettings: {
             configured?: boolean;

@@ -222,10 +222,50 @@ class Media(db.Model):
     task_id: Mapped[int | None] = mapped_column(
         ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    packet_id: Mapped[int | None] = mapped_column(
+        ForeignKey("seed_packets.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     caption: Mapped[str] = mapped_column(String(500), default="")
     status: Mapped[str] = mapped_column(String(10), default="pending")  # pending | ready | failed
     error: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class SeedPacket(db.Model):
+    """One seed packet in the library: what it is, how to grow it and when."""
+
+    __tablename__ = "seed_packets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(10), default="active")  # draft | active
+    name: Mapped[str] = mapped_column(String(200))
+    variety: Mapped[str] = mapped_column(String(200), default="")
+    supplier: Mapped[str] = mapped_column(String(200), default="")
+    latin_name: Mapped[str] = mapped_column(String(200), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    raw_text: Mapped[str] = mapped_column(Text, default="")  # as read from the packet
+    sow_depth_mm: Mapped[int | None] = mapped_column(nullable=True)
+    spacing_plant_cm: Mapped[int | None] = mapped_column(nullable=True)
+    spacing_row_cm: Mapped[int | None] = mapped_column(nullable=True)
+    germinate_days_min: Mapped[int | None] = mapped_column(nullable=True)
+    germinate_days_max: Mapped[int | None] = mapped_column(nullable=True)
+    maturity_days_min: Mapped[int | None] = mapped_column(nullable=True)
+    maturity_days_max: Mapped[int | None] = mapped_column(nullable=True)
+    sun: Mapped[str | None] = mapped_column(String(10), nullable=True)  # full | partial | shade
+    stock: Mapped[str] = mapped_column(String(10), default="full")  # full | part | low | empty
+    best_before_year: Mapped[int | None] = mapped_column(nullable=True)
+    # {"sow_indoors": [1, 2], "sow_outdoors": [...], "plant_out": [...], "harvest": [...]}
+    calendar: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
 
 
 class ActivityLog(db.Model):

@@ -1,6 +1,7 @@
 from marshmallow import Schema, fields, validate
 
 from .models import FeatureKind
+from .seeds import ACTIVITIES, STOCK_LEVELS, SUN_LEVELS
 
 ROLES = ["viewer", "editor", "owner"]
 
@@ -216,6 +217,7 @@ class MediaUploadFormSchema(Schema):
     file = fields.Raw(load_default=None, metadata={"type": "string", "format": "binary"})
     feature_id = fields.Integer(load_default=None)
     task_id = fields.Integer(load_default=None)
+    packet_id = fields.Integer(load_default=None, metadata={"description": "A seed packet's photo"})
     caption = fields.String(load_default="", validate=validate.Length(max=500))
     lat = fields.Float(
         load_default=None,
@@ -249,6 +251,7 @@ class MediaQuerySchema(Schema):
     kind = fields.String(validate=validate.OneOf(["photo", "video"]))
     feature_id = fields.Integer()
     task_id = fields.Integer()
+    packet_id = fields.Integer()
     capture_session = fields.String()
     taken_from = fields.Date(metadata={"description": "On or after this date"})
     taken_to = fields.Date(metadata={"description": "On or before this date"})
@@ -261,6 +264,7 @@ class MediaPatchSchema(Schema):
     caption = fields.String(validate=validate.Length(max=500))
     feature_id = fields.Integer(allow_none=True)
     task_id = fields.Integer(allow_none=True)
+    packet_id = fields.Integer(allow_none=True)
     taken_at = fields.DateTime()
     lat = fields.Float(allow_none=True, validate=validate.Range(min=-90, max=90))
     lng = fields.Float(allow_none=True, validate=validate.Range(min=-180, max=180))
@@ -285,6 +289,7 @@ class MediaSchema(Schema):
     capture_session = fields.String(allow_none=True)
     feature_id = fields.Integer(allow_none=True)
     task_id = fields.Integer(allow_none=True)
+    packet_id = fields.Integer(allow_none=True)
     caption = fields.String()
     status = fields.String()
     error = fields.String(allow_none=True)
@@ -584,3 +589,84 @@ class FitFeatureSchema(Schema):
 class FitResultSchema(Schema):
     applied = fields.Boolean()
     features = fields.List(fields.Nested(FitFeatureSchema))
+
+
+def _months() -> fields.List:
+    return fields.List(fields.Integer(validate=validate.Range(min=1, max=12)), load_default=list)
+
+
+class CalendarSchema(Schema):
+    sow_indoors = _months()
+    sow_outdoors = _months()
+    plant_out = _months()
+    harvest = _months()
+
+
+def _count(low: int, high: int, **kw) -> fields.Integer:
+    return fields.Integer(validate=validate.Range(min=low, max=high), allow_none=True, **kw)
+
+
+class PacketPatchSchema(Schema):
+    """Every field of a packet, all optional: used as is for edits."""
+
+    name = fields.String(validate=validate.Length(min=1, max=200))
+    variety = fields.String(validate=validate.Length(max=200))
+    supplier = fields.String(validate=validate.Length(max=200))
+    latin_name = fields.String(validate=validate.Length(max=200))
+    notes = fields.String(validate=validate.Length(max=5000))
+    raw_text = fields.String(validate=validate.Length(max=20000))
+    sow_depth_mm = _count(0, 1000)
+    spacing_plant_cm = _count(0, 1000)
+    spacing_row_cm = _count(0, 1000)
+    germinate_days_min = _count(0, 1000)
+    germinate_days_max = _count(0, 1000)
+    maturity_days_min = _count(0, 2000)
+    maturity_days_max = _count(0, 2000)
+    sun = fields.String(allow_none=True, validate=validate.OneOf(SUN_LEVELS))
+    stock = fields.String(validate=validate.OneOf(STOCK_LEVELS))
+    best_before_year = _count(2000, 2100)
+    calendar = fields.Nested(CalendarSchema)
+
+
+class PacketInSchema(PacketPatchSchema):
+    name = fields.String(required=True, validate=validate.Length(min=1, max=200))
+
+
+class PacketQuerySchema(Schema):
+    q = fields.String(metadata={"description": "Search name, variety, supplier, latin name, notes"})
+    stock = fields.String(validate=validate.OneOf(STOCK_LEVELS))
+    month = fields.Integer(
+        validate=validate.Range(min=1, max=12),
+        metadata={"description": "Only packets with the activity in this month (1 to 12)"},
+    )
+    activity = fields.String(
+        load_default="sow",
+        validate=validate.OneOf(["sow", *ACTIVITIES]),
+        metadata={"description": "With month: sow (indoors or outdoors) or one activity"},
+    )
+
+
+class PacketSchema(Schema):
+    id = fields.Integer()
+    status = fields.String()
+    name = fields.String()
+    variety = fields.String()
+    supplier = fields.String()
+    latin_name = fields.String()
+    notes = fields.String()
+    raw_text = fields.String()
+    sow_depth_mm = fields.Integer(allow_none=True)
+    spacing_plant_cm = fields.Integer(allow_none=True)
+    spacing_row_cm = fields.Integer(allow_none=True)
+    germinate_days_min = fields.Integer(allow_none=True)
+    germinate_days_max = fields.Integer(allow_none=True)
+    maturity_days_min = fields.Integer(allow_none=True)
+    maturity_days_max = fields.Integer(allow_none=True)
+    sun = fields.String(allow_none=True)
+    stock = fields.String()
+    best_before_year = fields.Integer(allow_none=True)
+    calendar = fields.Nested(CalendarSchema)
+    photos = fields.List(fields.Nested(MediaSchema))
+    created_by = fields.Integer(allow_none=True)
+    created_at = fields.DateTime()
+    updated_at = fields.DateTime()

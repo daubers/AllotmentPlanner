@@ -14,6 +14,7 @@ from .api import (
     measurements,
     media,
     overview,
+    packets,
     suggestions,
     tasks,
     todo,
@@ -45,6 +46,7 @@ def create_app(config: type = Config) -> Flask:
     api.register_blueprint(media.blp)
     api.register_blueprint(media.files_blp)
     api.register_blueprint(overview.blp)
+    api.register_blueprint(packets.blp)
     api.register_blueprint(mastodon.blp)
     api.register_blueprint(limits.blp)
     api.register_blueprint(suggestions.blp)

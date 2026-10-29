@@ -29,7 +29,7 @@ Tickets live in YouTrack project **AM** (Allotment Manager) at pm.daubney.dev. W
 | 14 Mobile app: Measure screen | AM-29 | Done; see [mobile.md](mobile.md) |
 | 15 Mobile app: walk the boundary with GPS | AM-30 | Backlog |
 | 16 Mobile app: tasks and quick photos | AM-31 | Backlog |
-| 17 Seed library | AM-38 | Backlog |
+| 17 Seed library | AM-38 | Merged (in Review); web only, mobile is AM-44 |
 | 18 Packet-reading spike (needs real packet photos) | AM-39 | Backlog |
 | 19 Seed trays | AM-40 | Backlog |
 | 20 Bed plantings | AM-41 | Backlog |
@@ -153,6 +153,7 @@ What is being grown, not just what is being done. A **seed library** is filled b
 15. **Walk the boundary** (AM-30): GPS trace recording, `POST /allotments/{id}/boundary-trace`, "Plot boundary" suggestion.
 16. **Tasks and quick photos** (AM-31): Today screen, create/tick tasks, photos attached to features or tasks, read-only map.
 17. **Seed library** (AM-38): packets model and CRUD, search, "what can I sow this month?", calendar editor, photos, web pages, add by hand. Usable without scanning.
+    ✅ Built: `SeedPacket` (status, names, supplier, notes, raw text, depth, spacing, germination and maturity day ranges, sun, stock, best-before year, `calendar` of four month lists) and `Media.packet_id`; `/allotments/{id}/packets` CRUD (viewer reads, editor writes) with `q` (name, variety, supplier, latin name, notes), `stock`, and `month` + `activity` (`sow` = indoors or outdoors, or one activity) for "what can I sow this month?" (the month filter runs in Python because the calendar is a JSON list; a library is hundreds of rows at most); `packet_id` on media upload, patch and list, checked to belong to the same allotment; range checks (min above max is a 422); the calendar helpers are pure (`seeds.py`). Deleting a packet leaves its photos in the timeline, unlinked. Web: a **Seeds** tab (search, stock filter, "Can sow in <month>", add by name/variety/supplier, a card per packet with a mini calendar) and a packet page (all fields, the 12-month by 4-activity grid where a tap flips a month, photos, delete). Not done: mobile (AM-44), scanning (AM-42), `status: draft` is stored but unused until scans exist.
 18. **Packet-reading spike** (AM-39): evaluation harness over real packet photos, model choice, go / no-go.
 19. **Seed trays** (AM-40): tray and cell model, grid editor, statuses, photos, several kinds per tray.
 20. **Bed plantings** (AM-41): regions inside beds, bed editor, direct sow, plant out from a tray, map overlay.

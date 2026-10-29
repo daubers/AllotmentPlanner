@@ -1042,6 +1042,14 @@
           },
           {
             "in": "query",
+            "name": "packet_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
             "name": "capture_session",
             "schema": {
               "type": "string"
@@ -1407,6 +1415,220 @@
         {
           "in": "path",
           "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/packets": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "description": "Search name, variety, supplier, latin name, notes",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "stock",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "full",
+                "part",
+                "low",
+                "empty"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "description": "Only packets with the activity in this month (1 to 12)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 12
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "activity",
+            "description": "With month: sow (indoors or outdoors) or one activity",
+            "schema": {
+              "type": "string",
+              "default": "sow",
+              "enum": [
+                "sow",
+                "sow_indoors",
+                "sow_outdoors",
+                "plant_out",
+                "harvest"
+              ]
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Packet"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "packets"
+        ]
+      },
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Packet"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PacketIn"
+              }
+            }
+          }
+        },
+        "tags": [
+          "packets"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/packets/{packet_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Packet"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "packets"
+        ]
+      },
+      "patch": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Packet"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PacketPatch"
+              }
+            }
+          }
+        },
+        "tags": [
+          "packets"
+        ]
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Remove the packet. Its photos stay in the photo timeline, no longer linked to it.",
+        "tags": [
+          "packets"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "packet_id",
           "required": true,
           "schema": {
             "type": "integer",
@@ -2464,6 +2686,10 @@
       "description": "Progress overview: what got done, and when"
     },
     {
+      "name": "packets",
+      "description": "The seed library"
+    },
+    {
       "name": "mastodon",
       "description": "Post allotment activity to a Mastodon account"
     },
@@ -3235,6 +3461,10 @@
             "type": "integer",
             "nullable": true
           },
+          "packet_id": {
+            "type": "integer",
+            "nullable": true
+          },
           "caption": {
             "type": "string"
           },
@@ -3281,6 +3511,12 @@
           "task_id": {
             "type": "integer",
             "default": null,
+            "nullable": true
+          },
+          "packet_id": {
+            "type": "integer",
+            "default": null,
+            "description": "A seed packet's photo",
             "nullable": true
           },
           "caption": {
@@ -3349,6 +3585,10 @@
             "nullable": true
           },
           "task_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "packet_id": {
             "type": "integer",
             "nullable": true
           },
@@ -3473,6 +3713,339 @@
               "type": "object",
               "additionalProperties": {}
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "Calendar": {
+        "type": "object",
+        "properties": {
+          "sow_indoors": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 12
+            }
+          },
+          "sow_outdoors": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 12
+            }
+          },
+          "plant_out": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 12
+            }
+          },
+          "harvest": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 12
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "Packet": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "variety": {
+            "type": "string"
+          },
+          "supplier": {
+            "type": "string"
+          },
+          "latin_name": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "raw_text": {
+            "type": "string"
+          },
+          "sow_depth_mm": {
+            "type": "integer",
+            "nullable": true
+          },
+          "spacing_plant_cm": {
+            "type": "integer",
+            "nullable": true
+          },
+          "spacing_row_cm": {
+            "type": "integer",
+            "nullable": true
+          },
+          "germinate_days_min": {
+            "type": "integer",
+            "nullable": true
+          },
+          "germinate_days_max": {
+            "type": "integer",
+            "nullable": true
+          },
+          "maturity_days_min": {
+            "type": "integer",
+            "nullable": true
+          },
+          "maturity_days_max": {
+            "type": "integer",
+            "nullable": true
+          },
+          "sun": {
+            "type": "string",
+            "nullable": true
+          },
+          "stock": {
+            "type": "string"
+          },
+          "best_before_year": {
+            "type": "integer",
+            "nullable": true
+          },
+          "calendar": {
+            "$ref": "#/components/schemas/Calendar"
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Media"
+            }
+          },
+          "created_by": {
+            "type": "integer",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PacketIn": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "variety": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "supplier": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "latin_name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "raw_text": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "sow_depth_mm": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "nullable": true
+          },
+          "spacing_plant_cm": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "nullable": true
+          },
+          "spacing_row_cm": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "nullable": true
+          },
+          "germinate_days_min": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "nullable": true
+          },
+          "germinate_days_max": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "nullable": true
+          },
+          "maturity_days_min": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2000,
+            "nullable": true
+          },
+          "maturity_days_max": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2000,
+            "nullable": true
+          },
+          "sun": {
+            "type": "string",
+            "enum": [
+              "full",
+              "partial",
+              "shade",
+              null
+            ],
+            "nullable": true
+          },
+          "stock": {
+            "type": "string",
+            "enum": [
+              "full",
+              "part",
+              "low",
+              "empty"
+            ]
+          },
+          "best_before_year": {
+            "type": "integer",
+            "minimum": 2000,
+            "maximum": 2100,
+            "nullable": true
+          },
+          "calendar": {
+            "$ref": "#/components/schemas/Calendar"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "PacketPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "variety": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "supplier": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "latin_name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "raw_text": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "sow_depth_mm": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "nullable": true
+          },
+          "spacing_plant_cm": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "nullable": true
+          },
+          "spacing_row_cm": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "nullable": true
+          },
+          "germinate_days_min": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "nullable": true
+          },
+          "germinate_days_max": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "nullable": true
+          },
+          "maturity_days_min": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2000,
+            "nullable": true
+          },
+          "maturity_days_max": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2000,
+            "nullable": true
+          },
+          "sun": {
+            "type": "string",
+            "enum": [
+              "full",
+              "partial",
+              "shade",
+              null
+            ],
+            "nullable": true
+          },
+          "stock": {
+            "type": "string",
+            "enum": [
+              "full",
+              "part",
+              "low",
+              "empty"
+            ]
+          },
+          "best_before_year": {
+            "type": "integer",
+            "minimum": 2000,
+            "maximum": 2100,
+            "nullable": true
+          },
+          "calendar": {
+            "$ref": "#/components/schemas/Calendar"
           }
         },
         "additionalProperties": false
