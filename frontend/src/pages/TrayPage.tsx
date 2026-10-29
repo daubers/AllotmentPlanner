@@ -6,6 +6,7 @@ import {
   cellMap, colourIndex, describeCell, key, posOf, selectAll, summarise, toggle, toggleCol, toggleRow,
 } from "../trays/grid";
 import { useTray, useTrayActions, type CellChange } from "../trays/hooks";
+import PlantOutPanel from "../trays/PlantOutPanel";
 import { useAllotment } from "./AllotmentLayout";
 
 export default function TrayPage() {
@@ -189,6 +190,9 @@ export default function TrayPage() {
               onClick={() => void apply({ status: "empty" }, "Cleared")}>Clear cells</button>
           </div>
         </section>
+      )}
+      {canEdit && n > 0 && (
+        <PlantOutPanel allotmentId={id} trayId={trayId} selected={selected} onDone={() => setSelected(new Set())} />
       )}
       {error && <p role="alert" className="error">{error}</p>}
       {notice && <p role="status" className="ok">{notice}</p>}

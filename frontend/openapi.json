@@ -1058,6 +1058,14 @@
           },
           {
             "in": "query",
+            "name": "planting_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
             "name": "capture_session",
             "schema": {
               "type": "string"
@@ -1657,6 +1665,219 @@
         }
       ]
     },
+    "/api/v1/allotments/{allotment_id}/plantings": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "feature_id",
+            "description": "Only this bed",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "packet_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "tray_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sown",
+                "growing",
+                "harvesting",
+                "finished",
+                "failed"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "growing",
+            "description": "true: only what still occupies the ground",
+            "schema": {
+              "type": "boolean"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Planting"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "plantings"
+        ]
+      },
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Planting"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlantingIn"
+              }
+            }
+          }
+        },
+        "summary": "Direct sow: draw a region in a bed and say what went in. Overlaps are warned about.",
+        "tags": [
+          "plantings"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/plantings/{planting_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Planting"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "plantings"
+        ]
+      },
+      "patch": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Planting"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlantingPatch"
+              }
+            }
+          }
+        },
+        "tags": [
+          "plantings"
+        ]
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Remove the planting. Photos stay in the timeline; tray cells stay planted out.",
+        "tags": [
+          "plantings"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "planting_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
     "/api/v1/allotments/{allotment_id}/packet-scans": {
       "get": {
         "responses": {
@@ -2028,6 +2249,63 @@
           }
         },
         "summary": "Sow, germinate, fail or clear the chosen cells in one go. All or nothing.",
+        "tags": [
+          "trays"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "tray_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/trays/{tray_id}/plant-out": {
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantOutResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlantOut"
+              }
+            }
+          }
+        },
+        "summary": "Plant the chosen cells out into a region of a bed, all or nothing.",
+        "description": "One planting is made per packet among the cells, each filling the chosen region; the cells\nbecome planted out and point at their planting. The region must lie inside the bed.",
         "tags": [
           "trays"
         ]
@@ -3106,6 +3384,10 @@
       "description": "The seed library"
     },
     {
+      "name": "plantings",
+      "description": "What is growing where in the beds"
+    },
+    {
       "name": "packet_scans",
       "description": "Reading a photo of a seed packet into a draft packet"
     },
@@ -3893,6 +4175,10 @@
             "type": "integer",
             "nullable": true
           },
+          "planting_id": {
+            "type": "integer",
+            "nullable": true
+          },
           "caption": {
             "type": "string"
           },
@@ -3951,6 +4237,12 @@
             "type": "integer",
             "default": null,
             "description": "A seed tray's photo",
+            "nullable": true
+          },
+          "planting_id": {
+            "type": "integer",
+            "default": null,
+            "description": "A planting's photo",
             "nullable": true
           },
           "caption": {
@@ -4027,6 +4319,10 @@
             "nullable": true
           },
           "tray_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "planting_id": {
             "type": "integer",
             "nullable": true
           },
@@ -4516,6 +4812,188 @@
         },
         "additionalProperties": false
       },
+      "Planting": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "feature_id": {
+            "type": "integer"
+          },
+          "bed_name": {
+            "type": "string"
+          },
+          "packet_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "packet_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "packet_variety": {
+            "type": "string",
+            "nullable": true
+          },
+          "tray_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "region": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "area_m2": {
+            "type": "number"
+          },
+          "count": {
+            "type": "integer",
+            "nullable": true
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "direct_sow",
+              "transplant"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "sown_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "planted_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "harvested_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string"
+          },
+          "warnings": {
+            "type": "array",
+            "description": "e.g. overlaps another planting",
+            "items": {
+              "type": "string"
+            }
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Media"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlantingIn": {
+        "type": "object",
+        "properties": {
+          "feature_id": {
+            "type": "integer",
+            "description": "The bed"
+          },
+          "packet_id": {
+            "type": "integer",
+            "default": null,
+            "nullable": true
+          },
+          "region": {
+            "type": "object",
+            "description": "GeoJSON Polygon inside the bed",
+            "additionalProperties": {}
+          },
+          "count": {
+            "type": "integer",
+            "default": null,
+            "minimum": 1,
+            "maximum": 100000,
+            "nullable": true
+          },
+          "sown_on": {
+            "type": "string",
+            "format": "date",
+            "default": null,
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "default": "",
+            "maxLength": 5000
+          }
+        },
+        "required": [
+          "feature_id",
+          "region"
+        ],
+        "additionalProperties": false
+      },
+      "PlantingPatch": {
+        "type": "object",
+        "properties": {
+          "packet_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "region": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000,
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "sown",
+              "growing",
+              "harvesting",
+              "finished",
+              "failed"
+            ]
+          },
+          "sown_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "planted_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "harvested_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 5000
+          }
+        },
+        "additionalProperties": false
+      },
       "PacketScan": {
         "type": "object",
         "properties": {
@@ -4773,6 +5251,11 @@
           },
           "note": {
             "type": "string"
+          },
+          "planting_id": {
+            "type": "integer",
+            "description": "Where it went",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -4965,6 +5448,61 @@
           "cells",
           "set"
         ],
+        "additionalProperties": false
+      },
+      "PlantOut": {
+        "type": "object",
+        "properties": {
+          "cells": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 900,
+            "items": {
+              "$ref": "#/components/schemas/CellRef"
+            }
+          },
+          "feature_id": {
+            "type": "integer",
+            "description": "The bed they go into"
+          },
+          "region": {
+            "type": "object",
+            "description": "GeoJSON Polygon inside the bed",
+            "additionalProperties": {}
+          },
+          "planted_on": {
+            "type": "string",
+            "format": "date",
+            "default": null,
+            "description": "Default: today",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "default": "",
+            "maxLength": 5000
+          }
+        },
+        "required": [
+          "cells",
+          "feature_id",
+          "region"
+        ],
+        "additionalProperties": false
+      },
+      "PlantOutResult": {
+        "type": "object",
+        "properties": {
+          "plantings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Planting"
+            }
+          },
+          "tray": {
+            "$ref": "#/components/schemas/Tray"
+          }
+        },
         "additionalProperties": false
       },
       "MastodonSettings": {

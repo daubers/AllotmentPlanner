@@ -12,6 +12,7 @@ import { initialView, layersToShow, type Box } from "../maps/status";
 import { useTaskActions, useTasks } from "../tasks/hooks";
 import { useSuggestions } from "../suggestions/hooks";
 import { suggestionBox, type Suggestion } from "../suggestions/model";
+import PlantingShapes from "./PlantingShapes";
 import { SuggestionShapes, SuggestionsPanel } from "./Suggestions";
 import { pinGroups, pinPopup } from "./pins";
 import {
@@ -248,6 +249,7 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
           <LayersControl.BaseLayer name="Satellite">
             <TileLayer attribution="Tiles &copy; Esri" url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxNativeZoom={19} maxZoom={21} />
           </LayersControl.BaseLayer>
+          <PlantingShapes allotmentId={allotmentId} />
         </LayersControl>
         <PhotoLayers allotmentId={allotmentId} />
         <SuggestionShapes suggestions={suggestions.data ?? []} ticked={ticked} focused={focusedSuggestion} />

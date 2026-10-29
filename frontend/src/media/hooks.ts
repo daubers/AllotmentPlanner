@@ -9,7 +9,7 @@ type Patch = components["schemas"]["MediaPatch"];
 const path = (allotmentId: number) => ({ path: { allotment_id: allotmentId } });
 const mediaPath = (allotmentId: number, id: number) => ({ path: { allotment_id: allotmentId, media_id: id } });
 
-export type MediaFilters = { featureId?: number; kind?: "photo" | "video" };
+export type MediaFilters = { featureId?: number; plantingId?: number; kind?: "photo" | "video" };
 
 /** Media for an allotment. While anything is still being processed, poll until it settles. */
 export function useMedia(allotmentId: number, filters: MediaFilters = {}) {
@@ -18,7 +18,7 @@ export function useMedia(allotmentId: number, filters: MediaFilters = {}) {
     queryFn: async (): Promise<Media[]> =>
       (
         await api.GET("/api/v1/allotments/{allotment_id}/media", {
-          params: { ...path(allotmentId), query: { feature_id: filters.featureId, kind: filters.kind, limit: 500 } },
+          params: { ...path(allotmentId), query: { feature_id: filters.featureId, planting_id: filters.plantingId, kind: filters.kind, limit: 500 } },
         })
       ).data ?? [],
     placeholderData: keepPreviousData, // no empty flash while a filter change loads
@@ -36,17 +36,24 @@ function toFormData(body: Record<string, unknown>): FormData {
   return form;
 }
 
-export type UploadInput = { file: File; featureId?: number | null; packetId?: number | null; trayId?: number | null; caption?: string };
+export type UploadInput = {
+  file: File;
+  featureId?: number | null;
+  packetId?: number | null;
+  trayId?: number | null;
+  plantingId?: number | null;
+  caption?: string;
+};
 
 /** Upload one file, reporting progress (0 to 1). Large videos take minutes, so this uses XHR:
  *  fetch can't report upload progress. */
 export function uploadMedia(
   allotmentId: number,
-  { file, featureId, packetId, trayId, caption }: UploadInput,
+  { file, featureId, packetId, trayId, plantingId, caption }: UploadInput,
   onProgress?: (fraction: number) => void,
   maxBytes?: number,
 ): Promise<Media> {
-  const form = toFormData({ file, feature_id: featureId, packet_id: packetId, tray_id: trayId, caption });
+  const form = toFormData({ file, feature_id: featureId, packet_id: packetId, tray_id: trayId, planting_id: plantingId, caption });
   return sendUpload(`/api/v1/allotments/${allotmentId}/media`, form, { file, onProgress, maxBytes });
 }
 

@@ -4,6 +4,7 @@ import { uploadMedia, useMediaActions } from "../media/hooks";
 import MonthGrid from "../seeds/MonthGrid";
 import { ACTIVITIES, STOCK, SUN, toggleMonth, type Calendar } from "../seeds/calendar";
 import { FIELD_OF_MISSING, usePacket, usePacketActions, useScans, type PacketPatch } from "../seeds/hooks";
+import { STATUS_LABEL, usePlantings } from "../plantings/hooks";
 import { summarise } from "../trays/grid";
 import { useTrays } from "../trays/hooks";
 import { useAllotment } from "./AllotmentLayout";
@@ -18,6 +19,7 @@ export default function PacketPage() {
   const actions = usePacketActions(id);
   const mediaActions = useMediaActions(id);
   const trays = useTrays(id, { packetId });
+  const plantings = usePlantings(id, { packetId });
   const scans = useScans(id);
   const fileInput = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<{ key: string; calendar: Calendar } | null>(null);
@@ -177,6 +179,22 @@ export default function PacketPage() {
         {notice && <p role="status" className="ok">{notice}</p>}
         {canEdit && <button type="submit" disabled={actions.patch.isPending}>{isDraft ? "Save to library" : "Save"}</button>}
       </form>
+
+      <section>
+        <h2>In the beds</h2>
+        {plantings.data?.length ? (
+          <ul>
+            {plantings.data.map((pl) => (
+              <li key={pl.id}>
+                <Link to={`../../beds/${pl.feature_id}`} relative="path">{pl.bed_name || "A bed"}</Link>
+                <span className="muted"> · {STATUS_LABEL[pl.status ?? ""] ?? pl.status}{pl.sown_on ? `, sown ${pl.sown_on}` : ""}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted">Not growing in any bed yet.</p>
+        )}
+      </section>
 
       <section>
         <h2>In trays</h2>

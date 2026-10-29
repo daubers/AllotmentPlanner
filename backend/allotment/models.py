@@ -228,6 +228,9 @@ class Media(db.Model):
     tray_id: Mapped[int | None] = mapped_column(
         ForeignKey("trays.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    planting_id: Mapped[int | None] = mapped_column(
+        ForeignKey("plantings.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     caption: Mapped[str] = mapped_column(String(500), default="")
     status: Mapped[str] = mapped_column(String(10), default="pending")  # pending | ready | failed
     error: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -356,8 +359,47 @@ class TrayCell(db.Model):
     sown_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     germinated_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     note: Mapped[str] = mapped_column(String(500), default="")
+    planting_id: Mapped[int | None] = mapped_column(
+        ForeignKey("plantings.id", ondelete="SET NULL"), nullable=True, index=True
+    )  # where it went when planted out
 
     tray: Mapped[Tray] = relationship(back_populates="cells")
+
+
+class Planting(db.Model):
+    """Something growing in part of a bed: a drawn region, a packet, how and when it went in."""
+
+    __tablename__ = "plantings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    feature_id: Mapped[int] = mapped_column(
+        ForeignKey("map_features.id", ondelete="CASCADE"), index=True
+    )  # the bed
+    packet_id: Mapped[int | None] = mapped_column(
+        ForeignKey("seed_packets.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    tray_id: Mapped[int | None] = mapped_column(
+        ForeignKey("trays.id", ondelete="SET NULL"), nullable=True, index=True
+    )  # the tray it was planted out from
+    region = mapped_column(Geometry("POLYGON", srid=4326), nullable=False)
+    count: Mapped[int | None] = mapped_column(nullable=True)
+    method: Mapped[str] = mapped_column(String(12), default="direct_sow")  # direct_sow | transplant
+    status: Mapped[str] = mapped_column(String(10), default="sown", index=True)
+    # sown | growing | harvesting | finished | failed
+    sown_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    planted_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    harvested_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
 
 
 class ActivityLog(db.Model):

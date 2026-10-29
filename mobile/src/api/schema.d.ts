@@ -1030,6 +1030,7 @@ export interface paths {
                     task_id?: number;
                     packet_id?: number;
                     tray_id?: number;
+                    planting_id?: number;
                     capture_session?: string;
                     /** @description On or after this date */
                     taken_from?: string;
@@ -1489,6 +1490,175 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/allotments/{allotment_id}/plantings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Only this bed */
+                    feature_id?: number;
+                    packet_id?: number;
+                    tray_id?: number;
+                    status?: "sown" | "growing" | "harvesting" | "finished" | "failed";
+                    /** @description true: only what still occupies the ground */
+                    growing?: boolean;
+                };
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Planting"][];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        /** Direct sow: draw a region in a bed and say what went in. Overlaps are warned about. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PlantingIn"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Planting"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/plantings/{planting_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                planting_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    planting_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Planting"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Remove the planting. Photos stay in the timeline; tray cells stay planted out. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    planting_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    planting_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PlantingPatch"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Planting"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/allotments/{allotment_id}/packet-scans": {
         parameters: {
             query?: never;
@@ -1852,6 +2022,58 @@ export interface paths {
                 default: components["responses"]["DEFAULT_ERROR"];
             };
         };
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/trays/{tray_id}/plant-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                tray_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Plant the chosen cells out into a region of a bed, all or nothing.
+         * @description One planting is made per packet among the cells, each filling the chosen region; the cells
+         *     become planted out and point at their planting. The region must lie inside the bed.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    tray_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PlantOut"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlantOutResult"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/allotments/{allotment_id}/mastodon": {
@@ -3128,6 +3350,7 @@ export interface components {
             task_id?: number | null;
             packet_id?: number | null;
             tray_id?: number | null;
+            planting_id?: number | null;
             caption?: string;
             status?: string;
             error?: string | null;
@@ -3158,6 +3381,11 @@ export interface components {
              * @default null
              */
             tray_id?: number | null;
+            /**
+             * @description A planting's photo
+             * @default null
+             */
+            planting_id?: number | null;
             /** @default  */
             caption?: string;
             /**
@@ -3195,6 +3423,7 @@ export interface components {
             task_id?: number | null;
             packet_id?: number | null;
             tray_id?: number | null;
+            planting_id?: number | null;
             /** Format: date-time */
             taken_at?: string;
             lat?: number | null;
@@ -3317,6 +3546,72 @@ export interface components {
             status?: "active";
             calendar?: components["schemas"]["Calendar"];
         };
+        Planting: {
+            id?: number;
+            feature_id?: number;
+            bed_name?: string;
+            packet_id?: number | null;
+            packet_name?: string | null;
+            packet_variety?: string | null;
+            tray_id?: number | null;
+            region?: {
+                [key: string]: unknown;
+            };
+            area_m2?: number;
+            count?: number | null;
+            /** @enum {string} */
+            method?: "direct_sow" | "transplant";
+            status?: string;
+            /** Format: date */
+            sown_on?: string | null;
+            /** Format: date */
+            planted_on?: string | null;
+            /** Format: date */
+            harvested_on?: string | null;
+            notes?: string;
+            /** @description e.g. overlaps another planting */
+            warnings?: string[];
+            photos?: components["schemas"]["Media"][];
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        PlantingIn: {
+            /** @description The bed */
+            feature_id: number;
+            /** @default null */
+            packet_id?: number | null;
+            /** @description GeoJSON Polygon inside the bed */
+            region: {
+                [key: string]: unknown;
+            };
+            /** @default null */
+            count?: number | null;
+            /**
+             * Format: date
+             * @default null
+             */
+            sown_on?: string | null;
+            /** @default  */
+            notes?: string;
+        };
+        PlantingPatch: {
+            packet_id?: number | null;
+            region?: {
+                [key: string]: unknown;
+            };
+            count?: number | null;
+            /** @enum {string} */
+            status?: "sown" | "growing" | "harvesting" | "finished" | "failed";
+            /** Format: date */
+            sown_on?: string | null;
+            /** Format: date */
+            planted_on?: string | null;
+            /** Format: date */
+            harvested_on?: string | null;
+            notes?: string;
+        };
         PacketScan: {
             id?: number;
             status?: string;
@@ -3396,6 +3691,8 @@ export interface components {
             /** Format: date */
             germinated_on?: string | null;
             note?: string;
+            /** @description Where it went */
+            planting_id?: number | null;
         };
         Tray: {
             id?: number;
@@ -3447,6 +3744,27 @@ export interface components {
         CellsUpdate: {
             cells: components["schemas"]["CellRef"][];
             set: components["schemas"]["CellSet"];
+        };
+        PlantOut: {
+            cells: components["schemas"]["CellRef"][];
+            /** @description The bed they go into */
+            feature_id: number;
+            /** @description GeoJSON Polygon inside the bed */
+            region: {
+                [key: string]: unknown;
+            };
+            /**
+             * Format: date
+             * @description Default: today
+             * @default null
+             */
+            planted_on?: string | null;
+            /** @default  */
+            notes?: string;
+        };
+        PlantOutResult: {
+            plantings?: components["schemas"]["Planting"][];
+            tray?: components["schemas"]["Tray"];
         };
         MastodonSettings: {
             configured?: boolean;
