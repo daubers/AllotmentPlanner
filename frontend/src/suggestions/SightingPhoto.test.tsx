@@ -30,3 +30,13 @@ describe("SightingDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 });
+
+describe("SightingPhoto for a video", () => {
+  it("shows the video held at that second, with the outline over it", () => {
+    const video = { ...sighting, kind: "video", at_s: 4.2, url: "/clip.mp4?t=x", thumb_url: "/poster.jpg" };
+    const { container } = render(<SightingPhoto sighting={video} alt="Shed" />);
+    expect(container.querySelector("video")).toHaveAttribute("src", "/clip.mp4?t=x#t=4.2");
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector("polygon")).toBeInTheDocument();
+  });
+});

@@ -133,6 +133,7 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
     overrides: dict[str, dict] = {}
     geotagged = 0
     frames_total = 0
+    frame_times: dict[str, float] = {}  # seconds into its video, to show a found object's frame
     headings: dict[str, float] = {}
     photo_fixes: dict[str, tuple[float, float, datetime | None, str | None]] = {}
 
@@ -169,6 +170,7 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
                 track = []
             placed = 0
             for frame, t in frames:
+                frame_times[frame] = round(t, 2)
                 # Each video gets its own camera model. A GoPro records a GPS track, which locates
                 # each frame; a phone video has only the one location (where it started), and
                 # pinning every frame to that would drag the map together, so those frames are
@@ -217,6 +219,7 @@ def prepare_dataset(job: MapJob, work: Path) -> int:
         )
     (work / "exif_overrides.json").write_text(json.dumps(overrides))
     (work / "headings.json").write_text(json.dumps(headings))
+    (work / "frame_times.json").write_text(json.dumps(frame_times))
     (work / "config.yaml").write_text(yaml.safe_dump(opensfm_config(job, frames_total > 0)))
     return total
 
@@ -839,9 +842,18 @@ def media_id_of(shot_name: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
-def sightings_of(g: detection_geo.FusedObject) -> list[dict]:
+def frame_times_of(work: Path) -> dict[str, float]:
+    try:
+        return json.loads((work / "frame_times.json").read_text())
+    except (OSError, ValueError):  # a job prepared before frame times were kept
+        return {}
+
+
+def sightings_of(g: detection_geo.FusedObject, times: dict[str, float] | None = None) -> list[dict]:
     """Where a found object was seen, to show the person reviewing it: the best sighting from each
-    photo, highest score first, with its outline (0..1 of the picture)."""
+    photo or video, highest score first, with its outline (0..1 of the picture). A sighting in a
+    video says how many seconds in, since the frame itself is not kept."""
+    times = times or {}
     best: dict[int, detection_geo.Observation] = {}
     for m in g.members:
         media_id = media_id_of(m.shot)
@@ -851,7 +863,12 @@ def sightings_of(g: detection_geo.FusedObject) -> list[dict]:
             best[media_id] = m
     ranked = sorted(best.items(), key=lambda kv: -kv[1].footprint.score)[:MAX_SIGHTINGS]
     return [
-        {"media_id": i, "outline": m.outline, "score": round(m.footprint.score, 3)}
+        {
+            "media_id": i,
+            "outline": m.outline,
+            "score": round(m.footprint.score, 3),
+            **({"at_s": times[m.shot]} if m.shot in times else {}),
+        }
         for i, m in ranked
     ]
 
@@ -931,6 +948,7 @@ def detect_objects(job: MapJob, work: Path, detector=None) -> int:
     db.session.query(MapSuggestion).filter_by(
         allotment_id=job.allotment_id, status="pending"
     ).update({"status": "dismissed"})
+    times = frame_times_of(work)
     totals: dict[str, int] = {}
     for g in fused:
         totals[g.label] = totals.get(g.label, 0) + 1
@@ -959,7 +977,7 @@ def detect_objects(job: MapJob, work: Path, detector=None) -> int:
                 radius_m=radius,
                 confidence=g.confidence,
                 views=g.views,
-                sightings=sightings_of(g),
+                sightings=sightings_of(g, times),
             )
         )
     if boundary is not None:

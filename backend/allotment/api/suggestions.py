@@ -35,6 +35,7 @@ def _sightings(s: MapSuggestion, photos: dict[int, dict]) -> list[dict]:
                     **x,
                     "url": p["url"],
                     "thumb_url": p["thumb_url"],
+                    "kind": p["kind"],
                     "width": p["width"],
                     "height": p["height"],
                 }

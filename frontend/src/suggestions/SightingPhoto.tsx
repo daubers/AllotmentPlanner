@@ -1,14 +1,20 @@
 import { useEffect, useRef } from "react";
-import { outlinePoints, type Sighting } from "./model";
+import { frameSrc, outlinePoints, type Sighting } from "./model";
 
 /** A photo with the found object outlined. The outline is in 0..1 of the picture, so it lines up at
  *  any size; the box takes the photo's own shape so the two stay together. */
 export function SightingPhoto({ sighting, full = false, alt }: { sighting: Sighting; full?: boolean; alt: string }) {
+  const frame = frameSrc(sighting);
   const src = full ? sighting.url : (sighting.thumb_url ?? sighting.url);
   const ratio = sighting.width && sighting.height ? `${sighting.width} / ${sighting.height}` : undefined;
   return (
     <span className="sighting-photo" style={{ aspectRatio: ratio }}>
-      <img src={src} alt={alt} loading="lazy" />
+      {frame ? (
+        // The frame is not kept, so show the video held still at that second.
+        <video src={frame} preload="metadata" muted playsInline aria-label={alt} />
+      ) : (
+        <img src={src} alt={alt} loading="lazy" />
+      )}
       <svg viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
         <polygon points={outlinePoints(sighting.outline)} vectorEffect="non-scaling-stroke" />
       </svg>

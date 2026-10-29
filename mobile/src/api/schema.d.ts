@@ -3878,7 +3878,11 @@ export interface components {
             /** @description [x, y] points, 0 to 1 across and down the picture */
             outline?: number[][];
             score?: number;
-            /** @description Signed link to the full photo */
+            /** @description Seconds into the video, if it is a video */
+            at_s?: number | null;
+            /** @description photo or video */
+            kind?: string;
+            /** @description Signed link to the full photo or video */
             url?: string;
             thumb_url?: string | null;
             width?: number | null;
