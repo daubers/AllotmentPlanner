@@ -301,3 +301,13 @@ label.missing { color: var(--danger); }
 .planting-photos h3 { margin: 1rem 0 .25rem; font-size: 1rem; }
 .planting-label { background: rgba(255,255,255,.85); border: 0; box-shadow: none; font-size: 11px; padding: 0 .3rem; }
 .outline-preview { max-width: 360px; margin: .5rem 0; }
+
+/* The photos a found object was seen in, with it outlined */
+.sighting-strip { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0.4rem 0; }
+.sighting-thumb { padding: 0; border: 1px solid var(--border, #ccc); border-radius: 4px; background: none; cursor: zoom-in; width: 5.5rem; overflow: hidden; }
+.sighting-photo { position: relative; display: block; width: 100%; background: #0002; }
+.sighting-photo img { display: block; width: 100%; height: 100%; object-fit: fill; }
+.sighting-photo svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.sighting-photo polygon { fill: rgba(255, 213, 0, 0.25); stroke: #ffd500; stroke-width: 2.5; stroke-linejoin: round; paint-order: stroke; }
+.sighting-dialog { max-width: min(92vw, 64rem); }
+.sighting-dialog .sighting-photo { max-height: 80vh; margin: 0 auto; }

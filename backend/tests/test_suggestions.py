@@ -7,12 +7,13 @@ import pytest
 from PIL import Image
 from shapely.geometry import Polygon
 
+from allotment import detection_geo as dg
 from allotment import mapping_geo as geo
 from allotment import mapping_pipeline as pipeline
 from allotment.detection_labels import BOUNDARY_TYPES, TYPES
 from allotment.detector import Detection
 from allotment.extensions import db
-from allotment.models import ActivityLog, MapFeature, MapJob, MapSuggestion
+from allotment.models import ActivityLog, MapFeature, MapJob, MapSuggestion, Media
 
 from .test_detection_geo import OBJECTS, RING, cylinder, render_mask
 
@@ -587,3 +588,88 @@ def test_without_a_boundary_nothing_changes(job):
     write_reconstruction(work, RING)
     assert pipeline.detect_objects(j, work, detector=SceneDetector(RING)) == 3
     assert "GPX" not in j.log
+
+
+# --- the photos a suggestion was seen in ----------------------------------------------------------
+
+
+def add_photo(pid, **kw):
+    m = Media(
+        allotment_id=pid,
+        kind="photo",
+        filename="a.jpg",
+        content_type="image/jpeg",
+        storage_key=f"allotments/{pid}/a.jpg",
+        thumb_key=f"allotments/{pid}/a_t.jpg",
+        status="ready",
+        width=4000,
+        height=3000,
+        **kw,
+    )
+    db.session.add(m)
+    db.session.commit()
+    return m.id
+
+
+RECT = [[0.2, 0.3], [0.2, 0.6], [0.5, 0.6], [0.5, 0.3]]
+
+
+def test_a_suggestion_lists_its_photos_with_signed_links_and_outlines(client, plot):
+    photo = add_photo(plot["id"])
+    add_suggestion(plot["id"], sightings=[{"media_id": photo, "outline": RECT, "score": 0.8}])
+    [out] = client.get(plot["s"], headers=plot["editor"]).json
+    [seen] = out["sightings"]
+    assert seen["media_id"] == photo and seen["outline"] == RECT and seen["score"] == 0.8
+    assert seen["url"].startswith(f"/api/v1/media/{photo}/file?t=")
+    assert seen["thumb_url"].startswith(f"/api/v1/media/{photo}/thumb?t=")
+    assert (seen["width"], seen["height"]) == (4000, 3000)
+
+
+def test_old_suggestions_and_deleted_photos_have_no_sightings(client, plot):
+    add_suggestion(plot["id"], name="Old")  # made before photos were kept
+    gone = add_suggestion(
+        plot["id"], name="Gone", sightings=[{"media_id": 99999, "outline": RECT, "score": 0.5}]
+    )
+    out = {s["name"]: s for s in client.get(plot["s"], headers=plot["editor"]).json}
+    assert out["Old"]["sightings"] == [] and out["Gone"]["sightings"] == []
+    renamed = client.patch(f"{plot['s']}/{gone}", json={"name": "Elm"}, headers=plot["editor"])
+    assert renamed.status_code == 200 and renamed.json["sightings"] == []
+
+
+def test_the_outline_of_a_mask_is_scaled_to_the_picture():
+    mask = np.zeros((100, 200), dtype=bool)
+    mask[20:60, 50:100] = True
+    ring = dg.silhouette(mask)
+    xs, ys = zip(*ring, strict=True)
+    assert (min(xs), max(xs)) == (0.25, 0.5) and (min(ys), max(ys)) == (0.2, 0.59)
+    assert all(0 <= v <= 1 for p in ring for v in p)
+    assert len(ring) >= 4
+
+
+def test_nothing_or_a_speck_has_no_outline():
+    assert dg.silhouette(np.zeros((10, 10), dtype=bool)) is None
+    speck = np.zeros((10, 10), dtype=bool)
+    speck[5, 5] = True
+    assert dg.silhouette(speck) is None
+
+
+def test_detection_keeps_the_best_sighting_per_photo(job, monkeypatch):
+    j, work = job
+    write_reconstruction(work, RING)
+    # The test photos are view0..view5.jpg; stand them in for media 1..6.
+    monkeypatch.setattr(pipeline, "media_id_of", lambda n: int(re.search(r"\d+", n).group()) + 1)
+    pipeline.detect_objects(j, work, detector=SceneDetector(RING))
+    for s in db.session.query(MapSuggestion).filter_by(job_id=j.id):
+        assert 1 <= len(s.sightings) <= pipeline.MAX_SIGHTINGS
+        assert len({x["media_id"] for x in s.sightings}) == len(s.sightings)
+        scores = [x["score"] for x in s.sightings]
+        assert scores == sorted(scores, reverse=True)
+        for x in s.sightings:
+            assert len(x["outline"]) >= 3
+            assert all(0 <= v <= 1 for p in x["outline"] for v in p)
+
+
+def test_photos_that_are_not_media_are_skipped():
+    assert pipeline.media_id_of("m42.jpg") == 42
+    assert pipeline.media_id_of("v7_0003.jpg") == 7
+    assert pipeline.media_id_of("view0.jpg") is None

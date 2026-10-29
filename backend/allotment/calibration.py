@@ -32,6 +32,7 @@ class RawDetection:
     score: float
     pixels: np.ndarray  # (N, 2) camera pixels along the foot of the mask
     role: str = "object"  # "object", "post" or "fence" (see detection_labels)
+    outline: list | None = None  # the mask's silhouette, 0..1 of the picture (detection_geo)
 
 
 @dataclass(frozen=True)

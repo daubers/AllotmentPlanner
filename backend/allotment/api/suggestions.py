@@ -5,7 +5,7 @@ from marshmallow import ValidationError
 from .. import events
 from ..extensions import db
 from ..geojson import check_feature_rules, feature_to_geojson, parse_geometry
-from ..models import MapFeature, MapSuggestion, Role
+from ..models import MapFeature, MapSuggestion, Media, Role
 from ..schemas import (
     FeatureSchema,
     SuggestionIdsSchema,
@@ -14,6 +14,7 @@ from ..schemas import (
     SuggestionSchema,
 )
 from ..security import require_role
+from .media import media_to_dict
 
 blp = Blueprint(
     "suggestions",
@@ -23,7 +24,32 @@ blp = Blueprint(
 )
 
 
-def to_dict(s: MapSuggestion) -> dict:
+def _sightings(s: MapSuggestion, photos: dict[int, dict]) -> list[dict]:
+    """Where it was seen, each with a signed link; photos deleted since are left out."""
+    out = []
+    for x in s.sightings or []:
+        p = photos.get(x["media_id"])
+        if p:
+            out.append(
+                {
+                    **x,
+                    "url": p["url"],
+                    "thumb_url": p["thumb_url"],
+                    "width": p["width"],
+                    "height": p["height"],
+                }
+            )
+    return out
+
+
+def to_dicts(rows: list[MapSuggestion]) -> list[dict]:
+    ids = {x["media_id"] for s in rows for x in s.sightings or []}
+    media = db.session.query(Media).filter(Media.id.in_(ids)).all() if ids else []
+    photos = {m.id: media_to_dict(m) for m in media}
+    return [to_dict(s, photos) for s in rows]
+
+
+def to_dict(s: MapSuggestion, photos: dict[int, dict] | None = None) -> dict:
     return {
         "id": s.id,
         "job_id": s.job_id,
@@ -35,6 +61,7 @@ def to_dict(s: MapSuggestion) -> dict:
         "views": s.views,
         "status": s.status,
         "feature_id": s.feature_id,
+        "sightings": _sightings(s, photos or {}),
     }
 
 
@@ -60,7 +87,7 @@ class SuggestionList(MethodView):
             .filter_by(allotment_id=allotment.id, status=args["status"])
             .order_by(MapSuggestion.confidence.desc(), MapSuggestion.id)
         )
-        return [to_dict(s) for s in rows]
+        return to_dicts(list(rows))
 
 
 @blp.route("/<int:suggestion_id>")
@@ -76,7 +103,7 @@ class SuggestionDetail(MethodView):
         for key, value in data.items():
             setattr(s, key, value)
         db.session.commit()
-        return to_dict(s)
+        return to_dicts([s])[0]
 
 
 @blp.route("/accept")

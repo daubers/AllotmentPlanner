@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Circle, Polygon, Tooltip } from "react-leaflet";
 import { colourFor, KINDS } from "./kinds";
 import { useSuggestionActions } from "../suggestions/hooks";
-import { confidenceWord, mergeTicks, seenIn, shapeOf, type Suggestion } from "../suggestions/model";
+import { confidenceWord, mergeTicks, photosOf, seenIn, shapeOf, type Sighting, type Suggestion } from "../suggestions/model";
+import { SightingDialog, SightingPhoto } from "../suggestions/SightingPhoto";
 
 /** The pending suggestions drawn on the map as dashed outlines, so they can be told from real shapes. */
 export function SuggestionShapes({ suggestions, ticked, focused }: { suggestions: Suggestion[]; ticked: Set<number>; focused: number | null }) {
@@ -43,6 +44,7 @@ export function SuggestionsPanel({ allotmentId, suggestions, ticked, setTicked, 
   const actions = useSuggestionActions(allotmentId);
   const [error, setError] = useState<string | null>(null);
   const known = useRef(new Set<number>());
+  const [enlarged, setEnlarged] = useState<{ sighting: Sighting; name: string } | null>(null);
 
   // New suggestions arrive ticked if likely; the person's own choices on existing ones are kept.
   useEffect(() => {
@@ -88,6 +90,7 @@ export function SuggestionsPanel({ allotmentId, suggestions, ticked, setTicked, 
                 onBlur={(e) => e.target.value.trim() && e.target.value !== s.name && void run(() => actions.patch.mutateAsync({ id: s.id!, name: e.target.value.trim() }))}
               />
             </label>
+            <SuggestionPhotos suggestion={s} onOpen={(sighting) => setEnlarged({ sighting, name: s.name! })} />
             <div className="suggestion-meta">
               <select value={s.kind} aria-label={`Type of ${s.name}`} onChange={(e) => void run(() => actions.patch.mutateAsync({ id: s.id!, kind: e.target.value as (typeof KINDS)[number] }))}>
                 {KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
@@ -99,6 +102,7 @@ export function SuggestionsPanel({ allotmentId, suggestions, ticked, setTicked, 
         ))}
       </ul>
       {error && <p role="alert" className="error">{error}</p>}
+      {enlarged && <SightingDialog sighting={enlarged.sighting} name={enlarged.name} onClose={() => setEnlarged(null)} />}
       <div className="inline">
         <button
           type="button"
@@ -112,5 +116,21 @@ export function SuggestionsPanel({ allotmentId, suggestions, ticked, setTicked, 
         </button>
       </div>
     </section>
+  );
+}
+
+/** Thumbnails of the photos that showed this object, with it outlined; click one to see it large. */
+function SuggestionPhotos({ suggestion, onOpen }: { suggestion: Suggestion; onOpen(s: Sighting): void }) {
+  const { shown, more } = photosOf(suggestion);
+  if (!shown.length) return null;
+  return (
+    <div className="sighting-strip">
+      {shown.map((x) => (
+        <button key={x.media_id} type="button" className="sighting-thumb" aria-label={`See ${suggestion.name} in a photo`} onClick={() => onOpen(x)}>
+          <SightingPhoto sighting={x} alt="" />
+        </button>
+      ))}
+      {more > 0 && <span className="muted">+{more} more</span>}
+    </div>
   );
 }

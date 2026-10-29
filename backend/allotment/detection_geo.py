@@ -47,6 +47,7 @@ class Observation:
     shape: str  # circle | rect
     footprint: Footprint
     shot: str
+    outline: list[list[float]] | None = None  # see silhouette()
 
 
 @dataclass
@@ -87,6 +88,27 @@ def contact_points(mask: np.ndarray, columns: int = 40) -> np.ndarray | None:
     if len(pts) < MIN_CONTACT_POINTS or touching > len(pts):
         return None
     return np.array(pts, dtype=float)
+
+
+def silhouette(mask: np.ndarray, rows: int = 12) -> list[list[float]] | None:
+    """A rough outline of a boolean mask as [x, y] points scaled to 0..1 of the mask's width and
+    height, so it can be drawn over the same picture at any size. The left and right edge of the
+    mask at a handful of heights, joined into one ring: enough to show which thing was found."""
+    h, w = mask.shape
+    ys = np.flatnonzero(mask.any(axis=1))
+    if ys.size == 0:
+        return None
+    picks = np.unique(np.linspace(ys[0], ys[-1], min(rows, ys.size)).astype(int))
+    left, right = [], []
+    for y in picks:
+        xs = np.flatnonzero(mask[y])
+        if xs.size:
+            left.append((xs[0], y))
+            right.append((xs[-1] + 1, y))
+    ring = left + right[::-1]
+    if len(ring) < 3:
+        return None
+    return [[round(x / w, 4), round(y / h, 4)] for x, y in ring]
 
 
 def footprint_from_mask(
