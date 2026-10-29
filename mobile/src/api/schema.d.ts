@@ -1335,6 +1335,7 @@ export interface paths {
                     /** @description Search name, variety, supplier, latin name, notes */
                     q?: string;
                     stock?: "full" | "part" | "low" | "empty";
+                    status?: "draft" | "active";
                     /** @description Only packets with the activity in this month (1 to 12) */
                     month?: number;
                     /** @description With month: sow (indoors or outdoors) or one activity */
@@ -1486,6 +1487,159 @@ export interface paths {
                 default: components["responses"]["DEFAULT_ERROR"];
             };
         };
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/packet-scans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PacketScan"][];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        /** Start reading a photo already uploaded to the allotment. The result is a draft packet. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PacketScanIn"];
+                };
+            };
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PacketScan"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/packet-scans/{scan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                scan_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    scan_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PacketScan"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/packet-scans/{scan_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                scan_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run a failed (or stuck queued) scan again. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    scan_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PacketScan"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/allotments/{allotment_id}/trays": {
@@ -3106,6 +3260,7 @@ export interface components {
             sun?: string | null;
             stock?: string;
             best_before_year?: number | null;
+            seeds_in_packet?: number | null;
             calendar?: components["schemas"]["Calendar"];
             photos?: components["schemas"]["Media"][];
             created_by?: number | null;
@@ -3133,6 +3288,9 @@ export interface components {
             /** @enum {string} */
             stock?: "full" | "part" | "low" | "empty";
             best_before_year?: number | null;
+            seeds_in_packet?: number | null;
+            /** @enum {string} */
+            status?: "active";
             calendar?: components["schemas"]["Calendar"];
         };
         PacketPatch: {
@@ -3154,7 +3312,33 @@ export interface components {
             /** @enum {string} */
             stock?: "full" | "part" | "low" | "empty";
             best_before_year?: number | null;
+            seeds_in_packet?: number | null;
+            /** @enum {string} */
+            status?: "active";
             calendar?: components["schemas"]["Calendar"];
+        };
+        PacketScan: {
+            id?: number;
+            status?: string;
+            error?: string | null;
+            media_id?: number | null;
+            /** @description The draft packet, once ready */
+            packet_id?: number | null;
+            /** @description graphic or words */
+            calendar_source?: string | null;
+            rotation?: number;
+            /** @description Fields the reader could not find */
+            missing?: string[];
+            /** @description The calendar as read */
+            crop?: components["schemas"]["Media"] | (Record<string, never> | null);
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            finished_at?: string | null;
+        };
+        PacketScanIn: {
+            /** @description An uploaded photo of the back of a packet */
+            media_id: number;
         };
         TrayCounts: {
             empty?: number;

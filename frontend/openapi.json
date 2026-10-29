@@ -1459,6 +1459,18 @@
           },
           {
             "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "active"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
             "name": "month",
             "description": "Only packets with the activity in this month (1 to 12)",
             "schema": {
@@ -1637,6 +1649,161 @@
         {
           "in": "path",
           "name": "packet_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/packet-scans": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PacketScan"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "packet_scans"
+        ]
+      },
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PacketScan"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PacketScanIn"
+              }
+            }
+          }
+        },
+        "summary": "Start reading a photo already uploaded to the allotment. The result is a draft packet.",
+        "tags": [
+          "packet_scans"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/packet-scans/{scan_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PacketScan"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "packet_scans"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "scan_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/packet-scans/{scan_id}/retry": {
+      "post": {
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PacketScan"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Run a failed (or stuck queued) scan again.",
+        "tags": [
+          "packet_scans"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "scan_id",
           "required": true,
           "schema": {
             "type": "integer",
@@ -2939,6 +3106,10 @@
       "description": "The seed library"
     },
     {
+      "name": "packet_scans",
+      "description": "Reading a photo of a seed packet into a draft packet"
+    },
+    {
       "name": "trays",
       "description": "Seed trays: a grid of cells, each sown with a packet"
     },
@@ -4088,6 +4259,10 @@
             "type": "integer",
             "nullable": true
           },
+          "seeds_in_packet": {
+            "type": "integer",
+            "nullable": true
+          },
           "calendar": {
             "$ref": "#/components/schemas/Calendar"
           },
@@ -4207,6 +4382,18 @@
             "maximum": 2100,
             "nullable": true
           },
+          "seeds_in_packet": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000,
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active"
+            ]
+          },
           "calendar": {
             "$ref": "#/components/schemas/Calendar"
           }
@@ -4311,10 +4498,96 @@
             "maximum": 2100,
             "nullable": true
           },
+          "seeds_in_packet": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000,
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active"
+            ]
+          },
           "calendar": {
             "$ref": "#/components/schemas/Calendar"
           }
         },
+        "additionalProperties": false
+      },
+      "PacketScan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "media_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "packet_id": {
+            "type": "integer",
+            "description": "The draft packet, once ready",
+            "nullable": true
+          },
+          "calendar_source": {
+            "type": "string",
+            "description": "graphic or words",
+            "nullable": true
+          },
+          "rotation": {
+            "type": "integer"
+          },
+          "missing": {
+            "type": "array",
+            "description": "Fields the reader could not find",
+            "items": {
+              "type": "string"
+            }
+          },
+          "crop": {
+            "description": "The calendar as read",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Media"
+              },
+              {
+                "type": "object",
+                "nullable": true
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PacketScanIn": {
+        "type": "object",
+        "properties": {
+          "media_id": {
+            "type": "integer",
+            "description": "An uploaded photo of the back of a packet"
+          }
+        },
+        "required": [
+          "media_id"
+        ],
         "additionalProperties": false
       },
       "TrayCounts": {

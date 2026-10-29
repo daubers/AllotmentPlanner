@@ -15,7 +15,11 @@ celery.conf.update(
     task_default_headers={},
     # Photogrammetry is heavy and slow, so it has its own queue and worker (the `mapper` service);
     # the default worker keeps handling thumbnails and Mastodon posts in the meantime.
-    task_routes={"allotment.run_map_job": {"queue": "mapping"}},
+    task_routes={
+        "allotment.run_map_job": {"queue": "mapping"},
+        # Reading a packet photo (OCR) is a minute of CPU, so it must not wait behind a map job.
+        "allotment.run_packet_scan": {"queue": "vision"},
+    },
     beat_schedule={
         "mastodon-daily-digest": {
             "task": "allotment.mastodon_daily_digest",

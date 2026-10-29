@@ -260,6 +260,7 @@ class SeedPacket(db.Model):
     sun: Mapped[str | None] = mapped_column(String(10), nullable=True)  # full | partial | shade
     stock: Mapped[str] = mapped_column(String(10), default="full")  # full | part | low | empty
     best_before_year: Mapped[int | None] = mapped_column(nullable=True)
+    seeds_in_packet: Mapped[int | None] = mapped_column(nullable=True)
     # {"sow_indoors": [1, 2], "sow_outdoors": [...], "plant_out": [...], "harvest": [...]}
     calendar: Mapped[dict] = mapped_column(JSON, default=dict)
     created_by: Mapped[int | None] = mapped_column(
@@ -269,6 +270,40 @@ class SeedPacket(db.Model):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, onupdate=_now
     )
+
+
+class PacketScan(db.Model):
+    """A photo of a packet's back being read into a draft SeedPacket (OCR, ``vision`` queue)."""
+
+    __tablename__ = "packet_scans"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    media_id: Mapped[int | None] = mapped_column(
+        ForeignKey("media.id", ondelete="SET NULL"), nullable=True
+    )
+    packet_id: Mapped[int | None] = mapped_column(
+        ForeignKey("seed_packets.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    status: Mapped[str] = mapped_column(String(10), default="queued", index=True)
+    # queued | running | ready | failed
+    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    calendar_source: Mapped[str | None] = mapped_column(
+        String(10), nullable=True
+    )  # graphic | words
+    rotation: Mapped[int] = mapped_column(default=0)
+    missing: Mapped[list] = mapped_column(JSON, default=list)  # fields the reader could not find
+    crop_media_id: Mapped[int | None] = mapped_column(
+        ForeignKey("media.id", ondelete="SET NULL"), nullable=True
+    )  # the calendar as read, for the review screen
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Tray(db.Model):

@@ -58,9 +58,12 @@ beforeEach(() => {
   get.mockReset();
   patch.mockReset();
   post.mockReset();
-  get.mockImplementation(async (path: string) =>
-    path.endsWith("/packets/{packet_id}") ? { data: tomato } : { data: [tomato] },
-  );
+  get.mockImplementation(async (path: string, opts?: { params?: { query?: { status?: string } } }) => {
+    if (path.endsWith("/packets/{packet_id}")) return { data: tomato };
+    if (path.endsWith("/packet-scans")) return { data: [] };
+    if (opts?.params?.query?.status === "draft") return { data: [] };
+    return { data: [tomato] };
+  });
 });
 
 describe("Seeds page", () => {

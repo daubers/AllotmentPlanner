@@ -629,6 +629,8 @@ class PacketPatchSchema(Schema):
     sun = fields.String(allow_none=True, validate=validate.OneOf(SUN_LEVELS))
     stock = fields.String(validate=validate.OneOf(STOCK_LEVELS))
     best_before_year = _count(2000, 2100)
+    seeds_in_packet = _count(1, 100000)
+    status = fields.String(validate=validate.OneOf(["active"]))  # saving a draft makes it active
     calendar = fields.Nested(CalendarSchema)
 
 
@@ -639,6 +641,7 @@ class PacketInSchema(PacketPatchSchema):
 class PacketQuerySchema(Schema):
     q = fields.String(metadata={"description": "Search name, variety, supplier, latin name, notes"})
     stock = fields.String(validate=validate.OneOf(STOCK_LEVELS))
+    status = fields.String(validate=validate.OneOf(["draft", "active"]))
     month = fields.Integer(
         validate=validate.Range(min=1, max=12),
         metadata={"description": "Only packets with the activity in this month (1 to 12)"},
@@ -669,6 +672,7 @@ class PacketSchema(Schema):
     sun = fields.String(allow_none=True)
     stock = fields.String()
     best_before_year = fields.Integer(allow_none=True)
+    seeds_in_packet = fields.Integer(allow_none=True)
     calendar = fields.Nested(CalendarSchema)
     photos = fields.List(fields.Nested(MediaSchema))
     created_by = fields.Integer(allow_none=True)
@@ -770,3 +774,29 @@ class TraySummarySchema(Schema):
 class TraySchema(TraySummarySchema):
     cells = fields.List(fields.Nested(TrayCellSchema))
     photos = fields.List(fields.Nested(MediaSchema))
+
+
+class PacketScanInSchema(Schema):
+    media_id = fields.Integer(
+        required=True, metadata={"description": "An uploaded photo of the back of a packet"}
+    )
+
+
+class PacketScanSchema(Schema):
+    id = fields.Integer()
+    status = fields.String()
+    error = fields.String(allow_none=True)
+    media_id = fields.Integer(allow_none=True)
+    packet_id = fields.Integer(
+        allow_none=True, metadata={"description": "The draft packet, once ready"}
+    )
+    calendar_source = fields.String(allow_none=True, metadata={"description": "graphic or words"})
+    rotation = fields.Integer()
+    missing = fields.List(
+        fields.String(), metadata={"description": "Fields the reader could not find"}
+    )
+    crop = fields.Nested(
+        MediaSchema, allow_none=True, metadata={"description": "The calendar as read"}
+    )
+    created_at = fields.DateTime()
+    finished_at = fields.DateTime(allow_none=True)

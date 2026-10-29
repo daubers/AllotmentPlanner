@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import MonthGrid from "../seeds/MonthGrid";
+import ScanBox from "../seeds/ScanBox";
 import { MONTH_NAMES, STOCK, currentMonth, daysLabel, type StockLevel } from "../seeds/calendar";
 import { usePacketActions, usePackets } from "../seeds/hooks";
 import { useAllotment } from "./AllotmentLayout";
@@ -13,7 +14,8 @@ export default function SeedsPage() {
   const [sowNow, setSowNow] = useState(false);
   const [month, setMonth] = useState(currentMonth());
   const [error, setError] = useState<string | null>(null);
-  const packets = usePackets(id, { q, stock: stock || undefined, month: sowNow ? month : undefined });
+  const packets = usePackets(id, { q, stock: stock || undefined, month: sowNow ? month : undefined, status: "active" });
+  const drafts = usePackets(id, { status: "draft" });
   const actions = usePacketActions(id);
 
   async function add(e: React.FormEvent<HTMLFormElement>) {
@@ -33,6 +35,27 @@ export default function SeedsPage() {
     <main className="page wide">
       <h1>Seeds</h1>
       <p className="muted">Your seed packets. Add each one with the dates from the back, then see what can be sown this month.</p>
+
+      {canEdit && <ScanBox allotmentId={id} />}
+
+      {!!drafts.data?.length && (
+        <section className="drafts" aria-label="To review">
+          <h2>To review ({drafts.data.length})</h2>
+          <ul className="packets">
+            {drafts.data.map((p) => (
+              <li key={p.id}>
+                <Link to={String(p.id)} className="packet-card">
+                  <span className="packet-main">
+                    <strong>{p.name}</strong>
+                    <span className="muted">{[p.variety, p.supplier].filter(Boolean).join(" · ") || "Read from a photo"}</span>
+                  </span>
+                  <span className="badge">Draft</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {canEdit && (
         <form className="packet-add" onSubmit={(e) => void add(e)}>
