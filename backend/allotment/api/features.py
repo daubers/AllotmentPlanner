@@ -22,7 +22,7 @@ blp = Blueprint(
     description="Map features (GeoJSON)",
 )
 
-PROPERTY_KEYS = {"name", "kind", "radius_m", "style"}
+PROPERTY_KEYS = {"name", "kind", "radius_m", "style", "locked", "z"}
 
 
 def _reject(message: str):
@@ -35,8 +35,30 @@ def _collection(features) -> dict:
     return {"type": "FeatureCollection", "features": [feature_to_geojson(f) for f in features]}
 
 
+def _locked(message: str):
+    db.session.rollback()
+    abort(409, message=message)
+
+
 def _apply(feature: MapFeature, geometry: dict | None, properties: dict | None) -> None:
-    """Validate and copy GeoJSON input onto ``feature``; aborts with 422 on bad input."""
+    """Validate and copy GeoJSON input onto ``feature``; aborts with 422 on bad input and 409 when
+    it would move or reshape a locked feature (unlock it in the same request to do both)."""
+    was_locked = bool(feature.locked)
+    try:
+        props_in = properties or {}
+        if "locked" in props_in:
+            if not isinstance(props_in["locked"], bool):
+                raise ValidationError("locked must be true or false")
+            feature.locked = props_in["locked"]
+        if "z" in props_in:
+            z = props_in["z"]
+            if not isinstance(z, int) or isinstance(z, bool) or abs(z) > 100_000:
+                raise ValidationError("z must be a whole number")
+            feature.z = z
+        if was_locked and feature.locked and (geometry is not None or "radius_m" in props_in):
+            _locked("This feature is locked: unlock it to move or reshape it")
+    except ValidationError as exc:
+        _reject(str(exc.messages[0] if exc.messages else exc))
     try:
         if geometry is not None:
             feature.geometry = parse_geometry(geometry)
@@ -135,6 +157,8 @@ class FeatureList(MethodView):
             else:
                 keep.add(fid)
         deleted = [f for fid, f in existing.items() if fid not in keep]
+        if any(f.locked for f in deleted):
+            _locked("A locked feature can't be deleted: unlock it first")
         for feature in deleted:
             db.session.delete(feature)
         db.session.commit()
@@ -179,6 +203,8 @@ class FeatureDetail(MethodView):
     @blp.response(204)
     def delete(self, allotment, membership, feature_id):
         feature = _get(allotment, feature_id)
+        if feature.locked:
+            _locked("A locked feature can't be deleted: unlock it first")
         db.session.delete(feature)
         db.session.commit()
         events.emit(

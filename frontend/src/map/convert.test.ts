@@ -38,3 +38,15 @@ describe("map conversion", () => {
     expect(styleFor("nonsense").color).toBe(styleFor("other").color);
   });
 });
+
+describe("locked features", () => {
+  it("are hidden from Geoman so nothing can drag or edit them", () => {
+    const geometry = { type: "Polygon", coordinates: [[[-1, 51], [-1, 51.001], [-0.999, 51.001], [-1, 51]]] };
+    const free = featureToLayer({ type: "Feature", id: 1, geometry, properties: { kind: "bed" } });
+    const locked = featureToLayer({ type: "Feature", id: 1, geometry, properties: { kind: "bed", locked: true } });
+    expect((free as L.Path).options.pmIgnore).toBeUndefined();
+    expect((locked as L.Path).options.pmIgnore).toBe(true);
+    const pin = featureToLayer({ type: "Feature", id: 2, geometry: { type: "Point", coordinates: [-1, 51] }, properties: { locked: true } });
+    expect((pin as L.Marker).options.pmIgnore).toBe(true);
+  });
+});

@@ -42,5 +42,7 @@ def feature_to_geojson(feature: MapFeature) -> dict:
             "kind": feature.kind,
             "radius_m": feature.radius_m,
             "style": feature.style or {},
+            "locked": bool(feature.locked),
+            "z": feature.z or 0,
         },
     }

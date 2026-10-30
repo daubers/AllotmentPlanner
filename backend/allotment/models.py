@@ -103,6 +103,10 @@ class MapFeature(db.Model):
     geometry = mapped_column(Geometry("GEOMETRY", srid=4326), nullable=False)
     radius_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     style: Mapped[dict] = mapped_column(JSON, default=dict)
+    # A locked feature can't be moved, reshaped or deleted until it is unlocked.
+    locked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Stacking order on the map: higher is drawn on top; ties fall back to the kind's usual order.
+    z: Mapped[int] = mapped_column(default=0, server_default="0")
     created_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
