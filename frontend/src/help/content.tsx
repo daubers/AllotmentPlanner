@@ -14,8 +14,10 @@ function GettingStarted() {
       <h2>Your first allotment</h2>
       <p>
         After signing in, the first page lists your allotments. Type a name under <em>New allotment name</em> and
-        choose <em>Create</em>, then open it. Each allotment has tabs along the top: Map, Tasks, Today, Photos, Seeds,
-        Trays, Beds, From photos, Overview and Settings.
+        choose <em>Create</em>, then open it. The menu along the top is grouped by what you are doing:
+        <strong> Plot</strong> (Map, Map from photos), <strong>Grow</strong> (Seeds, Trays, Beds),
+        <strong>Work</strong> (Today, Tasks) and <strong>Record</strong> (Photos, Overview). Choose a group to see its pages;
+        Settings is at the top right.
       </p>
       <h2>Who can do what</h2>
       <ul>
@@ -56,7 +58,7 @@ function TheMap() {
       </p>
       <p>To select something hidden underneath another shape, hold Alt (Option on a Mac) and click: each click moves down to the next shape under the pointer. You can also pick any shape from the list.</p>
       <h2>Tasks on the map</h2>
-      <p>Select a shape and add a task under <em>Tasks here</em>; it shows as a 📌 on the map. The <em>Tasks</em> and <em>Today</em> tabs list them all, and Today prints as a clean list to take to the plot.</p>
+      <p>Select a shape and add a task under <em>Tasks here</em>; it shows as a 📌 on the map. The <em>Tasks</em> and <em>Today</em> pages (in <em>Work</em>) list them all, and Today prints as a clean list to take to the plot.</p>
     </>
   );
 }
@@ -66,7 +68,7 @@ function SeedsAndTrays() {
     <>
       <h2>Seed packets</h2>
       <p>
-        The <em>Seeds</em> tab is your library. Add a packet by hand, or photograph the back of a packet and let the
+        The <em>Seeds</em> page (in <em>Grow</em>) is your library. Add a packet by hand, or photograph the back of a packet and let the
         service read it: it makes a draft that says what it could not find, so you can correct it and save it to the
         library. Each packet has a calendar of when to sow indoors and outdoors, and the list can show only what to sow this month.
       </p>
@@ -96,7 +98,7 @@ function PhotoMaps() {
       </ul>
       <h2>Building a map</h2>
       <p>
-        Open the <em>From photos</em> tab. Choose what to make (the objects found in your photos, and/or a stitched
+        Open <em>Map from photos</em> (in the <em>Plot</em> group). Choose what to make (the objects found in your photos, and/or a stitched
         photo overlay), whether you took the photos looking across the plot or straight down, and the camera height. By default every
         finished photo and video is used; choose <em>pick which</em> to use only some. Optionally add a GPX file of a walk round the edge of the plot to give the map its boundary, and check the outline preview. Then start the job. It runs in the background and shows its stages and a log.
       </p>
@@ -203,7 +205,7 @@ function Troubleshooting() {
         <li><strong>The same video twice.</strong> Two copies of a recording make the map fall apart. Since version 0.5.1 repeated uploads are left out automatically; before that, delete the extra copy and run it again.</li>
         <li><strong>Too few overlapping photos.</strong> Walk more slowly, take a step between photos, and face different directions so each part of the plot is seen from several places.</li>
         <li><strong>Too few locations.</strong> At least 3 photos must have a location. Check location was on when the photos were taken.</li>
-        <li>Open the job's log on the <em>From photos</em> tab. A line such as "N of M detections could be put on the ground" says how many things were seen but could not be placed.</li>
+        <li>Open the job's log on the <em>Map from photos</em> page. A line such as "N of M detections could be put on the ground" says how many things were seen but could not be placed.</li>
       </ul>
       <h2>"Only 0 of 40 photo positions are inside the GPX boundary"</h2>
       <p>The boundary from your GPX trace and the photos disagree about where the plot is by more than a few metres. Check the GPX is of this plot, or leave the boundary out.</p>

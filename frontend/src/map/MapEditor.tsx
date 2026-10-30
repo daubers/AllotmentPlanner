@@ -67,8 +67,10 @@ function InitialView({ drawn, allotmentId, suggestions }: { drawn: Box | null | 
     done.current = true;
     const waiting = (suggestions.data ?? []).map(suggestionBox).filter((b): b is Box => b !== null);
     const view = initialView(drawn, layers.data, waiting);
-    if (view) map.fitBounds(view, { padding: [24, 24], maxZoom: 21 });
-    else navigator.geolocation?.getCurrentPosition((p) => map.setView([p.coords.latitude, p.coords.longitude], 19));
+    // No animation: the opening view should just appear, and a zoom animation still running when the
+    // person leaves the page makes Leaflet throw once its timer fires on the removed map.
+    if (view) map.fitBounds(view, { padding: [24, 24], maxZoom: 21, animate: false });
+    else navigator.geolocation?.getCurrentPosition((p) => map.setView([p.coords.latitude, p.coords.longitude], 19, { animate: false }));
   }, [map, drawn, layers.isPending, layers.data, suggestions.pending, suggestions.data]);
   return null;
 }
