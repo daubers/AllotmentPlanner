@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth";
 
@@ -7,7 +7,7 @@ export default function Login() {
   const { user, login, register } = useAuth();
   const [params] = useSearchParams();
   const invite = params.get("invite") ?? "";
-  const [mode, setMode] = useState<"login" | "register">(invite ? "register" : "login");
+  const [mode, setMode] = useState<"login" | "register">(invite || params.get("register") ? "register" : "login");
   const [inviteOnly, setInviteOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -34,7 +34,7 @@ export default function Login() {
 
   return (
     <main className="auth">
-      <h1>Allotment Planner</h1>
+      <h1><Link to="/" className="plain">Allotment Planner</Link></h1>
       <form onSubmit={submit}>
         <h2>{mode === "login" ? "Sign in" : "Create account"}</h2>
         {mode === "register" && (
@@ -66,6 +66,9 @@ export default function Login() {
           {mode === "login" ? "Need an account? Register" : "Have an account? Sign in"}
         </button>
       </form>
+      <p className="hint legal">
+        By creating an account you agree to how your data is handled on the <Link to="/privacy">privacy page</Link>. <Link to="/help">Help</Link>
+      </p>
     </main>
   );
 }

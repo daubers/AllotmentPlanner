@@ -15,7 +15,8 @@ export type GeoJSONFeature = {
 
 export function styleFor(kind: string | undefined): L.PathOptions {
   const color = colourFor(kind);
-  return { color, fillColor: color, fillOpacity: 0.3, weight: 2 };
+  // A boundary is an outline round everything else, so it is barely filled.
+  return { color, fillColor: color, fillOpacity: kind === "boundary" ? 0.05 : 0.3, weight: 2 };
 }
 
 /** Leaflet layer drawn in the editor -> GeoJSON geometry (+ radius for circles). */

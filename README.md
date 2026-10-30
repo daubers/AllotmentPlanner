@@ -9,6 +9,8 @@ Plan and log the work on an allotment: draw the plot on a map, pin tasks to beds
 - **Mapper** (optional, heavy): builds a map from photos and video with OpenSfM and GDAL, recognises objects (water butts, trees, sheds) with local models, and uses a GoPro's GPS track when there is one.
 - **Phone app** (Expo / React Native, Android and iOS): sign in, guided photo capture, measuring checklist, offline queue.
 
+A public landing page, a [privacy page](frontend/src/public/Privacy.tsx) (`/privacy`) and user help (`/help`) are part of the web app and work without signing in; the screenshots are described in [docs/screenshots.md](docs/screenshots.md). Set the contact address and date for the privacy page in `frontend/src/public/site.ts`.
+
 Planned work, with the reasoning behind each piece, is in [docs/plan.md](docs/plan.md); tickets live in YouTrack project **AM**.
 
 > **Status.** The server and web app are used and tested. The phone app has tests, a clean bundle and screenshot review, but had not yet been run on a real device when this was written. Building the plot outline automatically from photos works on synthetic data but did not on the first real photo set; the measuring checklist is the dependable route to real dimensions. See [docs/plan.md](docs/plan.md) for the honest details.

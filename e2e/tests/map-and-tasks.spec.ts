@@ -19,7 +19,15 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   page.on("console", (m) => m.type() === "error" && console.log(`[browser console] ${m.text()}`));
   page.on("pageerror", (e) => console.log(`[browser pageerror] ${e.message}`));
 
+  // A visitor sees the landing page first, with the privacy and help pages one click away.
   await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Your allotment, on one map." })).toBeVisible();
+  await page.goto("/privacy");
+  await expect(page.getByRole("heading", { name: "Privacy", level: 1 })).toBeVisible();
+  await page.goto("/help/map");
+  await expect(page.getByRole("heading", { name: "The map", level: 1 })).toBeVisible();
+  await page.goto("/");
+  await page.getByRole("link", { name: "Sign in" }).first().click();
   await expect(page).toHaveURL(/\/login$/);
   await page.getByRole("button", { name: /Need an account/ }).click();
   await page.getByLabel("Your name").fill("E2E Gardener");
@@ -130,7 +138,9 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await page.getByRole("link", { name: "From photos" }).click();
   await expect(page.getByRole("heading", { name: "From your photos" })).toBeVisible();
   await expect(page.getByText(/None built\./)).toBeVisible();
-  await expect(page.getByText(/2 photos \(2 with a location\): about 2 images in all\./)).toBeVisible();
+  // The two fixture photos are the same file, so the second counts as a repeat and is left out.
+  await expect(page.getByText(/1 photo \(1 with a location\): about 1 image in all\./)).toBeVisible();
+  await expect(page.getByText(/1 file looks like a second upload of another/)).toBeVisible();
   await expect(page.getByText(/Pick at least 5 photos/)).toBeVisible(); // not enough to build a map yet
   await expect(page.getByRole("button", { name: "Start" })).toBeDisabled();
   await page.screenshot({ path: "test-results/layers.png", fullPage: true });
@@ -156,7 +166,7 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => Math.round(v.duration))).toBe(3);
   await page.keyboard.press("Escape");
   await page.getByRole("link", { name: "From photos" }).click();
-  await expect(page.getByText(/2 photos \(2 with a location\), 1 video: about 5 images in all\./)).toBeVisible();
+  await expect(page.getByText(/1 photo \(1 with a location\), 1 video: about 4 images in all\./)).toBeVisible();
   await expect(page.getByText(/Videos are sampled about once a second/)).toBeVisible();
 
   expect(errors).toEqual([]);

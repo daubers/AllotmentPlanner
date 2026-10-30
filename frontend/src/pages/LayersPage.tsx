@@ -215,8 +215,8 @@ export default function LayersPage() {
                 </ul>
               )}
               <p className="muted">
-                {ready.photos} photos ({ready.located} with a location)
-                {ready.videos > 0 && <>, {ready.videos} {ready.videos === 1 ? "video" : "videos"}</>}: about {ready.images} images in all.
+                {ready.photos} {ready.photos === 1 ? "photo" : "photos"} ({ready.located} with a location)
+                {ready.videos > 0 && <>, {ready.videos} {ready.videos === 1 ? "video" : "videos"}</>}: about {ready.images} {ready.images === 1 ? "image" : "images"} in all.
               </p>
               {ready.problems.map((p) => <p key={p} className="hint">{p}</p>)}
               {ready.repeats.length > 0 && (
