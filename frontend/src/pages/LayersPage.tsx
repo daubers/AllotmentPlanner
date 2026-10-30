@@ -219,6 +219,13 @@ export default function LayersPage() {
                 {ready.videos > 0 && <>, {ready.videos} {ready.videos === 1 ? "video" : "videos"}</>}: about {ready.images} images in all.
               </p>
               {ready.problems.map((p) => <p key={p} className="hint">{p}</p>)}
+              {ready.repeats.length > 0 && (
+                <p className="hint warning" role="status">
+                  {ready.repeats.length === 1 ? "1 file looks like" : `${ready.repeats.length} files look like`} a second upload of another and will be left out, so the map isn't built twice:{" "}
+                  {ready.repeats.map(({ file, of }) => `${file.filename} (same as ${of.filename}, ${of.taken_at?.slice(0, 10) ?? "earlier"})`).join(", ")}.
+                  Delete the extra copy from your media if it is a mistake.
+                </p>
+              )}
               <p className="hint">
                 Videos are sampled about once a second (the sharpest frame each time) and fitted in by matching them to your photos,
                 so walk the plot with a video and take a few photos with location on to anchor it.

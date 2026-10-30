@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Media } from "../media/group";
-import { anyActive, clampOpacity, defaultHeight, initialView, jobSummary, layerBox, layersToShow, readiness, videoFrames, type MapJob, type MapLayer } from "./status";
+import { anyActive, clampOpacity, defaultHeight, initialView, jobSummary, layerBox, layersToShow, readiness, repeatedFiles, videoFrames, type MapJob, type MapLayer } from "./status";
 
 const job = (extra: Partial<MapJob>): MapJob => ({ id: 1, status: "queued", stage: "", ...extra }) as MapJob;
 const photo = (id: number, extra: Partial<Media> = {}): Media => ({ id, kind: "photo", status: "ready", lat: 51.5, lng: -0.12, ...extra }) as Media;
@@ -126,5 +126,26 @@ describe("initialView", () => {
   });
   it("converts a layer's [west, south, east, north] to a Leaflet box", () => {
     expect(layerBox({ bounds: [-1, 2, 3, 4] })).toEqual([[2, -1], [4, 3]]);
+  });
+});
+
+describe("repeated files", () => {
+  const file = (id: number, extra: object = {}) =>
+    ({ id, status: "ready", kind: "video", filename: `walk${id}.mp4`, size_bytes: 5_000_000, duration_s: 10, width: 1920, height: 1080, taken_at: "2026-10-20T10:00:00Z", ...extra }) as Media;
+
+  it("calls a later upload of the same size and length a copy of the first", () => {
+    const copies = repeatedFiles([file(2), file(1), file(3, { duration_s: 12 })]);
+    expect([...copies.keys()]).toEqual([2]);
+    expect(copies.get(2)?.id).toBe(1);
+  });
+
+  it("never matches files whose size isn't known", () => {
+    expect(repeatedFiles([file(1, { size_bytes: 0 }), file(2, { size_bytes: 0 })]).size).toBe(0);
+  });
+
+  it("doesn't count a copy towards the images, and lists it", () => {
+    const ready = readiness([file(1), file(2)], null);
+    expect(ready.videos).toBe(1);
+    expect(ready.repeats.map((r) => [r.file.id, r.of.id])).toEqual([[2, 1]]);
   });
 });

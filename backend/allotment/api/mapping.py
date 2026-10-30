@@ -11,6 +11,7 @@ from ..extensions import db
 from ..gpx import MAX_BYTES, GpxError, outline_from_trace, parse_gpx
 from ..mapping_video import estimated_frames
 from ..models import MapJob, MapLayer, Media, Role
+from ..duplicates import duplicates_of
 from ..plot_boundary import boundary_problem
 from ..schemas import (
     BoundaryFromGpxSchema,
@@ -101,6 +102,14 @@ def _get_job(allotment, job_id: int) -> MapJob:
     return job
 
 
+def _copies_note(copies: dict[int, int], names: dict[int, str]) -> str:
+    """The first line of the job log when files were left out as repeats of others."""
+    if not copies:
+        return ""
+    pairs = ", ".join(f"{names[c]} (same as {names[o]})" for c, o in copies.items())
+    return f"Left out {len(copies)} repeated file(s) so the map isn't built twice: {pairs}\n"
+
+
 @blp.route("/map-jobs")
 class MapJobList(MethodView):
     @require_role(Role.EDITOR)
@@ -150,10 +159,13 @@ class MapJobList(MethodView):
         else:
             query = query.filter(Media.id.in_(data["media_ids"]))
         media = query.order_by(Media.taken_at, Media.id).all()
+        names = {m.id: m.filename for m in media}
         if data["capture_session"] is not None and not media:
             abort(422, message="No finished photos in that capture session yet")
         if data["media_ids"] is not None and len(media) != len(set(data["media_ids"])):
             abort(422, message="Some of those files aren't ready or aren't in this allotment")
+        copies = duplicates_of(media)
+        media = [m for m in media if m.id not in copies]
         cfg = current_app.config
         images = sum(
             1
@@ -194,6 +206,7 @@ class MapJobList(MethodView):
             detect_objects=data["detect_objects"],
             overlay=data["overlay"],
             boundary=data["boundary"],
+            log=_copies_note(copies, names),
             created_by=membership.user_id,
         )
         db.session.add(job)
