@@ -759,7 +759,8 @@ def test_a_video_uploaded_twice_is_only_used_once_and_the_log_says_so(client, pl
     resp = create(client, plot)
     assert resp.status_code == 202, resp.json
     job = db.session.get(MapJob, resp.json["id"])
-    assert job.media_ids.count(first) == 1 and second not in job.media_ids and other in job.media_ids
+    assert job.media_ids.count(first) == 1
+    assert second not in job.media_ids and other in job.media_ids
     assert "Left out 1 repeated file" in job.log and "walk.mp4 (same as walk.mp4)" in job.log
 
 

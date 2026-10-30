@@ -188,9 +188,9 @@ def test_a_locked_feature_cannot_be_moved_or_deleted_until_unlocked(client, plot
     h = plot["editor"]
     fid = client.post(plot["base"], json=feat(name="Bed"), headers=h).json["id"]
     url = f"{plot['base']}/{fid}"
-    assert client.patch(url, json={"properties": {"locked": True}}, headers=h).json[
-        "properties"
-    ]["locked"]
+    assert client.patch(url, json={"properties": {"locked": True}}, headers=h).json["properties"][
+        "locked"
+    ]
     moved = {"type": "Point", "coordinates": [-1.0, 51.0]}
     assert client.patch(url, json={"geometry": moved}, headers=h).status_code == 409
     assert client.delete(url, headers=h).status_code == 409
@@ -198,9 +198,7 @@ def test_a_locked_feature_cannot_be_moved_or_deleted_until_unlocked(client, plot
     ok = client.patch(url, json={"properties": {"name": "Renamed"}}, headers=h)
     assert ok.status_code == 200 and ok.json["geometry"]["type"] == "Polygon"
     # Unlocking and moving in one request works.
-    both = client.patch(
-        url, json={"geometry": BED, "properties": {"locked": False}}, headers=h
-    )
+    both = client.patch(url, json={"geometry": BED, "properties": {"locked": False}}, headers=h)
     assert both.status_code == 200 and not both.json["properties"]["locked"]
     assert client.delete(url, headers=h).status_code == 204
 
@@ -220,4 +218,5 @@ def test_locked_and_z_must_be_sensible(client, plot):
     url = f"{plot['base']}/{fid}"
     assert client.patch(url, json={"properties": {"locked": "yes"}}, headers=h).status_code == 422
     assert client.patch(url, json={"properties": {"z": 1.5}}, headers=h).status_code == 422
-    assert client.patch(url, json={"properties": {"z": -3}}, headers=h).json["properties"]["z"] == -3
+    lowered = client.patch(url, json={"properties": {"z": -3}}, headers=h)
+    assert lowered.json["properties"]["z"] == -3
