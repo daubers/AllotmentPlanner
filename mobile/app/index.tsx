@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
+import { useFound } from "../src/found/hooks";
 import { useChecklist } from "../src/measure/hooks";
 import { useApp, useQueueState } from "../src/state/AppProvider";
 import { Banner, Button, Card, Chip, Loading, ProgressBar, Row, Screen, Section, T } from "../src/ui/kit";
@@ -64,6 +65,7 @@ export default function Home() {
   const router = useRouter();
   const state = useQueueState();
   const checklist = useChecklist();
+  const found = useFound();
   const [switching, setSwitching] = useState(false);
 
   const allotments = useQuery({
@@ -171,6 +173,13 @@ export default function Home() {
               ) : undefined
             }
           />
+          {canEdit && (found.data?.length ?? 0) > 0 ? (
+            <Tile
+              title="Review what was found"
+              body={`${found.data!.length} ${found.data!.length === 1 ? "thing" : "things"} spotted in your photos. Check each against the photo and add it to the map.`}
+              onPress={() => router.push("/found")}
+            />
+          ) : null}
           {!canEdit ? <T kind="caption" muted>You can look at this allotment but not change it.</T> : null}
         </Section>
       ) : null}
