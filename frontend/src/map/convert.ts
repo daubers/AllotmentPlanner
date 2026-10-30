@@ -5,7 +5,7 @@ import { colourFor, KINDS, KIND_COLOURS, type Kind } from "./kinds";
 export { colourFor, KINDS, KIND_COLOURS };
 export type { Kind };
 
-export type FeatureProps = { name: string; kind: Kind; radius_m: number | null; style: Record<string, unknown> };
+export type FeatureProps = { name: string; kind: Kind; radius_m: number | null; style: Record<string, unknown>; locked: boolean; z: number };
 export type GeoJSONFeature = {
   type: "Feature";
   id?: number;
@@ -28,11 +28,13 @@ export function layerToGeometry(layer: L.Layer): { geometry: GeoJSONFeature["geo
 /** GeoJSON feature from the API -> Leaflet layer (circles are Point + radius_m). */
 export function featureToLayer(feature: GeoJSONFeature): L.Layer {
   const { geometry, properties } = feature;
-  const style = styleFor(properties.kind);
+  // A locked layer is invisible to Geoman, so no drag, edit or delete mode can touch it.
+  const locked = properties.locked ? { pmIgnore: true, className: "locked" } : {};
+  const style = { ...styleFor(properties.kind), ...locked };
   switch (geometry.type) {
     case "Point": {
       const latlng = L.GeoJSON.coordsToLatLng(geometry.coordinates as [number, number]);
-      return properties.radius_m ? L.circle(latlng, { ...style, radius: properties.radius_m }) : L.marker(latlng);
+      return properties.radius_m ? L.circle(latlng, { ...style, radius: properties.radius_m }) : L.marker(latlng, locked);
     }
     case "LineString":
       return L.polyline(L.GeoJSON.coordsToLatLngs(geometry.coordinates as number[][], 0), style);

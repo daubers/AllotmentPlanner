@@ -3,7 +3,7 @@ import "@geoman-io/leaflet-geoman-free";
 import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { LayersControl, MapContainer, TileLayer, useMap } from "react-leaflet";
 import { api } from "../api/client";
 import type { Task } from "../tasks/group";
@@ -14,7 +14,9 @@ import { useSuggestions } from "../suggestions/hooks";
 import { suggestionBox, type Suggestion } from "../suggestions/model";
 import PlantingShapes from "./PlantingShapes";
 import { SuggestionShapes, SuggestionsPanel } from "./Suggestions";
+import { History } from "./history";
 import { pinGroups, pinPopup } from "./pins";
+import { byStack, edgeZ, inRing, nextBeneath } from "./stack";
 import {
   featureToLayer,
   KINDS,
@@ -27,7 +29,7 @@ import {
 } from "./convert";
 
 type Props = { allotmentId: number; canEdit: boolean };
-type Item = { id: number; name: string; kind: Kind };
+type Item = { id: number; name: string; kind: Kind; locked: boolean; z: number };
 type LayerWithId = L.Layer & { featureId?: number };
 
 const DEFAULT_CENTRE: L.LatLngTuple = [51.5, -0.12];
@@ -89,52 +91,192 @@ function TaskPins({ group, tasks, version }: { group: React.RefObject<L.FeatureG
   return null;
 }
 
-function Editor({ allotmentId, canEdit, group, onItems, onBounds, onSelect, registerActions }: Props & {
+type Shape = { geometry: GeoJSONFeature["geometry"]; radius_m: number | null };
+type Snapshot = { geometry: Shape["geometry"]; properties: Partial<FeatureProps> };
+type Actions = {
+  update(id: number, props: Partial<FeatureProps>): void;
+  remove(id: number): void;
+  focus(id: number): void;
+  add(features: (GeoJSONFeature & { id: number })[]): void;
+  arrange(id: number, edge: "top" | "bottom"): void;
+};
+
+const sameShape = (a: Shape, b: Shape) => a.radius_m === b.radius_m && JSON.stringify(a.geometry) === JSON.stringify(b.geometry);
+const asFeature = (data: unknown) => data as GeoJSONFeature & { id: number };
+
+/** Is this point on the layer? Areas by containment, lines and pins by a few pixels' tolerance. */
+function covers(map: L.Map, layer: L.Layer | undefined, at: L.LatLng): boolean {
+  if (layer instanceof L.Circle) return map.distance(at, layer.getLatLng()) <= layer.getRadius();
+  if (layer instanceof L.Polygon) {
+    const ring = (layer.getLatLngs() as L.LatLng[][])[0].map((p) => [p.lng, p.lat] as [number, number]);
+    return inRing([at.lng, at.lat], ring);
+  }
+  if (layer instanceof L.Polyline) {
+    const pts = (layer.getLatLngs() as L.LatLng[]).map((p) => map.latLngToLayerPoint(p));
+    const here = map.latLngToLayerPoint(at);
+    return pts.slice(1).some((p, i) => L.LineUtil.pointToSegmentDistance(here, pts[i], p) <= 8);
+  }
+  if (layer instanceof L.Marker) return map.latLngToLayerPoint(layer.getLatLng()).distanceTo(map.latLngToLayerPoint(at)) <= 14;
+  return false;
+}
+
+function Editor({ allotmentId, canEdit, group, history, selected, onItems, onBounds, onSelect, registerActions }: Props & {
   group: React.RefObject<L.FeatureGroup>;
+  history: History;
+  selected: number | null;
   onItems(items: Item[]): void;
   onBounds(bounds: Box | null): void;
   onSelect(id: number | null): void;
-  registerActions(a: { update(id: number, props: Partial<FeatureProps>): void; remove(id: number): void; focus(id: number): void; add(features: (GeoJSONFeature & { id: number })[]): void }): void;
+  registerActions(a: Actions): void;
 }) {
   const map = useMap();
   const meta = useRef(new Map<number, Item>());
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
 
   useEffect(() => {
     const g = group.current.addTo(map);
     const publish = () => onItems([...meta.current.values()]);
     const path = { params: { path: { allotment_id: allotmentId } } };
+    const saved = new Map<number, Shape>(); // what the server has, for undo
+    const alias = new Map<number, number>(); // a deleted feature that undo brought back has a new id
+
+    const resolve = (id: number) => {
+      let n = id;
+      while (alias.has(n)) n = alias.get(n)!;
+      return n;
+    };
+    const find = (id: number) => g.getLayers().find((l) => (l as LayerWithId).featureId === id);
+    const nameOf = (id: number) => meta.current.get(id)?.name || meta.current.get(id)?.kind || "item";
+    const patch = (id: number, body: { geometry?: Shape["geometry"]; properties?: Partial<FeatureProps> }) =>
+      api.PATCH("/api/v1/allotments/{allotment_id}/features/{feature_id}", {
+        params: { path: { allotment_id: allotmentId, feature_id: id } },
+        body,
+      });
+
+    /** Draws the features bottom to top: the person's own order, then areas under the things on them. */
+    const restack = () => {
+      for (const item of [...meta.current.values()].sort(byStack)) {
+        const layer = find(item.id);
+        if (layer instanceof L.Path) layer.bringToFront();
+      }
+    };
+    const under = (at: L.LatLng) =>
+      [...meta.current.values()].filter((i) => covers(map, find(i.id), at)).sort(byStack).reverse().map((i) => i.id);
+
+    const track = (f: GeoJSONFeature & { id: number }) => {
+      const p = f.properties;
+      meta.current.set(f.id, { id: f.id, name: p.name ?? "", kind: (p.kind as Kind) ?? "other", locked: !!p.locked, z: p.z ?? 0 });
+    };
 
     const attach = (layer: LayerWithId, id: number) => {
       layer.featureId = id;
       g.addLayer(layer);
-      layer.on("click", () => onSelect(id));
-      if (!canEdit) return;
+      saved.set(id, layerToGeometry(layer));
+      // Alt-click walks down through whatever is stacked under the pointer.
+      layer.on("click", (e) => {
+        const alt = (e as L.LeafletMouseEvent).originalEvent?.altKey;
+        onSelect(alt ? (nextBeneath(under((e as L.LeafletMouseEvent).latlng), selectedRef.current) ?? id) : id);
+      });
+      if (!canEdit || meta.current.get(id)?.locked) return;
       const save = async () => {
-        const { geometry, radius_m } = layerToGeometry(layer);
-        await api.PATCH("/api/v1/allotments/{allotment_id}/features/{feature_id}", {
-          params: { path: { allotment_id: allotmentId, feature_id: id } },
-          body: { geometry, properties: radius_m ? { radius_m } : undefined },
-        });
+        const now = layerToGeometry(layer);
+        const before = saved.get(id);
+        if (before && sameShape(before, now)) return;
+        const { data } = await patch(id, { geometry: now.geometry, properties: now.radius_m ? { radius_m: now.radius_m } : undefined });
+        if (!data) return;
+        saved.set(id, now);
+        if (before) {
+          history.record({ label: `Move ${nameOf(id)}`, undo: () => writeShape(id, before), redo: () => writeShape(id, now) });
+        }
       };
       layer.on("pm:edit", save);
       layer.on("pm:dragend", save);
     };
 
-    const track = (f: GeoJSONFeature & { id: number }) => {
-      meta.current.set(f.id, { id: f.id, name: f.properties.name ?? "", kind: (f.properties.kind as Kind) ?? "other" });
+    /** (Re)draws one feature from what the server says, replacing any layer it already had. */
+    const place = (f: GeoJSONFeature & { id: number }) => {
+      const old = find(f.id);
+      if (old) g.removeLayer(old);
+      track(f);
+      attach(featureToLayer(f) as LayerWithId, f.id);
+    };
+
+    const writeShape = async (id: number, shape: Shape) => {
+      const { data } = await patch(resolve(id), { geometry: shape.geometry, properties: shape.radius_m ? { radius_m: shape.radius_m } : undefined });
+      if (!data) throw new Error("not saved");
+      place(asFeature(data));
+      restack();
+      publish();
+    };
+
+    const setProps = async (id: number, props: Partial<FeatureProps>) => {
+      const { data } = await patch(id, { properties: props });
+      if (!data) throw new Error("not saved");
+      const f = asFeature(data);
+      const layer = find(id);
+      if (!layer || meta.current.get(id)?.locked !== !!f.properties.locked) place(f);
+      else {
+        track(f);
+        restyle(layer, f.properties.kind ?? "other");
+      }
+      restack();
+      publish();
+    };
+
+    const snapshotOf = (id: number, layer: L.Layer | undefined = find(id)): Snapshot | null => {
+      const m = meta.current.get(id);
+      if (!layer || !m) return null;
+      const { geometry, radius_m } = layerToGeometry(layer);
+      return { geometry, properties: { name: m.name, kind: m.kind, locked: m.locked, z: m.z, ...(radius_m ? { radius_m } : {}) } };
+    };
+
+    const create = async (snap: Snapshot) => {
+      const { data } = await api.POST("/api/v1/allotments/{allotment_id}/features", {
+        ...path,
+        body: { type: "Feature", geometry: snap.geometry, properties: snap.properties },
+      });
+      if (!data) throw new Error("not saved");
+      const f = asFeature(data);
+      place(f);
+      restack();
+      publish();
+      return f.id;
+    };
+
+    const destroy = async (id: number) => {
+      const { error } = await api.DELETE("/api/v1/allotments/{allotment_id}/features/{feature_id}", {
+        params: { path: { allotment_id: allotmentId, feature_id: id } },
+      });
+      if (error) throw new Error("not deleted");
+      const layer = find(id);
+      if (layer) g.removeLayer(layer);
+      meta.current.delete(id);
+      saved.delete(id);
+      publish();
+      onSelect(null);
+    };
+
+    /** Brings a deleted feature back; it gets a new id, which older history steps follow. */
+    const revive = async (id: number, snap: Snapshot) => {
+      const old = resolve(id);
+      alias.set(old, await create(snap));
     };
 
     api.GET("/api/v1/allotments/{allotment_id}/features", path).then(({ data }) => {
       const features = (data?.features ?? []) as (GeoJSONFeature & { id: number })[];
-      for (const f of features) {
-        track(f);
-        attach(featureToLayer(f) as LayerWithId, f.id);
-      }
+      for (const f of features) place(f);
+      restack();
       publish();
       const bounds = g.getBounds();
       // The view is chosen by <InitialView>, which also knows about photo layers.
       onBounds(bounds.isValid() ? [[bounds.getSouth(), bounds.getWest()], [bounds.getNorth(), bounds.getEast()]] : null);
     });
+
+    const removed = (id: number, snap: Snapshot | null, label: string) => {
+      if (!snap) return;
+      history.record({ label: `Delete ${label}`, undo: () => revive(id, snap), redo: () => destroy(resolve(id)) });
+    };
 
     if (canEdit) {
       map.pm.addControls({
@@ -154,54 +296,67 @@ function Editor({ allotmentId, canEdit, group, onItems, onBounds, onSelect, regi
           body: { type: "Feature", geometry, properties: radius_m ? { radius_m } : {} },
         });
         if (!data) return alert(`Could not save: ${(error as { message?: string })?.message ?? "unknown error"}`);
-        const created = data as unknown as GeoJSONFeature & { id: number };
+        const created = asFeature(data);
         track(created);
         attach(layer, created.id);
         restyle(layer, created.properties.kind ?? "other");
+        restack();
         publish();
         onSelect(created.id);
+        const snap = snapshotOf(created.id, layer);
+        if (snap) {
+          history.record({ label: `Add ${nameOf(created.id)}`, undo: () => destroy(resolve(created.id)), redo: () => revive(created.id, snap) });
+        }
       });
       map.on("pm:remove", async (e) => {
         const id = (e.layer as LayerWithId).featureId;
         if (id === undefined) return;
-        await api.DELETE("/api/v1/allotments/{allotment_id}/features/{feature_id}", {
+        const snap = snapshotOf(id, e.layer);
+        const label = nameOf(id);
+        const { error } = await api.DELETE("/api/v1/allotments/{allotment_id}/features/{feature_id}", {
           params: { path: { allotment_id: allotmentId, feature_id: id } },
         });
+        if (error) return void map.addLayer(e.layer); // the server refused: put it back
         meta.current.delete(id);
+        saved.delete(id);
         publish();
         onSelect(null);
+        removed(id, snap, label);
       });
     }
 
-    const find = (id: number) => g.getLayers().find((l) => (l as LayerWithId).featureId === id);
+    const update = async (id: number, props: Partial<FeatureProps>) => {
+      const was = meta.current.get(id);
+      if (!was) return;
+      const before = Object.fromEntries(Object.keys(props).map((k) => [k, was[k as keyof Item]])) as Partial<FeatureProps>;
+      try {
+        await setProps(id, props);
+      } catch {
+        return;
+      }
+      const label = "locked" in props ? `${props.locked ? "Lock" : "Unlock"} ${was.name || was.kind}` : "z" in props ? `Reorder ${was.name || was.kind}` : `Edit ${was.name || was.kind}`;
+      history.record({ label, undo: () => setProps(resolve(id), before), redo: () => setProps(resolve(id), props) });
+    };
+
     registerActions({
-      async update(id, props) {
-        const { data } = await api.PATCH("/api/v1/allotments/{allotment_id}/features/{feature_id}", {
-          params: { path: { allotment_id: allotmentId, feature_id: id } },
-          body: { properties: props },
-        });
-        if (!data) return;
-        const f = data as unknown as GeoJSONFeature & { id: number };
-        track(f);
-        const layer = find(id);
-        if (layer) restyle(layer, f.properties.kind ?? "other");
-        publish();
-      },
+      update,
       async remove(id) {
-        await api.DELETE("/api/v1/allotments/{allotment_id}/features/{feature_id}", {
-          params: { path: { allotment_id: allotmentId, feature_id: id } },
-        });
-        const layer = find(id);
-        if (layer) g.removeLayer(layer);
-        meta.current.delete(id);
-        publish();
-        onSelect(null);
+        const snap = snapshotOf(id);
+        const label = nameOf(id);
+        try {
+          await destroy(id);
+        } catch {
+          return;
+        }
+        removed(id, snap, label);
+      },
+      arrange(id, edge) {
+        const z = edgeZ([...meta.current.values()], id, edge);
+        if (z !== meta.current.get(id)?.z) void update(id, { z });
       },
       add(features) {
-        for (const f of features) {
-          track(f);
-          attach(featureToLayer(f) as LayerWithId, f.id);
-        }
+        for (const f of features) place(f);
+        restack();
         publish();
       },
       focus(id) {
@@ -217,6 +372,7 @@ function Editor({ allotmentId, canEdit, group, onItems, onBounds, onSelect, regi
       if (canEdit) map.pm.removeControls();
       g.clearLayers().remove();
       meta.current.clear();
+      history.clear();
     };
     // The editor is rebuilt only when the allotment or permission changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -231,7 +387,25 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
   const suggestions = useSuggestions(allotmentId, canEdit);
   const [ticked, setTicked] = useState<Set<number>>(new Set());
   const [focusedSuggestion, setFocusedSuggestion] = useState<number | null>(null);
-  const actions = useRef<Parameters<Parameters<typeof Editor>[0]["registerActions"]>[0] | null>(null);
+  const actions = useRef<Actions | null>(null);
+  const history = useRef(new History()).current;
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => history.subscribe(redraw), [history]);
+  useEffect(() => {
+    if (!canEdit) return;
+    // Ctrl/Cmd+Z undoes, with Shift (or Ctrl+Y) redoes: unless the person is typing in a field.
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || !(e.metaKey || e.ctrlKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) void history.undo();
+      else if ((key === "z" && e.shiftKey) || key === "y") void history.redo();
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [canEdit, history]);
   const current = items.find((i) => i.id === selected);
   const group = useRef(L.featureGroup());
   const tasks = useTasks(allotmentId);
@@ -259,6 +433,8 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
           group={group}
           allotmentId={allotmentId}
           canEdit={canEdit}
+          history={history}
+          selected={selected}
           onItems={setItems}
           onBounds={setDrawnBounds}
           onSelect={setSelected}
@@ -279,6 +455,17 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
           />
         )}
         <h2>Map features</h2>
+        {canEdit && (
+          <div className="history-buttons">
+            <button type="button" disabled={!history.undoLabel} title={history.undoLabel ? `Undo: ${history.undoLabel} (Ctrl/⌘+Z)` : "Nothing to undo"} onClick={() => void history.undo()}>
+              ↶ Undo
+            </button>
+            <button type="button" disabled={!history.redoLabel} title={history.redoLabel ? `Redo: ${history.redoLabel} (Ctrl/⌘+Shift+Z)` : "Nothing to redo"} onClick={() => void history.redo()}>
+              ↷ Redo
+            </button>
+            {history.undoLabel && <span className="muted">{history.undoLabel}</span>}
+          </div>
+        )}
         {!canEdit && <p className="muted">View only: ask an owner for editor access to draw.</p>}
         {items.length === 0 && <p className="muted">{canEdit ? "Use the toolbar on the map to draw a bed, path, tree…" : "Nothing drawn yet."}</p>}
         <ul className="feature-list">
@@ -286,13 +473,15 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
             <li key={i.id}>
               <button className={i.id === selected ? "active" : ""} onClick={() => { setSelected(i.id); actions.current?.focus(i.id); }}>
                 <span className="swatch" style={{ background: styleFor(i.kind).color }} />
+                {i.locked && <span aria-label="Locked" title="Locked">🔒</span>}
                 {i.name || `Unnamed ${i.kind}`}
               </button>
             </li>
           ))}
         </ul>
+        {items.length > 1 && <p className="muted hint">Alt-click on the map to pick what is underneath.</p>}
         {current && (
-          <form className="details" key={current.id} onSubmit={(e) => { e.preventDefault(); (document.activeElement as HTMLElement | null)?.blur(); }}>
+          <form className="details" key={`${current.id}:${current.name}`} onSubmit={(e) => { e.preventDefault(); (document.activeElement as HTMLElement | null)?.blur(); }}>
             <label>
               Name
               <input defaultValue={current.name} disabled={!canEdit} onBlur={(e) => e.target.value !== current.name && actions.current?.update(current.id, { name: e.target.value })} />
@@ -303,7 +492,23 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
                 {KINDS.map((k) => <option key={k}>{k}</option>)}
               </select>
             </label>
-            {canEdit && <button type="button" className="danger" onClick={() => actions.current?.remove(current.id)}>Delete</button>}
+            {canEdit && (
+              <label className="check">
+                <input type="checkbox" checked={current.locked} onChange={(e) => actions.current?.update(current.id, { locked: e.target.checked })} />
+                Lock position
+              </label>
+            )}
+            {canEdit && (
+              <div className="arrange">
+                <button type="button" onClick={() => actions.current?.arrange(current.id, "top")}>Bring to front</button>
+                <button type="button" onClick={() => actions.current?.arrange(current.id, "bottom")}>Send to back</button>
+              </div>
+            )}
+            {canEdit && (
+              <button type="button" className="danger" disabled={current.locked} title={current.locked ? "Unlock it to delete" : undefined} onClick={() => actions.current?.remove(current.id)}>
+                Delete
+              </button>
+            )}
           </form>
         )}
         {current && (
