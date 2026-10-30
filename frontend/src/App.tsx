@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Link, Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth";
+import { HelpIndex, HelpTopic } from "./help/Help";
 import AllotmentLayout from "./pages/AllotmentLayout";
 import Allotments from "./pages/Allotments";
 import LayersPage from "./pages/LayersPage";
@@ -16,6 +17,8 @@ import TasksPage from "./pages/TasksPage";
 import TrayPage from "./pages/TrayPage";
 import TraysPage from "./pages/TraysPage";
 import TodayPage from "./pages/TodayPage";
+import Landing from "./public/Landing";
+import Privacy from "./public/Privacy";
 
 // The map editor pulls in Leaflet + Geoman, so load it only when needed.
 const MapView = lazy(() => import("./pages/MapView"));
@@ -26,6 +29,13 @@ function Protected({ children }: { children: React.ReactNode }) {
   return user ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
+/** The front door: the sales page for visitors, the allotments list for people who are signed in. */
+function Home() {
+  const { user, loading } = useAuth();
+  if (loading) return <p className="muted centre">Loading…</p>;
+  return user ? <Allotments /> : <Landing />;
+}
+
 export default function App() {
   const { user, logout } = useAuth();
   return (
@@ -34,13 +44,16 @@ export default function App() {
         <nav className="topbar no-print">
           <span>🌱 Allotment Planner</span>
           <span>
-            {user.display_name} <button className="link" onClick={logout}>Sign out</button>
+            <Link to="/help" className="plain">Help</Link> {user.display_name} <button className="link" onClick={logout}>Sign out</button>
           </span>
         </nav>
       )}
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/" element={<Protected><Allotments /></Protected>} />
+        <Route path="/" element={<Home />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/help" element={<HelpIndex />} />
+        <Route path="/help/:topic" element={<HelpTopic />} />
         <Route path="/allotments/:id" element={<Protected><AllotmentLayout /></Protected>}>
           <Route index element={<Suspense fallback={<p className="muted centre">Loading map…</p>}><MapView /></Suspense>} />
           <Route path="tasks" element={<TasksPage />} />
