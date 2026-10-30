@@ -738,3 +738,39 @@ def test_a_bad_boundary_is_refused_before_anything_is_queued(
 def test_a_job_without_a_boundary_has_none(client, plot, queued):
     add_media(plot["id"], 6)
     assert create(client, plot).json["boundary"] is None
+
+
+# --- the same file uploaded twice ----------------------------------------------------------
+
+
+def sized(media_id, size):
+    db.session.get(Media, media_id).size_bytes = size
+    db.session.commit()
+
+
+def test_a_video_uploaded_twice_is_only_used_once_and_the_log_says_so(client, plot, queued):
+    add_media(plot["id"], 3)
+    first = add_video(plot["id"], 10)
+    second = add_video(plot["id"], 10)
+    other = add_video(plot["id"], 12)
+    for vid in (first, second):
+        sized(vid, 5_000_000)
+    sized(other, 5_000_000)  # same size, different length: a different recording
+    resp = create(client, plot)
+    assert resp.status_code == 202, resp.json
+    job = db.session.get(MapJob, resp.json["id"])
+    assert job.media_ids.count(first) == 1 and second not in job.media_ids and other in job.media_ids
+    assert "Left out 1 repeated file" in job.log and "walk.mp4 (same as walk.mp4)" in job.log
+
+
+def test_files_with_unknown_sizes_are_never_called_copies(client, plot, queued):
+    add_media(plot["id"], 5)  # all size 0 and alike otherwise
+    assert create(client, plot).json["media_count"] == 5
+
+
+def test_repeats_are_dropped_before_the_minimum_is_checked(client, plot, queued):
+    ids = add_media(plot["id"], 3)
+    for i in ids:
+        sized(i, 100_000)  # three photos that are really one
+    resp = create(client, plot)
+    assert resp.status_code == 422 and "at least" in resp.json["message"].lower()

@@ -317,7 +317,8 @@ label.missing { color: var(--danger); }
 
 .history-buttons { display: flex; gap: .5rem; align-items: center; margin-bottom: .75rem; flex-wrap: wrap; }
 .history-buttons .muted { font-size: .85rem; }
-.feature-list .hint, .hint { font-size: .85rem; margin: -.5rem 0 1rem; }
+.feature-list + .hint { font-size: .85rem; margin: -.5rem 0 1rem; }
+.hint.warning { color: #8a5a00; }
 .details .check { display: flex; gap: .5rem; align-items: center; }
 .arrange { display: flex; gap: .5rem; flex-wrap: wrap; }
 path.leaflet-interactive.locked { cursor: default; }
