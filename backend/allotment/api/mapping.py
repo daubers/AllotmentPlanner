@@ -7,11 +7,11 @@ from itsdangerous import BadSignature, URLSafeTimedSerializer
 from shapely.geometry import mapping
 
 from .. import events
+from ..duplicates import duplicates_of
 from ..extensions import db
 from ..gpx import MAX_BYTES, GpxError, outline_from_trace, parse_gpx
 from ..mapping_video import estimated_frames
 from ..models import MapJob, MapLayer, Media, Role
-from ..duplicates import duplicates_of
 from ..plot_boundary import boundary_problem
 from ..schemas import (
     BoundaryFromGpxSchema,
