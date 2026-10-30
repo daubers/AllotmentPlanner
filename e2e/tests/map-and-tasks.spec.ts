@@ -1,5 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
+/** The menu is two rows: choose a group, then a page within it. */
+async function openPage(page: Page, group: string, name: string) {
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: group, exact: true }).click();
+  await page.getByRole("navigation", { name: `${group} pages` }).getByRole("link", { name, exact: true }).click();
+}
+
 const email = `e2e-${Date.now()}@example.com`;
 
 async function drawBed(page: Page) {
@@ -61,7 +67,7 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
 
   // The Today sheet: undated jobs are hidden until asked for, then listed under their bed,
   // and the print stylesheet strips the app chrome. The PDF is kept for eyeballing.
-  await page.getByRole("link", { name: "Today" }).click();
+  await openPage(page, "Work", "Today");
   await expect(page.getByText("Nothing due")).toBeVisible();
   await page.getByLabel("Include jobs with no date").click();
   const sheet = page.getByLabel("Todo list");
@@ -78,7 +84,7 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await page.emulateMedia({ media: "screen" });
 
   // The Tasks page shows it with its location, and completing it moves it away.
-  await page.getByRole("link", { name: "Tasks" }).click();
+  await openPage(page, "Work", "Tasks");
   await expect(page.getByText("Water the beans")).toBeVisible();
   await expect(page.getByText("📍 Bed 1")).toBeVisible();
   await page.getByLabel("Complete Water the beans").click();
@@ -87,14 +93,14 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await expect(page.getByLabel("Reopen Water the beans")).toBeChecked();
 
   // The pin is gone from the map once the task is done, and the bed survived a reload.
-  await page.getByRole("link", { name: "Map" }).click();
+  await openPage(page, "Plot", "Map");
   await expect(page.locator(".task-pin")).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("button", { name: "Bed 1" })).toBeVisible();
 
   // Photos: upload two EXIF-dated photos attached to Bed 1 (processed by the Celery worker),
   // check the timeline, the lightbox metadata, the feature filter and the before/after slider.
-  await page.getByRole("link", { name: "Photos", exact: true }).click();
+  await openPage(page, "Record", "Photos");
   await page.getByLabel("Attach new uploads to").selectOption({ label: "Bed 1" });
   await page.getByLabel("Choose photos or videos").setInputFiles([
     "fixtures/bed-day1.jpg",
@@ -128,14 +134,14 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await page.getByLabel("Slide between before and after").fill("30");
   await page.screenshot({ path: "test-results/photos.png" });
 
-  await page.getByRole("link", { name: "Overview" }).click();
+  await openPage(page, "Record", "Overview");
   await expect(page.getByRole("heading", { name: /This week you .*added 2 photos/ })).toBeVisible();
   await expect(page.getByText(/1 day in a row/)).toBeVisible();
   await expect(page.locator(".heatmap .heat.l4")).toHaveCount(1); // today is the busiest (only) day
   await expect(page.locator(".tile img")).toHaveCount(2); // latest photos
   await page.screenshot({ path: "test-results/overview.png" });
 
-  await page.getByRole("link", { name: "From photos" }).click();
+  await openPage(page, "Plot", "Map from photos");
   await expect(page.getByRole("heading", { name: "From your photos" })).toBeVisible();
   await expect(page.getByText(/None built\./)).toBeVisible();
   // The two fixture photos are the same file, so the second counts as a repeat and is left out.
@@ -155,7 +161,7 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await page.screenshot({ path: "test-results/settings.png" });
 
   // A video: uploaded like a photo, shown with its length, playable, and offered to the map builder.
-  await page.getByRole("link", { name: "Photos", exact: true }).click();
+  await openPage(page, "Record", "Photos");
   await page.getByLabel("Choose photos or videos").setInputFiles("fixtures/walk.mp4");
   await expect(page.getByText("✓ walk.mp4")).toBeVisible();
   await expect(page.locator(".tile-badge")).toContainText("0:03");
@@ -165,7 +171,7 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThanOrEqual(1);
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => Math.round(v.duration))).toBe(3);
   await page.keyboard.press("Escape");
-  await page.getByRole("link", { name: "From photos" }).click();
+  await openPage(page, "Plot", "Map from photos");
   await expect(page.getByText(/1 photo \(1 with a location\), 1 video: about 4 images in all\./)).toBeVisible();
   await expect(page.getByText(/Videos are sampled about once a second/)).toBeVisible();
 
