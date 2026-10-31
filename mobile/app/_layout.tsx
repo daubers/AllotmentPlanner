@@ -23,6 +23,8 @@ function Gate() {
       <Stack.Screen name="trays/[id]" />
       <Stack.Screen name="found/index" />
       <Stack.Screen name="found/[id]" />
+      <Stack.Screen name="tasks/index" />
+      <Stack.Screen name="tasks/new" />
       <Stack.Screen name="beds/index" />
       <Stack.Screen name="beds/[id]" />
       <Stack.Screen name="photo" options={{ animation: "slide_from_bottom" }} />

@@ -5,6 +5,8 @@ import { Pressable, View } from "react-native";
 import { useFound } from "../src/found/hooks";
 import { useChecklist } from "../src/measure/hooks";
 import { useApp, useQueueState } from "../src/state/AppProvider";
+import { useTasks } from "../src/tasks/hooks";
+import { localDate } from "../src/tasks/model";
 import { Banner, Button, Card, Chip, Loading, ProgressBar, Row, Screen, Section, T } from "../src/ui/kit";
 import { radius, space, usePalette } from "../src/ui/theme";
 
@@ -66,6 +68,10 @@ export default function Home() {
   const state = useQueueState();
   const checklist = useChecklist();
   const found = useFound();
+  const tasks = useTasks();
+  const today = localDate();
+  const jobs = (tasks.data ?? []).filter((t) => t.status !== "done" && (!t.due_date || t.due_date <= today));
+  const late = jobs.filter((t) => t.due_date && t.due_date < today).length;
   const [switching, setSwitching] = useState(false);
 
   const allotments = useQuery({
@@ -181,6 +187,16 @@ export default function Home() {
             />
           ) : null}
           {!canEdit ? <T kind="caption" muted>You can look at this allotment but not change it.</T> : null}
+        </Section>
+      ) : null}
+
+      {current ? (
+        <Section title="Jobs">
+          <Tile
+            title="Jobs"
+            body={jobs.length > 0 ? `${jobs.length} to do${late > 0 ? `, ${late} late` : ""}. Tick them off as you go; works without signal.` : "Tick jobs off as you go, or add one while you are on the plot. Works without signal."}
+            onPress={() => router.push("/tasks")}
+          />
         </Section>
       ) : null}
 

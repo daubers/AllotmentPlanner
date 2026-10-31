@@ -1,0 +1,67 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
+import { useApp } from "../state/AppProvider";
+import { completeRequest, createRequest, localJob, reopenRequest, withStatus, type NewJob, type Task } from "./model";
+
+/** The allotment's jobs (open and done), from the server. */
+export function useTasks() {
+  const { api, allotmentId, session } = useApp();
+  return useQuery({
+    queryKey: ["tasks", session.serverUrl, allotmentId],
+    enabled: allotmentId !== null,
+    queryFn: async (): Promise<Task[]> => {
+      const { data, error } = await api.GET("/api/v1/allotments/{allotment_id}/tasks", {
+        params: { path: { allotment_id: allotmentId as number }, query: { open: true } },
+      });
+      if (error || !data) throw new Error("Couldn't load your jobs");
+      return data;
+    },
+  });
+}
+
+/** Tick a job off (or put it back): shown at once, sent when there is signal. */
+export function useTick() {
+  const { queue, allotmentId, session } = useApp();
+  const client = useQueryClient();
+  return useCallback(
+    async (taskId: number, done: boolean) => {
+      if (allotmentId === null || taskId < 0) return; // a job not yet sent has no server id to tick
+      client.setQueryData(["tasks", session.serverUrl, allotmentId], (old: Task[] | undefined) =>
+        old ? withStatus(old, taskId, done ? "done" : "todo") : old,
+      );
+      await queue.enqueue("request", done ? completeRequest(allotmentId, taskId) : reopenRequest(allotmentId, taskId));
+      void queue.run().then(() => client.invalidateQueries({ queryKey: ["tasks", session.serverUrl, allotmentId] }));
+    },
+    [queue, allotmentId, session.serverUrl, client],
+  );
+}
+
+/** Add a job: it appears in the list at once and is sent when there is signal. */
+export function useAddJob() {
+  const { queue, allotmentId, session } = useApp();
+  const client = useQueryClient();
+  return useCallback(
+    async (job: NewJob) => {
+      if (allotmentId === null) return;
+      client.setQueryData(["tasks", session.serverUrl, allotmentId], (old: Task[] | undefined) => [...(old ?? []), localJob(job)]);
+      await queue.enqueue("request", createRequest(allotmentId, job));
+      void queue.run().then(() => client.invalidateQueries({ queryKey: ["tasks", session.serverUrl, allotmentId] }));
+    },
+    [queue, allotmentId, session.serverUrl, client],
+  );
+}
+
+/** Whether the chosen allotment can be changed (anyone but a viewer). Shares the home screen's cache. */
+export function useCanEdit(): boolean {
+  const { api, allotmentId, session } = useApp();
+  const allotments = useQuery({
+    queryKey: ["allotments", session.serverUrl],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/v1/allotments");
+      if (error || !data) throw new Error("Couldn't load your allotments");
+      return data;
+    },
+  });
+  const current = allotments.data?.find((a) => a.id === allotmentId);
+  return current ? current.role !== "viewer" : false;
+}
