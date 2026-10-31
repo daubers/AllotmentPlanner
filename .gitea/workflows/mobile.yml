@@ -46,9 +46,8 @@ jobs:
           echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$sdk" >> "$GITHUB_ENV"
           echo "$sdk/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+      # Types and tests already ran in test.yml's `mobile` job for this tag.
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
       - name: Build the APK
         run: scripts/build-android.sh
       # v3: Gitea's artifact server does not speak the v4 protocol.

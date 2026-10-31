@@ -3,20 +3,20 @@
 | Workflow | Trigger | What it does |
 |---|---|---|
 | `.gitea/workflows/test.yml` | every push and PR | ruff lint and format check, pytest with coverage, frontend and phone app checks, `docker compose config` validation of the dev and production (`make prod-config`) files |
-| `.gitea/workflows/build.yml` | push to `main`, tags `v*` | repeats pytest, then builds the `prod` image target and pushes it to the Gitea container registry |
+| `.gitea/workflows/build.yml` | push to `main`, tags `v*` | builds the three images and pushes them to the `allotment` Docker feed on ProGet (in parallel with `test.yml`); on a release tag, waits for `test.yml` to pass and starts the deploy |
 | `.gitea/workflows/mobile.yml` | tags `v*`, or run by hand | builds the Android app (an installable APK, about 10 to 20 minutes) and keeps it as the `allotment-android` artifact; also repeats the phone app's type check and tests |
 
 ## Runner requirements
 An `act_runner` labelled `ubuntu-latest` with access to the Docker socket (needed for buildx).
 
 ## Secrets
-- `REGISTRY_TOKEN`: a personal access token with `write:package`. The automatic `GITEA_TOKEN` usually cannot push packages.
+- `PKGS_API_KEY`: the ProGet API key (login user `api`), used to push images to `pkgs.daubney.dev/allotment/`. The same secret is set on Allotment-Deploy to pull them. It is stored in OpenBao and read with `envbao exec -q pkgs`.
 - `DEPLOY_DISPATCH_TOKEN`: a personal access token that can dispatch workflows on `matt/Allotment-Deploy` (used by the `trigger-deploy` job).
 
 ## Image tags
-Three images are pushed to `<gitea-host>/<owner>/`: `allotment-api`, `allotment-frontend` and `allotment-worker` (the OpenSfM + GDAL mapping worker). Each gets `sha-<short>`, the branch name, `latest` on `main`, and `X.Y.Z` / `X.Y` for tags like `v0.1.0`.
+Three images are pushed to `pkgs.daubney.dev/allotment/`: `allotment-api`, `allotment-frontend` and `allotment-worker` (the OpenSfM + GDAL mapping worker). Each gets `sha-<short>`, the branch name, `latest` on `main`, and `X.Y.Z` / `X.Y` for tags like `v0.1.0`.
 
-The worker image compiles OpenSfM from a pinned commit in a build stage (about 5 minutes on the runner, every time, and roughly 4 GB of RAM). Its layers are deliberately small and its cache is exported with `mode=min`: the registry sits behind an nginx that answers `413 Request Entity Too Large` to blobs above somewhere between 164 MB and 498 MB (compressed), so the build stage's large layers must never be uploaded. If you raise `client_max_body_size` on that nginx, the worker can use `mode=max` like the others and skip the recompile. The mapping pipeline itself is checked locally with `make mapping-check`, not in CI, because it needs that image.
+The worker image compiles OpenSfM from a pinned commit in a build stage (about 5 minutes without a cache, and roughly 4 GB of RAM). Its build cache is exported with `mode=max` to `allotment-worker:buildcache`, so a rebuild reuses the compiled stage. (The old Gitea registry sat behind an nginx that refused blobs over a few hundred MB with `413`, which forced `mode=min`; if ProGet ever does the same, set `cache_mode: min` on the worker in `build.yml`.) The mapping pipeline itself is checked locally with `make mapping-check`, not in CI, because it needs that image.
 Release with `git tag v0.1.0 && git push origin v0.1.0`.
 
 ## The Android app

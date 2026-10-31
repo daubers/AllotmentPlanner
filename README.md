@@ -101,7 +101,7 @@ CI is Gitea Actions ([docs/ci.md](docs/ci.md)):
 | `test.yml` | every push and PR | ruff, backend tests with a PostGIS service, frontend typecheck/tests/build, phone app typecheck/tests/bundle, generated API types up to date, compose files valid |
 | `build.yml` | push to `main`, tags `v*` | repeats the backend tests, then builds and pushes three images |
 
-Images are pushed to the Gitea registry as `git.daubney.dev/<owner>/…`:
+Images are pushed to the `allotment` Docker feed on ProGet as `pkgs.daubney.dev/allotment/…`:
 
 | Image | Contents |
 |---|---|
@@ -109,7 +109,7 @@ Images are pushed to the Gitea registry as `git.daubney.dev/<owner>/…`:
 | `allotment-frontend` | the built web app served by nginx, which proxies `/api` to the `api` service |
 | `allotment-worker` | the mapper: OpenSfM compiled from source, GDAL, torch (CPU) and the recognition code |
 
-Tags: `latest` (main), `sha-<commit>`, the branch name, and `X.Y.Z` / `X.Y` for releases. The recognition models (about 1.3 GB) are **not** in the image; they download into a volume the first time a map job needs them. CI needs one secret, `REGISTRY_TOKEN` (a personal access token with `write:package`).
+Tags: `latest` (main), `sha-<commit>`, the branch name, and `X.Y.Z` / `X.Y` for releases. The recognition models (about 1.3 GB) are **not** in the image; they download into a volume the first time a map job needs them. CI needs one secret, `PKGS_API_KEY` (the ProGet API key; the login user is `api`).
 
 **Release:** `git tag v0.2.0 && git push origin v0.2.0`.
 
@@ -144,7 +144,7 @@ Edit `.env`. The ones that matter:
 | `POSTGRES_PASSWORD` | a long random password (`openssl rand -hex 32`) |
 | `JWT_SECRET_KEY` | a different long random value; signs logins. Compose refuses to start without it |
 | `TOKEN_ENCRYPTION_KEY` | another random value; encrypts stored Mastodon tokens. **Keep it safe**: losing it means reconnecting Mastodon |
-| `REGISTRY`, `TAG` | where the images are (`git.daubney.dev/matt`) and which version (`latest`, `0.2.0`, or `sha-…` to pin) |
+| `REGISTRY`, `TAG` | where the images are (`pkgs.daubney.dev/allotment`) and which version (`latest`, `0.2.0`, or `sha-…` to pin) |
 | `REGISTRATION` | `invite` (the default in the production file) or `open`; see [Who can sign up](#5-who-can-sign-up) |
 | `HTTP_PORT` | the one port the web app and API are served on (default 8080) |
 
@@ -153,7 +153,7 @@ The full list, including S3 storage and mapping limits, is in the file and in [C
 ### 3. Start it
 
 ```
-docker login git.daubney.dev          # username, and a token with read:package
+docker login pkgs.daubney.dev -u api   # the ProGet API key as the password
 docker compose up -d
 docker compose ps                     # everything Up (healthy); `migrate` and `volumes-init` show Exited (0)
 ```
@@ -264,7 +264,7 @@ To pin a known-good version, set `TAG` in `.env`. Rolling back the *code* is `TA
 | Symptom | Likely cause |
 |---|---|
 | `docker compose up` stops with "set POSTGRES_PASSWORD…" | a required setting is missing from `.env` |
-| `pull access denied` | `docker login git.daubney.dev` with a token that has `read:package`, and check `REGISTRY` |
+| `pull access denied` | `docker login pkgs.daubney.dev -u api` with the ProGet API key, and check `REGISTRY` |
 | Uploads stay "pending" | the `worker` container is down: `docker compose logs worker` |
 | Map builds stay "queued" | the mapper isn't running: start it with `--profile mapping` |
 | Packet photos stay "waiting its turn" | the packet reader isn't running: start it with `--profile vision` |
