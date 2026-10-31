@@ -146,6 +146,8 @@ class TaskInSchema(Schema):
     )
     assignee_id = fields.Integer(load_default=None, allow_none=True)
     feature_id = fields.Integer(load_default=None, allow_none=True)
+    tray_id = fields.Integer(load_default=None, allow_none=True)
+    planting_id = fields.Integer(load_default=None, allow_none=True)
     location = fields.Dict(load_default=None, allow_none=True)
 
 
@@ -158,6 +160,8 @@ class TaskPatchSchema(Schema):
     recurrence = fields.String(allow_none=True, validate=validate.OneOf(RECURRENCES))
     assignee_id = fields.Integer(allow_none=True)
     feature_id = fields.Integer(allow_none=True)
+    tray_id = fields.Integer(allow_none=True)
+    planting_id = fields.Integer(allow_none=True)
     location = fields.Dict(allow_none=True)
 
 
@@ -167,7 +171,26 @@ class TaskQuerySchema(Schema):
     due_on = fields.Date()
     due_by = fields.Date(metadata={"description": "Due on or before this date (includes overdue)"})
     feature_id = fields.Integer()
+    tray_id = fields.Integer()
+    planting_id = fields.Integer()
     assignee_id = fields.Integer()
+    priority = fields.String(validate=validate.OneOf(TASK_PRIORITIES))
+    q = fields.String(metadata={"description": "Words in the title or notes (case-insensitive)"})
+
+
+class TaskBulkSchema(Schema):
+    ids = fields.List(fields.Integer(), required=True, validate=validate.Length(min=1, max=200))
+    action = fields.String(
+        required=True, validate=validate.OneOf(["complete", "reopen", "delete", "reschedule"])
+    )
+    due_date = fields.Date(
+        allow_none=True, metadata={"description": "For reschedule; null clears the date"}
+    )
+
+
+class TaskBulkResultSchema(Schema):
+    tasks = fields.List(fields.Nested(lambda: TaskSchema()))
+    deleted = fields.List(fields.Integer())
 
 
 class TaskSchema(Schema):
@@ -180,6 +203,8 @@ class TaskSchema(Schema):
     recurrence = fields.String(allow_none=True)
     assignee_id = fields.Integer(allow_none=True)
     feature_id = fields.Integer(allow_none=True)
+    tray_id = fields.Integer(allow_none=True)
+    planting_id = fields.Integer(allow_none=True)
     location = fields.Dict(allow_none=True)
     completed_at = fields.DateTime(allow_none=True)
     completed_by = fields.Integer(allow_none=True)

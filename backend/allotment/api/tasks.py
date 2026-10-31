@@ -10,8 +10,15 @@ from shapely.geometry import mapping
 from .. import events
 from ..extensions import db
 from ..geojson import parse_geometry
-from ..models import MapFeature, Membership, Role, Task, TaskStatus
-from ..schemas import TaskInSchema, TaskPatchSchema, TaskQuerySchema, TaskSchema
+from ..models import MapFeature, Membership, Planting, Role, Task, TaskStatus, Tray
+from ..schemas import (
+    TaskBulkResultSchema,
+    TaskBulkSchema,
+    TaskInSchema,
+    TaskPatchSchema,
+    TaskQuerySchema,
+    TaskSchema,
+)
 from ..security import require_role
 
 blp = Blueprint(
@@ -45,6 +52,8 @@ def task_to_dict(task: Task, spawned: Task | None = None) -> dict:
         "recurrence": task.recurrence,
         "assignee_id": task.assignee_id,
         "feature_id": task.feature_id,
+        "tray_id": task.tray_id,
+        "planting_id": task.planting_id,
         "location": mapping(to_shape(task.location)) if task.location is not None else None,
         "completed_at": task.completed_at,
         "completed_by": task.completed_by,
@@ -69,6 +78,13 @@ def _apply(task: Task, data: dict, allotment) -> None:
             _reject("feature_id does not belong to this allotment")
     if "feature_id" in data:
         task.feature_id = data["feature_id"]
+    for key, model in (("tray_id", Tray), ("planting_id", Planting)):
+        if data.get(key) is not None:
+            owner = db.session.get(model, data[key])
+            if owner is None or owner.allotment_id != allotment.id:
+                _reject(f"{key} does not belong to this allotment")
+        if key in data:
+            setattr(task, key, data[key])
     if data.get("assignee_id") is not None:
         member = (
             db.session.query(Membership)
@@ -98,6 +114,42 @@ def _get(allotment, task_id: int) -> Task:
     return task
 
 
+def _finish(task: Task, allotment, membership) -> Task | None:
+    """Mark ``task`` done; a recurring one returns its next occurrence (added, not committed).
+
+    The next date counts from the later of the old due date and today, so finishing a daily job
+    three days late does not produce one that is already overdue.
+    """
+    task.status = TaskStatus.DONE
+    task.completed_at = datetime.now(UTC)
+    task.completed_by = membership.user_id
+    if not task.recurrence:
+        return None
+    today = date.today()
+    spawned = Task(
+        allotment_id=allotment.id,
+        created_by=membership.user_id,
+        title=task.title,
+        description=task.description,
+        priority=task.priority,
+        recurrence=task.recurrence,
+        assignee_id=task.assignee_id,
+        feature_id=task.feature_id,
+        tray_id=task.tray_id,
+        planting_id=task.planting_id,
+        location=task.location,
+        due_date=next_due(max(task.due_date or today, today), task.recurrence),
+    )
+    db.session.add(spawned)
+    return spawned
+
+
+def _reopen(task: Task) -> None:
+    task.status = TaskStatus.TODO
+    task.completed_at = None
+    task.completed_by = None
+
+
 @blp.route("")
 class TaskList(MethodView):
     @require_role(Role.VIEWER)
@@ -114,8 +166,12 @@ class TaskList(MethodView):
             q = q.filter(Task.due_date == args["due_on"])
         if "due_by" in args:
             q = q.filter(Task.due_date <= args["due_by"])
-        if "feature_id" in args:
-            q = q.filter(Task.feature_id == args["feature_id"])
+        for key in ("feature_id", "tray_id", "planting_id", "priority"):
+            if key in args:
+                q = q.filter(getattr(Task, key) == args[key])
+        if args.get("q"):
+            like = "%" + args["q"].strip().replace("%", r"\%").replace("_", r"\_") + "%"
+            q = q.filter(Task.title.ilike(like) | Task.description.ilike(like))
         if "assignee_id" in args:
             q = q.filter(Task.assignee_id == args["assignee_id"])
         tasks = q.order_by(Task.due_date.is_(None), Task.due_date, Task.id).all()
@@ -140,6 +196,54 @@ class TaskList(MethodView):
             payload={"title": task.title},
         )
         return task_to_dict(task)
+
+
+@blp.route("/bulk")
+class TaskBulk(MethodView):
+    @require_role(Role.EDITOR)
+    @blp.arguments(TaskBulkSchema)
+    @blp.response(200, TaskBulkResultSchema)
+    def post(self, data, allotment, membership):
+        """Complete, reopen, reschedule or delete several tasks at once (all or nothing)."""
+        ids = list(dict.fromkeys(data["ids"]))
+        tasks = db.session.query(Task).filter(Task.id.in_(ids), Task.allotment_id == allotment.id)
+        by_id = {t.id: t for t in tasks}
+        if len(by_id) != len(ids):
+            abort(404, message="Task not found")
+        action = data["action"]
+        if action == "reschedule" and "due_date" not in data:
+            abort(422, message="due_date is required to reschedule")
+        done, deleted, events_to_emit = [], [], []
+        for task_id in ids:
+            task = by_id[task_id]
+            subject = {"task_id": task.id, "feature_id": task.feature_id}
+            if action == "delete":
+                events_to_emit.append(("task.deleted", {"task_id": task.id}, {}))
+                db.session.delete(task)
+                deleted.append(task_id)
+                continue
+            if action == "complete" and task.status != TaskStatus.DONE:
+                spawned = _finish(task, allotment, membership)
+                events_to_emit.append(
+                    ("task.completed", subject, {"title": task.title, "spawned": bool(spawned)})
+                )
+            elif action == "reopen" and task.status == TaskStatus.DONE:
+                _reopen(task)
+                events_to_emit.append(("task.reopened", subject, {}))
+            elif action == "reschedule":
+                task.due_date = data["due_date"]
+                events_to_emit.append(("task.updated", subject, {"fields": ["due_date"]}))
+            done.append(task)
+        db.session.commit()
+        for name, subject, payload in events_to_emit:
+            events.emit(
+                name,
+                actor_id=membership.user_id,
+                allotment_id=allotment.id,
+                subject=subject,
+                payload=payload,
+            )
+        return {"tasks": [task_to_dict(t) for t in done], "deleted": deleted}
 
 
 @blp.route("/<int:task_id>")
@@ -190,24 +294,7 @@ class TaskComplete(MethodView):
         task = _get(allotment, task_id)
         if task.status == TaskStatus.DONE:
             return task_to_dict(task)  # idempotent
-        task.status = TaskStatus.DONE
-        task.completed_at = datetime.now(UTC)
-        task.completed_by = membership.user_id
-        spawned = None
-        if task.recurrence:
-            spawned = Task(
-                allotment_id=allotment.id,
-                created_by=membership.user_id,
-                title=task.title,
-                description=task.description,
-                priority=task.priority,
-                recurrence=task.recurrence,
-                assignee_id=task.assignee_id,
-                feature_id=task.feature_id,
-                location=task.location,
-                due_date=next_due(task.due_date or date.today(), task.recurrence),
-            )
-            db.session.add(spawned)
+        spawned = _finish(task, allotment, membership)
         db.session.commit()
         events.emit(
             "task.completed",
@@ -227,9 +314,7 @@ class TaskReopen(MethodView):
         task = _get(allotment, task_id)
         if task.status != TaskStatus.DONE:
             return task_to_dict(task)
-        task.status = TaskStatus.TODO
-        task.completed_at = None
-        task.completed_by = None
+        _reopen(task)
         db.session.commit()
         events.emit(
             "task.reopened",

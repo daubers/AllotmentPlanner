@@ -733,7 +733,12 @@ export interface paths {
                     /** @description Due on or before this date (includes overdue) */
                     due_by?: string;
                     feature_id?: number;
+                    tray_id?: number;
+                    planting_id?: number;
                     assignee_id?: number;
+                    priority?: "low" | "normal" | "high";
+                    /** @description Words in the title or notes (case-insensitive) */
+                    q?: string;
                 };
                 header?: never;
                 path: {
@@ -779,6 +784,52 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Task"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/tasks/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete, reopen, reschedule or delete several tasks at once (all or nothing). */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TaskBulk"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskBulkResult"];
                     };
                 };
                 422: components["responses"]["UNPROCESSABLE_CONTENT"];
@@ -3338,6 +3389,8 @@ export interface components {
             recurrence?: string | null;
             assignee_id?: number | null;
             feature_id?: number | null;
+            tray_id?: number | null;
+            planting_id?: number | null;
             location?: {
                 [key: string]: unknown;
             } | null;
@@ -3378,9 +3431,27 @@ export interface components {
             /** @default null */
             feature_id?: number | null;
             /** @default null */
+            tray_id?: number | null;
+            /** @default null */
+            planting_id?: number | null;
+            /** @default null */
             location?: {
                 [key: string]: unknown;
             } | null;
+        };
+        TaskBulk: {
+            ids: number[];
+            /** @enum {string} */
+            action: "complete" | "reopen" | "delete" | "reschedule";
+            /**
+             * Format: date
+             * @description For reschedule; null clears the date
+             */
+            due_date?: string | null;
+        };
+        TaskBulkResult: {
+            tasks?: components["schemas"]["Task"][];
+            deleted?: number[];
         };
         TaskPatch: {
             title?: string;
@@ -3395,6 +3466,8 @@ export interface components {
             recurrence?: "daily" | "weekly" | "monthly" | null;
             assignee_id?: number | null;
             feature_id?: number | null;
+            tray_id?: number | null;
+            planting_id?: number | null;
             location?: {
                 [key: string]: unknown;
             } | null;
