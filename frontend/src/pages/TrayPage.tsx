@@ -108,7 +108,7 @@ export default function TrayPage() {
         {rows} × {cols}{t.tray_type ? ` · ${t.tray_type}` : ""}{t.location ? ` · ${t.location}` : ""} · {summarise(t.counts) || "nothing sown yet"}
       </p>
 
-      {canEdit && <p><SuggestTasks allotmentId={id} target={{ kind: "tray", id: t.id! }} /></p>}
+      {canEdit && <div className="toolbar"><SuggestTasks allotmentId={id} target={{ kind: "tray", id: t.id! }} /></div>}
 
       <div className="tray-grid-wrap">
         <table className="tray-grid" aria-label="Tray cells">

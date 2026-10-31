@@ -71,13 +71,15 @@ export default function TasksPage() {
       {selecting && (
         <input type="checkbox" aria-label={`Select ${t.title}`} checked={picked.has(t.id!)} onChange={() => toggle(t.id!)} />
       )}
-      <input
-        type="checkbox"
-        aria-label={`${t.status === "done" ? "Reopen" : "Complete"} ${t.title}`}
-        checked={t.status === "done"}
-        disabled={!canEdit || selecting}
-        onChange={() => (t.status === "done" ? actions.reopen : actions.complete).mutate(t.id!)}
-      />
+      {!selecting && (
+        <input
+          type="checkbox"
+          aria-label={`${t.status === "done" ? "Reopen" : "Complete"} ${t.title}`}
+          checked={t.status === "done"}
+          disabled={!canEdit}
+          onChange={() => (t.status === "done" ? actions.reopen : actions.complete).mutate(t.id!)}
+        />
+      )}
       <div className="task-main">
         <button type="button" className="task-title link" onClick={() => setDialog(t)}>{t.title}</button>
         <span className="task-meta">

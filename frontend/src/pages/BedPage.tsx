@@ -165,7 +165,7 @@ function PlantingCard({ planting: p, open, onToggle, canEdit, allotmentId }: { p
               </div>
             )}
           </form>
-          {canEdit && <p><SuggestTasks allotmentId={allotmentId} target={{ kind: "planting", id: p.id! }} /></p>}
+          {canEdit && <div className="toolbar"><SuggestTasks allotmentId={allotmentId} target={{ kind: "planting", id: p.id! }} /></div>}
           <PlantingPhotos plantingId={p.id!} allotmentId={allotmentId} canEdit={canEdit} />
         </div>
       )}
