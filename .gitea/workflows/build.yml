@@ -24,12 +24,15 @@ jobs:
           - name: allotment-frontend
             context: frontend
             target: prod
-          # OpenSfM + GDAL mapping worker. OpenSfM is compiled from source in a build stage (about
-          # 5 minutes without a cache); `max` caches that stage in ProGet too. `file` is
+          # OpenSfM + GDAL mapping worker. OpenSfM is compiled from source in a build stage
+          # (about 5 minutes on the runner, every build). Cache mode `min` exports only the final
+          # image's layers: with `max` the build stage's multi-hundred-MB layers are uploaded too,
+          # and the nginx in front of ProGet rejects them with 413 (tried, build 1019). `file` is
           # workspace-relative.
           - name: allotment-worker
             context: backend
             file: worker/Dockerfile
+            cache_mode: min
     steps:
       - uses: actions/checkout@v4
 
