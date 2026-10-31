@@ -1,30 +1,81 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useAuth } from "../auth";
+import { usePlantings } from "../plantings/hooks";
+import { DEFAULT_FILTERS, filterTasks, isFiltered, readFilters, rescheduleDates, writeFilters, type Filters } from "../tasks/filter";
 import { groupTasks, type Task } from "../tasks/group";
+import PlaceOptions from "../tasks/PlaceOptions";
 import TaskDialog from "../tasks/TaskDialog";
-import { useFeatureOptions, useTaskActions, useTasks } from "../tasks/hooks";
+import { useFeatureOptions, useMembers, useTaskActions, useTasks } from "../tasks/hooks";
 import { useTrays } from "../trays/hooks";
 import { useAllotment } from "./AllotmentLayout";
 
 export default function TasksPage() {
   const { id, canEdit } = useAllotment();
+  const { user } = useAuth();
+  const [params, setParams] = useSearchParams();
+  const filters = readFilters(params);
   const tasks = useTasks(id);
   const features = useFeatureOptions(id);
   const trays = useTrays(id);
+  const plantings = usePlantings(id, { growing: true });
+  const members = useMembers(id);
   const actions = useTaskActions(id);
   const [showDone, setShowDone] = useState(false);
   const [dialog, setDialog] = useState<Task | "new" | null>(null);
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<Set<number>>(new Set());
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  const change = (patch: Partial<Filters>) => setParams(writeFilters({ ...filters, ...patch }, params), { replace: true });
   const featureName = (fid?: number | null) => features.data?.find((f) => f.id === fid)?.name;
   const trayName = (tid?: number | null) => trays.data?.find((t) => t.id === tid)?.name;
-  const groups = groupTasks(tasks.data ?? []);
+  const who = (uid?: number | null) => members.data?.find((m) => m.user_id === uid)?.display_name;
+  const shown = filterTasks(tasks.data ?? [], filters, user?.id);
+  const groups = groupTasks(shown);
+  const dates = rescheduleDates();
+
+  async function run(work: () => Promise<unknown>) {
+    try {
+      await work();
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+  const reschedule = (t: Task, value: string) => {
+    if (!value) return;
+    const due_date = value === "none" ? null : value === "tomorrow" ? dates.tomorrow : dates.nextWeek;
+    void run(() => actions.update.mutateAsync({ id: t.id!, body: { due_date } }));
+  };
+  const leaveSelecting = () => {
+    setSelecting(false);
+    setPicked(new Set());
+    setConfirmDelete(false);
+  };
+  const bulk = (action: "complete" | "reopen" | "delete" | "reschedule", due_date?: string | null) =>
+    run(async () => {
+      await actions.bulk.mutateAsync({ ids: [...picked], action, ...(action === "reschedule" ? { due_date } : {}) });
+      leaveSelecting();
+    });
+  const toggle = (taskId: number) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(taskId)) next.add(taskId);
+      return next;
+    });
 
   const row = (t: Task) => (
     <li key={t.id} className={`task ${t.status === "done" ? "done" : ""}`}>
+      {selecting && (
+        <input type="checkbox" aria-label={`Select ${t.title}`} checked={picked.has(t.id!)} onChange={() => toggle(t.id!)} />
+      )}
       <input
         type="checkbox"
         aria-label={`${t.status === "done" ? "Reopen" : "Complete"} ${t.title}`}
         checked={t.status === "done"}
-        disabled={!canEdit}
+        disabled={!canEdit || selecting}
         onChange={() => (t.status === "done" ? actions.reopen : actions.complete).mutate(t.id!)}
       />
       <div className="task-main">
@@ -36,9 +87,19 @@ export default function TasksPage() {
           {t.location && !t.feature_id && <span>📍 pinned</span>}
           {t.due_date && <span>📅 {t.due_date}</span>}
           {t.recurrence && <span>🔁 {t.recurrence}</span>}
+          {who(t.assignee_id) && <span>👤 {who(t.assignee_id)}</span>}
+          {t.status === "doing" && <span className="badge">doing</span>}
           {t.priority === "high" && <span className="badge high">high</span>}
         </span>
       </div>
+      {canEdit && !selecting && t.status !== "done" && (
+        <select className="reschedule" aria-label={`Reschedule ${t.title}`} value="" onChange={(e) => reschedule(t, e.target.value)}>
+          <option value="">📅</option>
+          <option value="tomorrow">Tomorrow</option>
+          <option value="week">Next week</option>
+          <option value="none">No date</option>
+        </select>
+      )}
     </li>
   );
 
@@ -50,33 +111,100 @@ export default function TasksPage() {
       </section>
     );
 
-  const empty = tasks.data && groups.overdue.length + groups.today.length + groups.upcoming.length + groups.undated.length === 0;
+  const open = groups.overdue.length + groups.today.length + groups.upcoming.length + groups.undated.length;
+  const filtered = isFiltered(filters);
+  const doneVisible = showDone || filters.status === "done";
 
   return (
     <main className="page wide">
       <h1>Tasks</h1>
       {canEdit ? (
-        <p><button type="button" onClick={() => setDialog("new")}>+ New task</button></p>
+        <p className="toolbar">
+          <button type="button" onClick={() => setDialog("new")}>+ New task</button>
+          <button type="button" className="secondary" aria-pressed={selecting} onClick={() => (selecting ? leaveSelecting() : setSelecting(true))}>
+            {selecting ? "Done selecting" : "Select"}
+          </button>
+        </p>
       ) : (
         <p className="muted">View only: ask an owner for editor access to add or complete tasks.</p>
       )}
+
+      <div className="toolbar filters" role="search">
+        <input type="search" aria-label="Search tasks" placeholder="Search tasks" value={filters.q} onChange={(e) => change({ q: e.target.value })} />
+        <select aria-label="Assigned to" value={filters.who} onChange={(e) => change({ who: e.target.value })}>
+          <option value="all">Everyone</option>
+          <option value="me">Mine</option>
+          <option value="none">Unassigned</option>
+          {members.data?.map((m) => <option key={m.user_id} value={String(m.user_id)}>{m.display_name}</option>)}
+        </select>
+        <select aria-label="Priority" value={filters.priority} onChange={(e) => change({ priority: e.target.value as Filters["priority"] })}>
+          <option value="">Any priority</option>
+          <option value="high">High</option>
+          <option value="normal">Normal</option>
+          <option value="low">Low</option>
+        </select>
+        <select aria-label="Status" value={filters.status} onChange={(e) => change({ status: e.target.value as Filters["status"] })}>
+          <option value="all">Any status</option>
+          <option value="todo">To do</option>
+          <option value="doing">Doing</option>
+          <option value="done">Done</option>
+        </select>
+        <select aria-label="Place" value={filters.place} onChange={(e) => change({ place: e.target.value })}>
+          <option value="">Anywhere</option>
+          <PlaceOptions features={features.data} trays={trays.data} plantings={plantings.data} />
+        </select>
+        <select aria-label="Sort by" value={filters.sort} onChange={(e) => change({ sort: e.target.value as Filters["sort"] })}>
+          <option value="due">Sort: due date</option>
+          <option value="priority">Sort: priority</option>
+          <option value="newest">Sort: newest</option>
+        </select>
+        {filtered && (
+          <button type="button" className="link" onClick={() => setParams(writeFilters({ ...DEFAULT_FILTERS, sort: filters.sort }, params), { replace: true })}>
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      {selecting && (
+        <div className="toolbar bulk-bar" role="group" aria-label="Selected tasks">
+          <strong>{picked.size} selected</strong>
+          <button type="button" disabled={picked.size === 0 || actions.bulk.isPending} onClick={() => bulk("complete")}>Complete</button>
+          <button type="button" className="secondary" disabled={picked.size === 0 || actions.bulk.isPending} onClick={() => bulk("reschedule", dates.tomorrow)}>Tomorrow</button>
+          <button type="button" className="secondary" disabled={picked.size === 0 || actions.bulk.isPending} onClick={() => bulk("reschedule", dates.nextWeek)}>Next week</button>
+          <button type="button" className="secondary" disabled={picked.size === 0 || actions.bulk.isPending} onClick={() => bulk("reschedule", null)}>No date</button>
+          {!confirmDelete ? (
+            <button type="button" className="danger" disabled={picked.size === 0} onClick={() => setConfirmDelete(true)}>Delete</button>
+          ) : (
+            <>
+              <span className="muted">Delete {picked.size} task{picked.size === 1 ? "" : "s"}?</span>
+              <button type="button" className="danger" disabled={actions.bulk.isPending} onClick={() => bulk("delete")}>Yes, delete</button>
+              <button type="button" className="secondary" onClick={() => setConfirmDelete(false)}>No</button>
+            </>
+          )}
+        </div>
+      )}
+      {error && <p role="alert" className="error">{error}</p>}
+
       {tasks.isLoading && <p className="muted">Loading…</p>}
-      {empty && <p className="muted">Nothing to do. Enjoy the sunshine ☀️</p>}
-      {section("Overdue", groups.overdue, "overdue")}
-      {section("Today", groups.today)}
-      {section("Upcoming", groups.upcoming)}
-      {section("No date", groups.undated)}
-      {groups.done.length > 0 && (
+      {tasks.data && open === 0 && filters.status !== "done" && (
+        <p className="muted">{filtered ? "No tasks match those filters." : "Nothing to do. Enjoy the sunshine ☀️"}</p>
+      )}
+      {filters.sort === "due" ? (
+        <>
+          {section("Overdue", groups.overdue, "overdue")}
+          {section("Today", groups.today)}
+          {section("Upcoming", groups.upcoming)}
+          {section("No date", groups.undated)}
+        </>
+      ) : (
+        section("Open", shown.filter((t) => t.status !== "done"))
+      )}
+      {groups.done.length > 0 && filters.status !== "done" && (
         <p><button className="link" onClick={() => setShowDone(!showDone)}>{showDone ? "Hide" : "Show"} completed ({groups.done.length})</button></p>
       )}
-      {showDone && section("Completed", groups.done)}
+      {doneVisible && section("Completed", groups.done)}
       {dialog && (
-        <TaskDialog
-          allotmentId={id}
-          canEdit={canEdit}
-          task={dialog === "new" ? undefined : dialog}
-          onClose={() => setDialog(null)}
-        />
+        <TaskDialog allotmentId={id} canEdit={canEdit} task={dialog === "new" ? undefined : dialog} onClose={() => setDialog(null)} />
       )}
     </main>
   );

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Modal from "../components/Modal";
+import PlaceOptions from "./PlaceOptions";
 import { usePlantings } from "../plantings/hooks";
 import { useTrays } from "../trays/hooks";
 import type { Task } from "./group";
@@ -129,25 +130,7 @@ export default function TaskDialog({ allotmentId, canEdit, task, place, onClose 
             Where
             <select key={`${!!features.data}${!!trays.data}${!!plantings.data}`} name="place" defaultValue={start} disabled={readOnly}>
               <option value="">Nowhere in particular</option>
-              {(features.data?.length ?? 0) > 0 && (
-                <optgroup label="Map">
-                  {features.data!.map((f) => <option key={f.id} value={`feature:${f.id}`}>{f.name}</option>)}
-                </optgroup>
-              )}
-              {(trays.data?.length ?? 0) > 0 && (
-                <optgroup label="Seed trays">
-                  {trays.data!.map((t) => <option key={t.id} value={`tray:${t.id}`}>{t.name}</option>)}
-                </optgroup>
-              )}
-              {(plantings.data?.length ?? 0) > 0 && (
-                <optgroup label="Growing">
-                  {plantings.data!.map((p) => (
-                    <option key={p.id} value={`planting:${p.id}`}>
-                      {p.packet_name || "Planting"} in {p.bed_name}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
+              <PlaceOptions features={features.data} trays={trays.data} plantings={plantings.data} />
             </select>
           </label>
           <label>

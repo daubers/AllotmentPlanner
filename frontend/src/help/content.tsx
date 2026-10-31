@@ -66,6 +66,13 @@ function TheMap() {
         repeat. Click a task&rsquo;s title to change or delete it. When you finish a repeating task the next one is due after
         the later of its old date and today, so a late job does not come back already overdue.
       </p>
+      <h2>Finding tasks</h2>
+      <p>
+        Above the list, search the titles and notes, show just your own jobs (<em>Mine</em>), one person&rsquo;s, or the
+        unassigned ones, and narrow by priority, status or place. The page address keeps your choices, so you can bookmark a
+        view such as &ldquo;my high-priority jobs&rdquo;. Use the 📅 menu on a task to move it to tomorrow or next week, or
+        press <em>Select</em> to tick several and complete, reschedule or delete them together.
+      </p>
     </>
   );
 }
