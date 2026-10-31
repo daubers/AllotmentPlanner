@@ -87,6 +87,20 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await openPage(page, "Work", "Tasks");
   await expect(page.getByText("Water the beans")).toBeVisible();
   await expect(page.getByText("📍 Bed 1")).toBeVisible();
+  // A task made in the dialog can be edited afterwards.
+  await page.getByRole("button", { name: "+ New task" }).click();
+  await page.getByLabel("Title").fill("Buy string");
+  await page.getByLabel("Notes").fill("Green, thin");
+  await page.getByRole("button", { name: "Add task" }).click();
+  await page.getByRole("button", { name: "Buy string" }).click();
+  await page.getByLabel("Title").fill("Buy twine");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("button", { name: "Buy twine" })).toBeVisible();
+  await page.getByRole("button", { name: "Buy twine" }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("button", { name: "Yes, delete" }).click();
+  await expect(page.getByText("Buy twine")).toHaveCount(0);
+
   await page.getByLabel("Complete Water the beans").click();
   await expect(page.getByText("Nothing to do")).toBeVisible();
   await page.getByRole("button", { name: /Show completed \(1\)/ }).click();

@@ -701,9 +701,47 @@
           },
           {
             "in": "query",
+            "name": "tray_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "planting_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
             "name": "assignee_id",
             "schema": {
               "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "low",
+                "normal",
+                "high"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "description": "Words in the title or notes (case-insensitive)",
+            "schema": {
+              "type": "string"
             },
             "required": false
           }
@@ -762,6 +800,53 @@
             }
           }
         },
+        "tags": [
+          "tasks"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/tasks/bulk": {
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskBulkResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskBulk"
+              }
+            }
+          }
+        },
+        "summary": "Complete, reopen, reschedule or delete several tasks at once (all or nothing).",
         "tags": [
           "tasks"
         ]
@@ -3969,6 +4054,14 @@
             "type": "integer",
             "nullable": true
           },
+          "tray_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "planting_id": {
+            "type": "integer",
+            "nullable": true
+          },
           "location": {
             "type": "object",
             "additionalProperties": {},
@@ -4051,6 +4144,16 @@
             "default": null,
             "nullable": true
           },
+          "tray_id": {
+            "type": "integer",
+            "default": null,
+            "nullable": true
+          },
+          "planting_id": {
+            "type": "integer",
+            "default": null,
+            "nullable": true
+          },
           "location": {
             "type": "object",
             "default": null,
@@ -4061,6 +4164,57 @@
         "required": [
           "title"
         ],
+        "additionalProperties": false
+      },
+      "TaskBulk": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "type": "integer"
+            }
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "reopen",
+              "delete",
+              "reschedule"
+            ]
+          },
+          "due_date": {
+            "type": "string",
+            "format": "date",
+            "description": "For reschedule; null clears the date",
+            "nullable": true
+          }
+        },
+        "required": [
+          "action",
+          "ids"
+        ],
+        "additionalProperties": false
+      },
+      "TaskBulkResult": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "deleted": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
         "additionalProperties": false
       },
       "TaskPatch": {
@@ -4109,6 +4263,14 @@
             "nullable": true
           },
           "feature_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "tray_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "planting_id": {
             "type": "integer",
             "nullable": true
           },

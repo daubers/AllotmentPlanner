@@ -1,41 +1,22 @@
 import { useState } from "react";
 import { groupTasks, type Task } from "../tasks/group";
+import TaskDialog from "../tasks/TaskDialog";
 import { useFeatureOptions, useTaskActions, useTasks } from "../tasks/hooks";
+import { useTrays } from "../trays/hooks";
 import { useAllotment } from "./AllotmentLayout";
-
-const PRIORITIES = ["low", "normal", "high"] as const;
-const RECURRENCES = ["daily", "weekly", "monthly"] as const;
 
 export default function TasksPage() {
   const { id, canEdit } = useAllotment();
   const tasks = useTasks(id);
   const features = useFeatureOptions(id);
+  const trays = useTrays(id);
   const actions = useTaskActions(id);
   const [showDone, setShowDone] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<Task | "new" | null>(null);
 
   const featureName = (fid?: number | null) => features.data?.find((f) => f.id === fid)?.name;
+  const trayName = (tid?: number | null) => trays.data?.find((t) => t.id === tid)?.name;
   const groups = groupTasks(tasks.data ?? []);
-
-  async function add(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const f = new FormData(form);
-    const text = (k: string) => String(f.get(k) ?? "");
-    try {
-      await actions.create.mutateAsync({
-        title: text("title").trim(),
-        due_date: text("due_date") || null,
-        priority: text("priority") as (typeof PRIORITIES)[number],
-        feature_id: text("feature_id") ? Number(text("feature_id")) : null,
-        recurrence: (text("recurrence") || null) as (typeof RECURRENCES)[number] | null,
-      });
-      form.reset();
-      setError(null);
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
 
   const row = (t: Task) => (
     <li key={t.id} className={`task ${t.status === "done" ? "done" : ""}`}>
@@ -47,20 +28,17 @@ export default function TasksPage() {
         onChange={() => (t.status === "done" ? actions.reopen : actions.complete).mutate(t.id!)}
       />
       <div className="task-main">
-        <span className="task-title">{t.title}</span>
+        <button type="button" className="task-title link" onClick={() => setDialog(t)}>{t.title}</button>
         <span className="task-meta">
           {featureName(t.feature_id) && <span>📍 {featureName(t.feature_id)}</span>}
+          {trayName(t.tray_id) && <span>🌱 {trayName(t.tray_id)}</span>}
+          {t.planting_id && <span>🌿 planting</span>}
           {t.location && !t.feature_id && <span>📍 pinned</span>}
           {t.due_date && <span>📅 {t.due_date}</span>}
           {t.recurrence && <span>🔁 {t.recurrence}</span>}
           {t.priority === "high" && <span className="badge high">high</span>}
         </span>
       </div>
-      {canEdit && (
-        <button className="link" aria-label={`Delete ${t.title}`} onClick={() => actions.remove.mutate(t.id!)}>
-          ✕
-        </button>
-      )}
     </li>
   );
 
@@ -78,23 +56,7 @@ export default function TasksPage() {
     <main className="page wide">
       <h1>Tasks</h1>
       {canEdit ? (
-        <form className="task-form" onSubmit={add}>
-          <input name="title" placeholder="What needs doing?" aria-label="Task title" required maxLength={200} />
-          <input name="due_date" type="date" aria-label="Due date" />
-          <select name="priority" defaultValue="normal" aria-label="Priority">
-            {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
-          </select>
-          <select name="feature_id" aria-label="Location" defaultValue="">
-            <option value="">No location</option>
-            {features.data?.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-          <select name="recurrence" aria-label="Repeats" defaultValue="">
-            <option value="">Doesn't repeat</option>
-            {RECURRENCES.map((r) => <option key={r}>{r}</option>)}
-          </select>
-          <button type="submit" disabled={actions.create.isPending}>Add task</button>
-          {error && <p role="alert" className="error">{error}</p>}
-        </form>
+        <p><button type="button" onClick={() => setDialog("new")}>+ New task</button></p>
       ) : (
         <p className="muted">View only: ask an owner for editor access to add or complete tasks.</p>
       )}
@@ -108,6 +70,14 @@ export default function TasksPage() {
         <p><button className="link" onClick={() => setShowDone(!showDone)}>{showDone ? "Hide" : "Show"} completed ({groups.done.length})</button></p>
       )}
       {showDone && section("Completed", groups.done)}
+      {dialog && (
+        <TaskDialog
+          allotmentId={id}
+          canEdit={canEdit}
+          task={dialog === "new" ? undefined : dialog}
+          onClose={() => setDialog(null)}
+        />
+      )}
     </main>
   );
 }

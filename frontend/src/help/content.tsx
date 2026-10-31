@@ -59,6 +59,13 @@ function TheMap() {
       <p>To select something hidden underneath another shape, hold Alt (Option on a Mac) and click: each click moves down to the next shape under the pointer. You can also pick any shape from the list.</p>
       <h2>Tasks on the map</h2>
       <p>Select a shape and add a task under <em>Tasks here</em>; it shows as a 📌 on the map. The <em>Tasks</em> and <em>Today</em> pages (in <em>Work</em>) list them all, and Today prints as a clean list to take to the plot.</p>
+      <h2>Adding and editing tasks</h2>
+      <p>
+        Press <em>+ New task</em> on the <em>Tasks</em> page, or <em>More…</em> beside a shape on the map. A task can have notes,
+        a due date, a priority, someone it is assigned to, a place (a shape on the map, a seed tray or something growing) and a
+        repeat. Click a task&rsquo;s title to change or delete it. When you finish a repeating task the next one is due after
+        the later of its old date and today, so a late job does not come back already overdue.
+      </p>
     </>
   );
 }

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -177,10 +177,10 @@ def test_complete_and_reopen(client, plot):
 
 
 def test_recurring_task_spawns_next(client, plot):
-    task = make(client, plot, due_date="2026-11-01", recurrence="weekly", feature_id=plot["bed"])
+    task = make(client, plot, due_date="2099-11-01", recurrence="weekly", feature_id=plot["bed"])
     done = client.post(f"{plot['base']}/{task['id']}/complete", headers=plot["editor"]).json
     nxt = client.get(f"{plot['base']}/{done['spawned_task_id']}", headers=plot["editor"]).json
-    assert nxt["due_date"] == "2026-11-08" and nxt["status"] == "todo"
+    assert nxt["due_date"] == "2099-11-08" and nxt["status"] == "todo"
     assert nxt["feature_id"] == plot["bed"] and nxt["recurrence"] == "weekly"
 
 
@@ -217,3 +217,126 @@ def test_task_events_emitted(client, plot):
     client.post(f"{plot['base']}/{task['id']}/reopen", headers=plot["editor"])
     client.delete(f"{plot['base']}/{task['id']}", headers=plot["editor"])
     assert {"task.created", "task.completed", "task.reopened", "task.deleted"} <= set(seen)
+
+
+def test_a_late_recurring_task_counts_from_today(client, plot):
+    task = make(client, plot, due_date="2020-01-01", recurrence="daily")
+    done = client.post(f"{plot['base']}/{task['id']}/complete", headers=plot["editor"]).json
+    nxt = client.get(f"{plot['base']}/{done['spawned_task_id']}", headers=plot["editor"]).json
+    assert nxt["due_date"] == (date.today() + timedelta(days=1)).isoformat()
+
+
+def _tray_and_planting(client, plot):
+    tray = client.post(
+        f"{plot['root']}/trays",
+        json={"name": "Spring", "rows": 2, "cols": 2},
+        headers=plot["editor"],
+    ).json["id"]
+    return tray
+
+
+def test_pin_to_a_tray_and_filter(client, plot):
+    tray = _tray_and_planting(client, plot)
+    pinned = make(client, plot, tray_id=tray, title="Check germination")
+    make(client, plot, title="Something else")
+    assert pinned["tray_id"] == tray and pinned["planting_id"] is None
+    found = client.get(plot["base"], query_string={"tray_id": tray}, headers=plot["viewer"]).json
+    assert [t["id"] for t in found] == [pinned["id"]]
+    # a recurring task keeps its tray
+    again = make(client, plot, tray_id=tray, recurrence="daily", due_date="2099-01-01")
+    done = client.post(f"{plot['base']}/{again['id']}/complete", headers=plot["editor"]).json
+    assert (
+        client.get(f"{plot['base']}/{done['spawned_task_id']}", headers=plot["editor"]).json[
+            "tray_id"
+        ]
+        == tray
+    )
+
+
+def test_tray_and_planting_must_belong_to_this_allotment(client, plot):
+    other = client.post("/api/v1/allotments", json={"name": "Other"}, headers=plot["stranger"])
+    tray = client.post(
+        f"/api/v1/allotments/{other.json['id']}/trays",
+        json={"name": "Not yours", "rows": 1, "cols": 1},
+        headers=plot["stranger"],
+    ).json["id"]
+    resp = client.post(plot["base"], json={"title": "x", "tray_id": tray}, headers=plot["editor"])
+    assert resp.status_code == 422
+    resp = client.post(
+        plot["base"], json={"title": "x", "planting_id": 99999}, headers=plot["editor"]
+    )
+    assert resp.status_code == 422
+
+
+def test_search_and_priority_filters(client, plot):
+    make(client, plot, title="Water the BEANS", priority="high")
+    make(client, plot, title="Prune", description="the old beans row", priority="low")
+    make(client, plot, title="Weed 100% of it")
+
+    def titles(**q):
+        return sorted(
+            t["title"]
+            for t in client.get(plot["base"], query_string=q, headers=plot["viewer"]).json
+        )
+
+    assert titles(q="beans") == ["Prune", "Water the BEANS"]
+    assert titles(q="100%") == ["Weed 100% of it"]
+    assert titles(q="_") == []
+    assert titles(priority="high") == ["Water the BEANS"]
+    assert (
+        client.get(
+            plot["base"], query_string={"priority": "urgent"}, headers=plot["viewer"]
+        ).status_code
+        == 422
+    )
+
+
+def bulk(client, plot, who="editor", **body):
+    return client.post(f"{plot['base']}/bulk", json=body, headers=plot[who])
+
+
+def test_bulk_complete_reopen_and_reschedule(client, plot):
+    a = make(client, plot, title="A", recurrence="daily", due_date="2099-01-01")
+    b = make(client, plot, title="B")
+    done = bulk(client, plot, ids=[a["id"], b["id"]], action="complete")
+    assert done.status_code == 200
+    assert [t["status"] for t in done.json["tasks"]] == ["done", "done"]
+    open_titles = [
+        t["title"]
+        for t in client.get(plot["base"], query_string={"open": True}, headers=plot["viewer"]).json
+    ]
+    assert open_titles == ["A"]  # the recurring one spawned its next occurrence
+    reopened = bulk(client, plot, ids=[b["id"]], action="reopen")
+    assert reopened.json["tasks"][0]["status"] == "todo"
+    moved = bulk(client, plot, ids=[b["id"]], action="reschedule", due_date="2099-02-02")
+    assert moved.json["tasks"][0]["due_date"] == "2099-02-02"
+    cleared = bulk(client, plot, ids=[b["id"]], action="reschedule", due_date=None)
+    assert cleared.json["tasks"][0]["due_date"] is None
+    assert bulk(client, plot, ids=[b["id"]], action="reschedule").status_code == 422
+
+
+def test_bulk_delete_and_all_or_nothing(client, plot):
+    a = make(client, plot, title="A")
+    b = make(client, plot, title="B")
+    foreign = client.post("/api/v1/allotments", json={"name": "Other"}, headers=plot["stranger"])
+    theirs = client.post(
+        f"/api/v1/allotments/{foreign.json['id']}/tasks",
+        json={"title": "Theirs"},
+        headers=plot["stranger"],
+    ).json["id"]
+    refused = bulk(client, plot, ids=[a["id"], theirs], action="delete")
+    assert refused.status_code == 404
+    assert client.get(f"{plot['base']}/{a['id']}", headers=plot["viewer"]).status_code == 200
+    ok = bulk(client, plot, ids=[a["id"], b["id"]], action="delete")
+    assert ok.json["deleted"] == [a["id"], b["id"]]
+    assert client.get(plot["base"], headers=plot["viewer"]).json == []
+
+
+def test_bulk_needs_an_editor_and_records_events(client, plot):
+    a = make(client, plot, title="A")
+    assert bulk(client, plot, who="viewer", ids=[a["id"]], action="complete").status_code == 403
+    assert bulk(client, plot, ids=[], action="complete").status_code == 422
+    seen = []
+    events.subscribe("*", lambda e: seen.append((e.type, e.subject.get("task_id"))))
+    assert bulk(client, plot, ids=[a["id"]], action="complete").status_code == 200
+    assert ("task.completed", a["id"]) in seen

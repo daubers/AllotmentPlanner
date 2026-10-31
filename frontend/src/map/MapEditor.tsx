@@ -14,6 +14,7 @@ import { useSuggestions } from "../suggestions/hooks";
 import { suggestionBox, type Suggestion } from "../suggestions/model";
 import PlantingShapes from "./PlantingShapes";
 import { SuggestionShapes, SuggestionsPanel } from "./Suggestions";
+import TaskDialog from "../tasks/TaskDialog";
 import { History } from "./history";
 import { pinGroups, pinPopup } from "./pins";
 import { byStack, edgeZ, inRing, nextBeneath } from "./stack";
@@ -413,6 +414,7 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
   const tasks = useTasks(allotmentId);
   const [drawnBounds, setDrawnBounds] = useState<Box | null | undefined>(undefined); // undefined: not loaded yet
   const taskActions = useTaskActions(allotmentId);
+  const [taskDialog, setTaskDialog] = useState<number | null>(null);
   const featureTasks = (tasks.data ?? []).filter((t) => t.feature_id === selected && t.status !== "done");
 
   return (
@@ -537,9 +539,13 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
               >
                 <input name="title" placeholder="Add a task here" aria-label="New task for this feature" maxLength={200} />
                 <button type="submit">Add</button>
+                <button type="button" className="secondary" onClick={() => setTaskDialog(current.id)}>More…</button>
               </form>
             )}
           </section>
+        )}
+        {taskDialog !== null && (
+          <TaskDialog allotmentId={allotmentId} canEdit={canEdit} place={{ feature_id: taskDialog }} onClose={() => setTaskDialog(null)} />
         )}
       </aside>
     </div>

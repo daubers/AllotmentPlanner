@@ -153,6 +153,9 @@ class Task(db.Model):
     """A job to do. Optionally pinned to a map feature and/or a point on the map."""
 
     __tablename__ = "tasks"
+    __table_args__ = (
+        UniqueConstraint("allotment_id", "suggestion_key", name="uq_task_suggestion_key"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     allotment_id: Mapped[int] = mapped_column(
@@ -170,6 +173,14 @@ class Task(db.Model):
     feature_id: Mapped[int | None] = mapped_column(
         ForeignKey("map_features.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    tray_id: Mapped[int | None] = mapped_column(
+        ForeignKey("trays.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    planting_id: Mapped[int | None] = mapped_column(
+        ForeignKey("plantings.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Set on tasks made from a suggestion ("tray:12:germination"), so adding them twice is a no-op.
+    suggestion_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
     location = mapped_column(Geometry("POINT", srid=4326), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_by: Mapped[int | None] = mapped_column(
