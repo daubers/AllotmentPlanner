@@ -7,6 +7,7 @@ import {
 } from "../trays/grid";
 import { useTray, useTrayActions, type CellChange } from "../trays/hooks";
 import PlantOutPanel from "../trays/PlantOutPanel";
+import SuggestTasks from "../tasks/SuggestTasks";
 import { useAllotment } from "./AllotmentLayout";
 
 export default function TrayPage() {
@@ -106,6 +107,8 @@ export default function TrayPage() {
       <p className="muted">
         {rows} × {cols}{t.tray_type ? ` · ${t.tray_type}` : ""}{t.location ? ` · ${t.location}` : ""} · {summarise(t.counts) || "nothing sown yet"}
       </p>
+
+      {canEdit && <p><SuggestTasks allotmentId={id} target={{ kind: "tray", id: t.id! }} /></p>}
 
       <div className="tray-grid-wrap">
         <table className="tray-grid" aria-label="Tray cells">

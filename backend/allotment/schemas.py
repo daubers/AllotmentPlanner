@@ -178,6 +178,14 @@ class TaskQuerySchema(Schema):
     q = fields.String(metadata={"description": "Words in the title or notes (case-insensitive)"})
 
 
+class TaskSuggestionSchema(Schema):
+    key = fields.String(metadata={"description": "Stable id, so a suggestion is added only once"})
+    title = fields.String()
+    description = fields.String()
+    due_date = fields.Date()
+    added = fields.Boolean(metadata={"description": "A task for this suggestion already exists"})
+
+
 class TaskBulkSchema(Schema):
     ids = fields.List(fields.Integer(), required=True, validate=validate.Length(min=1, max=200))
     action = fields.String(

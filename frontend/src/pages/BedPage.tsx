@@ -5,6 +5,7 @@ import { areaLabel, colourOf, polygonOf, ringOf, type LonLat } from "../planting
 import { STATUSES, STATUS_LABEL, useBeds, usePlantingActions, usePlantings, type Planting } from "../plantings/hooks";
 import RegionEditor, { type Shown } from "../plantings/RegionEditor";
 import { usePackets } from "../seeds/hooks";
+import SuggestTasks from "../tasks/SuggestTasks";
 import { useAllotment } from "./AllotmentLayout";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -164,6 +165,7 @@ function PlantingCard({ planting: p, open, onToggle, canEdit, allotmentId }: { p
               </div>
             )}
           </form>
+          {canEdit && <p><SuggestTasks allotmentId={allotmentId} target={{ kind: "planting", id: p.id! }} /></p>}
           <PlantingPhotos plantingId={p.id!} allotmentId={allotmentId} canEdit={canEdit} />
         </div>
       )}
