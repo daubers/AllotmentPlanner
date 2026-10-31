@@ -10,39 +10,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Gitea cannot depend on another workflow, so repeat the fast test gate.
-  gate:
-    runs-on: ubuntu-latest
-    services:
-      postgis:
-        image: postgis/postgis:16-3.4
-        env:
-          POSTGRES_USER: allotment
-          POSTGRES_PASSWORD: allotment
-          POSTGRES_DB: postgres
-        options: >-
-          --health-cmd "pg_isready -U allotment"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      TEST_DATABASE_URL: postgresql+psycopg://allotment:allotment@postgis:5432/allotment_test
-    steps:
-      - uses: actions/checkout@v4
-      # No setup-python: parallel jobs race on the runner's shared /opt/hostedtoolcache,
-      # and pip would otherwise see Debian's system packages. Use an isolated venv.
-      - name: Install backend
-        run: |
-          python3 --version
-          python3 -m venv "$RUNNER_TEMP/venv"
-          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/venv/bin/pip" install -q -e "backend[dev]"
-      - run: pytest -q
-        working-directory: backend
-
+  # Images build in parallel with the `test` workflow (which has the tests and lint). Only a
+  # release tag is deployed, and trigger-deploy below waits for `test` to pass on that tag.
   image:
-    needs: gate
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     strategy:
       matrix:
         include:
@@ -52,33 +24,30 @@ jobs:
           - name: allotment-frontend
             context: frontend
             target: prod
-          # OpenSfM + GDAL mapping worker. OpenSfM is compiled from source in a build stage
-          # (about 5 minutes on the runner, every build). Cache mode `min` exports only the final
-          # image's layers: with `max` the build stage's multi-hundred-MB layers are uploaded too,
-          # and the registry's reverse proxy rejects them with 413. `file` is workspace-relative.
+          # OpenSfM + GDAL mapping worker. OpenSfM is compiled from source in a build stage (about
+          # 5 minutes without a cache); `max` caches that stage in ProGet too. `file` is
+          # workspace-relative.
           - name: allotment-worker
             context: backend
             file: worker/Dockerfile
-            cache_mode: min
     steps:
       - uses: actions/checkout@v4
 
-      - name: Work out registry host
+      # Images live in the "allotment" Docker feed on ProGet (pkgs.daubney.dev). Feeds take HTTP
+      # basic auth with the username `api` and an API key as the password.
+      - name: Work out the image name
         id: reg
         run: |
-          host="${{ gitea.server_url }}"
-          host="${host#http://}"; host="${host#https://}"
-          echo "host=${host}" >> "$GITHUB_OUTPUT"
-          echo "image=${host}/$(echo '${{ gitea.repository_owner }}' | tr '[:upper:]' '[:lower:]')/${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+          echo "host=pkgs.daubney.dev" >> "$GITHUB_OUTPUT"
+          echo "image=pkgs.daubney.dev/allotment/${{ matrix.name }}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
 
-      # GITEA_TOKEN usually lacks write:package; use a PAT stored as REGISTRY_TOKEN.
       - uses: docker/login-action@v3
         with:
           registry: ${{ steps.reg.outputs.host }}
-          username: ${{ gitea.actor }}
-          password: ${{ secrets.REGISTRY_TOKEN }}
+          username: api
+          password: ${{ secrets.PKGS_API_KEY }}
 
       - id: meta
         uses: docker/metadata-action@v5
@@ -107,6 +76,7 @@ jobs:
   # workflow re-checks the commit is on main and both workflows succeeded before touching the host.
   trigger-deploy:
     needs: image
+    timeout-minutes: 45
     if: ${{ gitea.event_name == 'push' && startsWith(gitea.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     steps:

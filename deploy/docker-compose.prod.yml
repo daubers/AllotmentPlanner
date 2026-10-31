@@ -1,7 +1,7 @@
 # Production stack: runs the images the CI `build` workflow publishes (see docs/ci.md).
 #
 #   cp .env.production.example .env      # then edit it: passwords, secrets, where the images are
-#   docker login git.daubney.dev          # a token with read:package
+#   docker login pkgs.daubney.dev -u api   # the ProGet API key as the password
 #   docker compose up -d
 #
 # The web app and the API are both served on HTTP_PORT (nginx proxies /api to the API); put a TLS
@@ -11,7 +11,7 @@
 
 name: allotment
 
-x-image: &registry ${REGISTRY:-git.daubney.dev/matt}
+x-image: &registry ${REGISTRY:-pkgs.daubney.dev/allotment}
 
 x-app-env: &app-env
   DATABASE_URL: postgresql+psycopg://allotment:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/allotment
@@ -31,7 +31,7 @@ x-app-env: &app-env
   HOME: /tmp
 
 x-app: &app
-  image: ${REGISTRY:-git.daubney.dev/matt}/allotment-api:${TAG:-latest}
+  image: ${REGISTRY:-pkgs.daubney.dev/allotment}/allotment-api:${TAG:-latest}
   # One fixed user for every container that touches the shared data volumes, whichever image it is.
   user: "10001:10001"
   env_file: .env
@@ -81,7 +81,7 @@ services:
 
   # Brings the database schema up to date and exits. Everything else waits for it.
   migrate:
-    image: ${REGISTRY:-git.daubney.dev/matt}/allotment-api:${TAG:-latest}
+    image: ${REGISTRY:-pkgs.daubney.dev/allotment}/allotment-api:${TAG:-latest}
     user: "10001:10001"
     env_file: .env
     environment: *app-env
@@ -108,7 +108,7 @@ services:
     command: ["celery", "-A", "allotment.celery_app:celery", "beat", "-l", "INFO", "-s", "/tmp/celerybeat-schedule"]
 
   frontend:
-    image: ${REGISTRY:-git.daubney.dev/matt}/allotment-frontend:${TAG:-latest}
+    image: ${REGISTRY:-pkgs.daubney.dev/allotment}/allotment-frontend:${TAG:-latest}
     restart: unless-stopped
     depends_on:
       api: {condition: service_healthy}
@@ -117,7 +117,7 @@ services:
   # Builds maps from photos and video, and recognises objects in them. Optional and heavy.
   mapper:
     profiles: [mapping]
-    image: ${REGISTRY:-git.daubney.dev/matt}/allotment-worker:${TAG:-latest}
+    image: ${REGISTRY:-pkgs.daubney.dev/allotment}/allotment-worker:${TAG:-latest}
     user: "10001:10001"
     env_file: .env
     environment: *app-env
@@ -137,7 +137,7 @@ services:
   # instead (WORKER_QUEUES=vision, see "Workers on other machines" in the README).
   vision:
     profiles: [vision]
-    image: ${REGISTRY:-git.daubney.dev/matt}/allotment-worker:${TAG:-latest}
+    image: ${REGISTRY:-pkgs.daubney.dev/allotment}/allotment-worker:${TAG:-latest}
     user: "10001:10001"
     env_file: .env
     environment: *app-env
