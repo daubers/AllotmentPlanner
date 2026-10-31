@@ -62,7 +62,10 @@ label { display: grid; gap: .25rem; font-size: .9rem; color: var(--muted); }
 .task-dialog .actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
 .task-dialog .actions .spacer { flex: 1; }
 .task-dialog .done-note { font-size: .85rem; color: var(--muted); margin: 0; }
-.toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: 1rem; }
+.toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: 0 0 1rem; }
+.toolbar.filters input[type=search] { flex: 1 1 14rem; min-width: 10rem; }
+.bulk-bar { padding: .5rem .75rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.task .reschedule { width: auto; flex: none; }
 .tasks { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; gap: .35rem; }
 .task { display: flex; gap: .75rem; align-items: center; padding: .6rem .75rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
 .task input[type=checkbox] { width: 1.2rem; height: 1.2rem; flex: none; }

@@ -101,6 +101,12 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await page.getByRole("button", { name: "Yes, delete" }).click();
   await expect(page.getByText("Buy twine")).toHaveCount(0);
 
+  // Search narrows the list and Clear filters brings it back.
+  await page.getByLabel("Search tasks").fill("zzz-nothing");
+  await expect(page.getByText("No tasks match those filters.")).toBeVisible();
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect(page.getByRole("button", { name: "Water the beans" })).toBeVisible();
+
   await page.getByLabel("Complete Water the beans").click();
   await expect(page.getByText("Nothing to do")).toBeVisible();
   await page.getByRole("button", { name: /Show completed \(1\)/ }).click();
