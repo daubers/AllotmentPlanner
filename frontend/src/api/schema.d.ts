@@ -1747,6 +1747,73 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/allotments/{allotment_id}/plantings/{planting_id}/suggested-tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                planting_id: number;
+            };
+            cookie?: never;
+        };
+        /** Jobs the packet's dates suggest for this planting, marked if already added. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    planting_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskSuggestion"][];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        /** Add every suggestion not yet added as a task pinned to this planting. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    planting_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Task"][];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/allotments/{allotment_id}/packet-scans": {
         parameters: {
             query?: never;
@@ -2110,6 +2177,73 @@ export interface paths {
                 default: components["responses"]["DEFAULT_ERROR"];
             };
         };
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/trays/{tray_id}/suggested-tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                tray_id: number;
+            };
+            cookie?: never;
+        };
+        /** Jobs the packets' dates suggest for this tray, marked if already added. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    tray_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskSuggestion"][];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        /** Add every suggestion not yet added as a task pinned to this tray. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    tray_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Task"][];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/allotments/{allotment_id}/trays/{tray_id}/plant-out": {
@@ -3776,6 +3910,16 @@ export interface components {
             /** Format: date */
             harvested_on?: string | null;
             notes?: string;
+        };
+        TaskSuggestion: {
+            /** @description Stable id, so a suggestion is added only once */
+            key?: string;
+            title?: string;
+            description?: string;
+            /** Format: date */
+            due_date?: string;
+            /** @description A task for this suggestion already exists */
+            added?: boolean;
         };
         PacketScan: {
             id?: number;

@@ -66,6 +66,13 @@ function TheMap() {
         repeat. Click a task&rsquo;s title to change or delete it. When you finish a repeating task the next one is due after
         the later of its old date and today, so a late job does not come back already overdue.
       </p>
+      <h2>Tasks suggested from sow dates</h2>
+      <p>
+        On a seed tray, or on something growing in a bed, press <em>Suggest tasks</em>. From the seed packet&rsquo;s germination
+        and maturity days and its plant-out and harvest months you get a list: check germination, prick out, harden off, plant
+        out, thin and harvest, each with a date. <em>Add</em> puts them all on your task list, pinned to that tray or planting.
+        Steps whose date has already passed are left out, and pressing it again never adds the same task twice.
+      </p>
       <h2>Finding tasks</h2>
       <p>
         Above the list, search the titles and notes, show just your own jobs (<em>Mine</em>), one person&rsquo;s, or the

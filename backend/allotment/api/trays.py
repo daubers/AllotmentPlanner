@@ -11,6 +11,8 @@ from ..schemas import (
     CellsUpdateSchema,
     PlantOutResultSchema,
     PlantOutSchema,
+    TaskSchema,
+    TaskSuggestionSchema,
     TrayInSchema,
     TrayPatchSchema,
     TrayQuerySchema,
@@ -23,10 +25,13 @@ from ..seeds import (
     CellChangeError,
     apply_cell_change,
     cells_outside,
+    normalise_calendar,
     tray_counts,
     tray_kinds,
 )
+from ..task_suggestions import Sowing, suggest_for_tray
 from .media import media_to_dict
+from .tasks import add_suggested, suggestions_with_state, task_to_dict
 
 blp = Blueprint(
     "trays",
@@ -233,6 +238,53 @@ class TrayCells(MethodView):
             payload={"cells": len(refs), "status": change.get("status", "sown")},
         )
         return _detail(tray)
+
+
+def tray_sowings(tray: Tray) -> list[Sowing]:
+    """One sowing per packet still in the tray, dated by its earliest sown cell."""
+    live = [c for c in tray.cells if c.packet_id and c.status in ("sown", "germinated")]
+    packets = _packets({c.packet_id for c in live})
+    sowings = []
+    for packet_id, packet in sorted(packets.items()):
+        cells = [c for c in live if c.packet_id == packet_id]
+        dates = [c.sown_on or tray.sown_on for c in cells if c.sown_on or tray.sown_on]
+        if not dates:
+            continue  # nothing to count from
+        cal = normalise_calendar(packet.calendar)
+        sowings.append(
+            Sowing(
+                packet_id=packet_id,
+                name=packet.name,
+                sown_on=min(dates),
+                germinated=all(c.status == "germinated" for c in cells),
+                germinate_days_min=packet.germinate_days_min,
+                maturity_days_min=packet.maturity_days_min,
+                plant_out_months=tuple(cal["plant_out"]),
+                harvest_months=tuple(cal["harvest"]),
+            )
+        )
+    return sowings
+
+
+def _tray_suggestions(tray: Tray):
+    return suggest_for_tray(tray.id, tray.name, tray_sowings(tray), date.today())
+
+
+@blp.route("/<int:tray_id>/suggested-tasks")
+class TraySuggestedTasks(MethodView):
+    @require_role(Role.VIEWER)
+    @blp.response(200, TaskSuggestionSchema(many=True))
+    def get(self, allotment, membership, tray_id):
+        """Jobs the packets' dates suggest for this tray, marked if already added."""
+        return suggestions_with_state(allotment, _tray_suggestions(_get(allotment, tray_id)))
+
+    @require_role(Role.EDITOR)
+    @blp.response(201, TaskSchema(many=True))
+    def post(self, allotment, membership, tray_id):
+        """Add every suggestion not yet added as a task pinned to this tray."""
+        tray = _get(allotment, tray_id)
+        tasks = add_suggested(allotment, membership, _tray_suggestions(tray), tray_id=tray.id)
+        return [task_to_dict(t) for t in tasks]
 
 
 @blp.route("/<int:tray_id>/plant-out")

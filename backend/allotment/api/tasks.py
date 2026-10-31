@@ -144,6 +144,55 @@ def _finish(task: Task, allotment, membership) -> Task | None:
     return spawned
 
 
+def suggestions_with_state(allotment, suggestions) -> list[dict]:
+    """Suggestions as dicts, each marked ``added`` if a task already carries its key."""
+    keys = [s.key for s in suggestions]
+    have = set()
+    if keys:
+        rows = db.session.query(Task.suggestion_key).filter(
+            Task.allotment_id == allotment.id, Task.suggestion_key.in_(keys)
+        )
+        have = {k for (k,) in rows}
+    return [
+        {
+            "key": s.key,
+            "title": s.title,
+            "description": s.description,
+            "due_date": s.due_date,
+            "added": s.key in have,
+        }
+        for s in suggestions
+    ]
+
+
+def add_suggested(allotment, membership, suggestions, **place) -> list[Task]:
+    """Create a task for every suggestion not already added, all or nothing. ``place`` pins them."""
+    fresh = [s for s in suggestions_with_state(allotment, suggestions) if not s["added"]]
+    tasks = [
+        Task(
+            allotment_id=allotment.id,
+            created_by=membership.user_id,
+            title=s["title"],
+            description=s["description"],
+            due_date=s["due_date"],
+            suggestion_key=s["key"],
+            **place,
+        )
+        for s in fresh
+    ]
+    db.session.add_all(tasks)
+    db.session.commit()
+    for task in tasks:
+        events.emit(
+            "task.created",
+            actor_id=membership.user_id,
+            allotment_id=allotment.id,
+            subject={"task_id": task.id, "feature_id": task.feature_id},
+            payload={"title": task.title, "suggested": True},
+        )
+    return tasks
+
+
 def _reopen(task: Task) -> None:
     task.status = TaskStatus.TODO
     task.completed_at = None

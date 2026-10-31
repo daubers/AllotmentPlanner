@@ -15,9 +15,14 @@ from ..schemas import (
     PlantingPatchSchema,
     PlantingQuerySchema,
     PlantingSchema,
+    TaskSchema,
+    TaskSuggestionSchema,
 )
 from ..security import require_role
+from ..seeds import normalise_calendar
+from ..task_suggestions import Sowing, suggest_for_planting
 from .media import media_to_dict
+from .tasks import add_suggested, suggestions_with_state, task_to_dict
 
 blp = Blueprint(
     "plantings",
@@ -232,3 +237,53 @@ class PlantingDetail(MethodView):
             allotment_id=allotment.id,
             subject={"planting_id": planting_id},
         )
+
+
+def _planting_suggestions(planting: Planting):
+    when = planting.sown_on or planting.planted_on
+    if when is None:
+        return []
+    packet = db.session.get(SeedPacket, planting.packet_id) if planting.packet_id else None
+    cal = normalise_calendar(packet.calendar if packet else None)
+    name = packet.name if packet else "planting"
+    bed = db.session.get(MapFeature, planting.feature_id)
+    sowing = Sowing(
+        packet_id=planting.packet_id or 0,
+        name=name,
+        sown_on=when,
+        germinate_days_min=packet.germinate_days_min if packet else None,
+        maturity_days_min=packet.maturity_days_min if packet else None,
+        plant_out_months=tuple(cal["plant_out"]),
+        harvest_months=tuple(cal["harvest"]),
+    )
+    label = f"{name} in {bed.name or 'bed'}" if bed else name
+    return suggest_for_planting(
+        planting.id,
+        label,
+        sowing,
+        planting.method,
+        planting.status,
+        planting.harvested_on is not None,
+        date.today(),
+    )
+
+
+@blp.route("/<int:planting_id>/suggested-tasks")
+class PlantingSuggestedTasks(MethodView):
+    @require_role(Role.VIEWER)
+    @blp.response(200, TaskSuggestionSchema(many=True))
+    def get(self, allotment, membership, planting_id):
+        """Jobs the packet's dates suggest for this planting, marked if already added."""
+        return suggestions_with_state(
+            allotment, _planting_suggestions(_get(allotment, planting_id))
+        )
+
+    @require_role(Role.EDITOR)
+    @blp.response(201, TaskSchema(many=True))
+    def post(self, allotment, membership, planting_id):
+        """Add every suggestion not yet added as a task pinned to this planting."""
+        planting = _get(allotment, planting_id)
+        tasks = add_suggested(
+            allotment, membership, _planting_suggestions(planting), planting_id=planting.id
+        )
+        return [task_to_dict(t) for t in tasks]

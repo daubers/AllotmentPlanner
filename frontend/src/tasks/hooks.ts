@@ -135,3 +135,40 @@ export function useTodo(allotmentId: number, date: string, includeUndated: boole
       ).data,
   });
 }
+
+export type Suggestion = components["schemas"]["TaskSuggestion"];
+export type SuggestFor = { kind: "tray" | "planting"; id: number };
+
+/** The jobs the packet's dates suggest for a tray or planting, and a way to add them all. */
+export function useSuggestedTasks(allotmentId: number, target: SuggestFor, enabled: boolean) {
+  const qc = useQueryClient();
+  const key = ["suggested-tasks", allotmentId, target.kind, target.id];
+  const suggestions = useQuery({
+    queryKey: key,
+    enabled,
+    queryFn: async (): Promise<Suggestion[]> => {
+      const params = { path: { allotment_id: allotmentId } };
+      if (target.kind === "tray") {
+        return (await api.GET("/api/v1/allotments/{allotment_id}/trays/{tray_id}/suggested-tasks", { params: { path: { ...params.path, tray_id: target.id } } })).data ?? [];
+      }
+      return (await api.GET("/api/v1/allotments/{allotment_id}/plantings/{planting_id}/suggested-tasks", { params: { path: { ...params.path, planting_id: target.id } } })).data ?? [];
+    },
+  });
+  const add = useMutation({
+    mutationFn: async () => {
+      const path = { allotment_id: allotmentId };
+      const { data, error } =
+        target.kind === "tray"
+          ? await api.POST("/api/v1/allotments/{allotment_id}/trays/{tray_id}/suggested-tasks", { params: { path: { ...path, tray_id: target.id } } })
+          : await api.POST("/api/v1/allotments/{allotment_id}/plantings/{planting_id}/suggested-tasks", { params: { path: { ...path, planting_id: target.id } } });
+      if (!data) throw new Error(failure(error, "Could not add the tasks"));
+      return data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: key });
+      void qc.invalidateQueries({ queryKey: ["tasks", allotmentId] });
+      void qc.invalidateQueries({ queryKey: ["todo", allotmentId] });
+    },
+  });
+  return { suggestions, add };
+}
