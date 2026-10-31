@@ -1,26 +1,56 @@
 import type { Task } from "./group";
 
 export type SheetFeature = { id: number; properties: { name?: string; kind?: string } };
-export type Section = { title: string; tasks: Task[] };
+export type Section = {
+  title: string;
+  tasks: Task[];
+  /** Where the heading links to, relative to the allotment (a bed, tray or planting's bed). */
+  to?: string;
+};
+/** Names for tray and planting jobs, and which map shapes are beds (they have a page of their own). */
+export type Places = {
+  trays: { id: number; name: string }[];
+  plantings: { id: number; label: string; feature_id: number }[];
+};
 
 /**
  * Group the day's jobs by where they are, so you can work through the plot bed by bed:
  * one section per pinned feature (in map order), then jobs pinned to a spot, then the rest.
  * Task order within a section is preserved (the server sorts by priority then date).
  */
-export function groupByLocation(tasks: Task[], features: SheetFeature[]): Section[] {
+export function groupByLocation(tasks: Task[], features: SheetFeature[], places: Places = { trays: [], plantings: [] }): Section[] {
   const byFeature = new Map<number, Task[]>();
+  const byTray = new Map<number, Task[]>();
+  const byPlanting = new Map<number, Task[]>();
   const pinned: Task[] = [];
   const anywhere: Task[] = [];
+  const add = (map: Map<number, Task[]>, key: number, t: Task) => map.set(key, [...(map.get(key) ?? []), t]);
   for (const t of tasks) {
-    if (t.feature_id != null) byFeature.set(t.feature_id, [...(byFeature.get(t.feature_id) ?? []), t]);
+    if (t.feature_id != null) add(byFeature, t.feature_id, t);
+    else if (t.tray_id != null) add(byTray, t.tray_id, t);
+    else if (t.planting_id != null) add(byPlanting, t.planting_id, t);
     else if (t.location) pinned.push(t);
     else anywhere.push(t);
   }
   const sections: Section[] = [];
   for (const f of features) {
     const list = byFeature.get(f.id);
-    if (list) sections.push({ title: f.properties.name || `Unnamed ${f.properties.kind ?? "feature"}`, tasks: list });
+    if (list)
+      sections.push({
+        title: f.properties.name || `Unnamed ${f.properties.kind ?? "feature"}`,
+        tasks: list,
+        to: f.properties.kind === "bed" ? `beds/${f.id}` : undefined,
+      });
+  }
+  for (const [id, list] of byTray) {
+    const tray = places.trays.find((t) => t.id === id);
+    if (tray) sections.push({ title: `Tray: ${tray.name}`, tasks: list, to: `trays/${id}` });
+    else anywhere.push(...list);
+  }
+  for (const [id, list] of byPlanting) {
+    const planting = places.plantings.find((p) => p.id === id);
+    if (planting) sections.push({ title: planting.label, tasks: list, to: `beds/${planting.feature_id}` });
+    else anywhere.push(...list);
   }
   // A task pinned to a feature we don't know about (shouldn't happen) is not lost.
   for (const [id, list] of byFeature) {

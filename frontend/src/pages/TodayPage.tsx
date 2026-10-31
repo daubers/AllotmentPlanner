@@ -1,8 +1,11 @@
-import { useSearchParams } from "react-router-dom";
+import { useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { buildSketch, type SketchFeature } from "../map/sketch";
-import { localDate } from "../tasks/group";
-import { useTodo } from "../tasks/hooks";
-import { daysBetween, flatten, groupByLocation, longDate, type SheetFeature } from "../tasks/today";
+import { usePlantings } from "../plantings/hooks";
+import { localDate, type Task } from "../tasks/group";
+import { useTaskActions, useTodo } from "../tasks/hooks";
+import { daysBetween, flatten, groupByLocation, longDate, type Places, type SheetFeature } from "../tasks/today";
+import { useTrays } from "../trays/hooks";
 import { useAllotment } from "./AllotmentLayout";
 
 export default function TodayPage() {
@@ -19,13 +22,6 @@ export default function TodayPage() {
     setParams(next, { replace: true });
   };
 
-  const features = (todo.data?.features ?? []) as unknown as (SketchFeature & SheetFeature)[];
-  const sections = groupByLocation(todo.data?.tasks ?? [], features);
-  const ordered = flatten(sections);
-  const number = new Map(ordered.map((t, i) => [t.id, i + 1]));
-  const sketch = buildSketch(features, ordered);
-  const who = new Map((todo.data?.members ?? []).map((m) => [m.user_id, m.display_name]));
-
   return (
     <main className="page wide today">
       <div className="no-print today-controls">
@@ -41,70 +37,119 @@ export default function TodayPage() {
       </div>
 
       {todo.isLoading && <p className="muted">Loading…</p>}
-      {todo.data && (
-        <article className="sheet" aria-label="Todo list">
-          <header>
-            <h1>{todo.data.allotment?.name}</h1>
-            <p className="sheet-date">{longDate(date)}</p>
-          </header>
-
-          {sketch.shapes.length > 0 && (
-            <svg className="sketch" viewBox={`0 0 ${sketch.width} ${sketch.height}`} role="img" aria-label="Sketch of the plot with numbered jobs">
-              {sketch.shapes.map((s) =>
-                s.type === "point" ? (
-                  <circle key={s.id} cx={s.x} cy={s.y} r={s.r} fill={s.colour} fillOpacity={0.35} stroke={s.colour} strokeWidth={2} />
-                ) : (
-                  <path key={s.id} d={s.d} fill={s.type === "polygon" ? s.colour : "none"} fillOpacity={0.25} stroke={s.colour} strokeWidth={2} />
-                ),
-              )}
-              {sketch.shapes.map(
-                (s) =>
-                  s.label && (
-                    <text key={`l${s.id}`} className="sketch-label" x={s.labelAt[0]} y={s.labelAt[1]} textAnchor="middle">
-                      {s.label}
-                    </text>
-                  ),
-              )}
-              {sketch.pins.map((p) => (
-                <g key={p.taskId} transform={`translate(${p.x} ${p.y})`}>
-                  <circle r={12} className="pin-bg" />
-                  <text className="pin-n" textAnchor="middle" dy="0.35em">{p.n}</text>
-                </g>
-              ))}
-            </svg>
-          )}
-
-          {ordered.length === 0 ? (
-            <p className="all-clear">Nothing due. Enjoy the plot! 🌱</p>
-          ) : (
-            sections.map((section) => (
-              <section key={section.title} className="sheet-section">
-                <h2>{section.title}</h2>
-                <ol className="sheet-tasks">
-                  {section.tasks.map((t) => {
-                    const late = t.due_date ? daysBetween(t.due_date, date) : 0;
-                    return (
-                      <li key={t.id}>
-                        <span className="box" aria-hidden="true" />
-                        <span className="num">{number.get(t.id)}</span>
-                        <span className="what">
-                          <strong>{t.title}</strong>
-                          {t.priority === "high" && <em className="flag"> high priority</em>}
-                          {late > 0 && <em className="flag"> overdue by {late} day{late > 1 ? "s" : ""}</em>}
-                          {t.recurrence && <em> · repeats {t.recurrence}</em>}
-                          {t.assignee_id != null && who.get(t.assignee_id) && <em> · {who.get(t.assignee_id)}</em>}
-                          {t.description && <span className="notes">{t.description}</span>}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ol>
-              </section>
-            ))
-          )}
-          <footer className="sheet-foot">{ordered.length} job{ordered.length === 1 ? "" : "s"} · printed {new Date().toLocaleString("en-GB")}</footer>
-        </article>
-      )}
+      {todo.data && <Sheet key={`${date}:${includeUndated}`} allotmentId={id} date={date} data={todo.data} />}
     </main>
+  );
+}
+
+type TodoData = NonNullable<ReturnType<typeof useTodo>["data"]>;
+
+/** The day's list. Ticking a job here completes it but keeps it on the sheet, struck through, until the date changes. */
+function Sheet({ allotmentId, date, data }: { allotmentId: number; date: string; data: TodoData }) {
+  const { canEdit } = useAllotment();
+  const actions = useTaskActions(allotmentId);
+  const trays = useTrays(allotmentId);
+  const plantings = usePlantings(allotmentId, { growing: true });
+  // Jobs ticked on this sheet, and whether they are still ticked (an unticked one stays until the list refreshes).
+  const [touched, setTouched] = useState<Map<number, { task: Task; done: boolean }>>(new Map());
+  const order = useRef(new Map<number, number>()); // first-seen position, so a ticked job stays where it was
+
+  const open = data.tasks ?? [];
+  for (const t of open) if (!order.current.has(t.id!)) order.current.set(t.id!, order.current.size);
+  const tasks = [...open, ...[...touched.values()].map((x) => x.task).filter((t) => !open.some((o) => o.id === t.id))].sort(
+    (a, b) => order.current.get(a.id!)! - order.current.get(b.id!)!,
+  );
+
+  const places: Places = {
+    trays: (trays.data ?? []).map((t) => ({ id: t.id!, name: t.name! })),
+    plantings: (plantings.data ?? []).map((p) => ({ id: p.id!, label: `${p.packet_name || "Planting"} in ${p.bed_name}`, feature_id: p.feature_id! })),
+  };
+  const features = (data.features ?? []) as unknown as (SketchFeature & SheetFeature)[];
+  const sections = groupByLocation(tasks, features, places);
+  const ordered = flatten(sections);
+  const number = new Map(ordered.map((t, i) => [t.id, i + 1]));
+  const sketch = buildSketch(features, ordered);
+  const who = new Map((data.members ?? []).map((m) => [m.user_id, m.display_name]));
+
+  const isTicked = (t: Task) => touched.get(t.id!)?.done ?? false;
+  const tick = (t: Task) => {
+    const done = !isTicked(t);
+    (done ? actions.complete : actions.reopen).mutate(t.id!);
+    setTouched((m) => new Map(m).set(t.id!, { task: { ...t, status: done ? "done" : "todo" }, done }));
+  };
+
+  return (
+    <article className="sheet" aria-label="Todo list">
+      <header>
+        <h1>{data.allotment?.name}</h1>
+        <p className="sheet-date">{longDate(date)}</p>
+      </header>
+
+      {sketch.shapes.length > 0 && (
+        <svg className="sketch" viewBox={`0 0 ${sketch.width} ${sketch.height}`} role="img" aria-label="Sketch of the plot with numbered jobs">
+          {sketch.shapes.map((s) =>
+            s.type === "point" ? (
+              <circle key={s.id} cx={s.x} cy={s.y} r={s.r} fill={s.colour} fillOpacity={0.35} stroke={s.colour} strokeWidth={2} />
+            ) : (
+              <path key={s.id} d={s.d} fill={s.type === "polygon" ? s.colour : "none"} fillOpacity={0.25} stroke={s.colour} strokeWidth={2} />
+            ),
+          )}
+          {sketch.shapes.map(
+            (s) =>
+              s.label && (
+                <text key={`l${s.id}`} className="sketch-label" x={s.labelAt[0]} y={s.labelAt[1]} textAnchor="middle">
+                  {s.label}
+                </text>
+              ),
+          )}
+          {sketch.pins.map((p) => (
+            <g key={p.taskId} transform={`translate(${p.x} ${p.y})`}>
+              <circle r={12} className="pin-bg" />
+              <text className="pin-n" textAnchor="middle" dy="0.35em">{p.n}</text>
+            </g>
+          ))}
+        </svg>
+      )}
+
+      {ordered.length === 0 ? (
+        <p className="all-clear">Nothing due. Enjoy the plot! 🌱</p>
+      ) : (
+        sections.map((section) => (
+          <section key={section.title} className="sheet-section">
+            <h2>{section.to ? <Link to={`../${section.to}`}>{section.title}</Link> : section.title}</h2>
+            <ol className="sheet-tasks">
+              {section.tasks.map((t) => {
+                const late = t.due_date ? daysBetween(t.due_date, date) : 0;
+                const isDone = isTicked(t);
+                return (
+                  <li key={t.id} className={isDone ? "ticked" : undefined}>
+                    <span className="box" aria-hidden="true" />
+                    {canEdit && (
+                      <input
+                        type="checkbox"
+                        className="tick no-print"
+                        aria-label={`${isDone ? "Reopen" : "Complete"} ${t.title}`}
+                        checked={isDone}
+                        onChange={() => tick(t)}
+                      />
+                    )}
+                    <span className="num">{number.get(t.id)}</span>
+                    <span className="what">
+                      <strong>{t.title}</strong>
+                      {t.priority === "high" && <em className="flag"> high priority</em>}
+                      {late > 0 && !isDone && <em className="flag"> overdue by {late} day{late > 1 ? "s" : ""}</em>}
+                      {t.recurrence && <em> · repeats {t.recurrence}</em>}
+                      {t.assignee_id != null && who.get(t.assignee_id) && <em> · {who.get(t.assignee_id)}</em>}
+                      {t.description && <span className="notes">{t.description}</span>}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+        ))
+      )}
+      <footer className="sheet-foot">{ordered.length} job{ordered.length === 1 ? "" : "s"} · printed {new Date().toLocaleString("en-GB")}</footer>
+    </article>
   );
 }
