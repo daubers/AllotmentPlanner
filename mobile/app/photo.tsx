@@ -14,7 +14,7 @@ import { space } from "../src/ui/theme";
 export default function Photo() {
   const { queue, allotmentId } = useApp();
   const router = useRouter();
-  const params = useLocalSearchParams<{ mode?: string; packetId?: string; trayId?: string; plantingId?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; packetId?: string; trayId?: string; plantingId?: string; taskId?: string }>();
   const [permission, ask] = useCameraPermissions();
   const camera = useRef<CameraView>(null);
   const [taken, setTaken] = useState(0);
@@ -24,6 +24,7 @@ export default function Photo() {
     packetId: params.packetId ? Number(params.packetId) : undefined,
     trayId: params.trayId ? Number(params.trayId) : undefined,
     plantingId: params.plantingId ? Number(params.plantingId) : undefined,
+    taskId: params.taskId ? Number(params.taskId) : undefined,
   };
 
   async function shoot() {

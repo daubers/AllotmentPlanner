@@ -31,6 +31,9 @@ Three tiles on the home screen, built on the web phases (AM-38, AM-40, AM-41, AM
 
 One camera screen (`app/photo.tsx`) serves all of these: scanning a packet, or a photo of a packet, tray or planting (`?mode=scan`, `?packetId=`, `?trayId=`, `?plantingId=`).
 
+## Jobs (AM-31)
+- **Jobs**: the allotment's open tasks under Overdue / Today / Coming up / No date, with a round tick box on each. Ticking shows at once and is queued (`src/tasks/model.ts` builds the request; the server treats a second "complete" as already done). **Add a job** takes a title, when (today, tomorrow, next week, none), priority and where: anywhere, a bed, or "here", which pins it to the phone's position (asks for location permission). A new job appears in the list straight away, marked "Waiting to send" until the server has it (it can't be ticked until then). Each job has a Photo button that opens the camera and attaches the photo to the task. Viewers see the list without tick boxes. The home screen shows how many jobs are due or late.
+
 ## Design
 Used outdoors, in sun, often with muddy hands, so: strong contrast in both themes (text and buttons all clear 4.5:1; the light theme is the one for bright days), 48 px touch targets, large type, and status always written as words as well as colour. Tokens (colours, type scale, spacing) are in `src/ui/theme.ts`; the shared pieces (screen with back button, cards, list rows, buttons, chips, banners, progress, fields, segmented control, loading/empty states) in `src/ui/kit.tsx`. Screens follow one pattern: a clear title and one line saying what it is for, content in cards, the one action that matters pinned at the bottom. The home screen leads with the allotment's name and the two things you do there; anything waiting to send shows as a banner that opens the Sending screen (retry or discard failures).
 
@@ -57,4 +60,4 @@ On the sign-in screen, enter the address the phone can reach. For the developmen
 `npm run typecheck`, `npm test` (Jest: session, queue, request handlers), and `npx expo export` (bundling) run in CI as the `mobile` job. Sensors, camera, background transfer and the native screens can only be checked on a device or simulator.
 
 ## Not yet
-Video capture, boundary trace (AM-30), tasks and quick photos (AM-31), drawing planting areas and planting out on the phone, app store distribution.
+Video capture, boundary trace (AM-30), the read-only map and recent activity from AM-31, drawing planting areas and planting out on the phone, app store distribution.

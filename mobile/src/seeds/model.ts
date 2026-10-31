@@ -72,11 +72,12 @@ export function scanFields(clientId: string): Record<string, string> {
   return { read_packet: "true", client_id: clientId };
 }
 
-/** Fields that tell the server a photo belongs to a packet, tray or planting. */
-export function photoFields(target: { packetId?: number; trayId?: number; plantingId?: number }, clientId: string): Record<string, string> {
+/** Fields that tell the server a photo belongs to a packet, tray, planting or task. */
+export function photoFields(target: { packetId?: number; trayId?: number; plantingId?: number; taskId?: number }, clientId: string): Record<string, string> {
   const fields: Record<string, string> = { client_id: clientId };
   if (target.packetId != null) fields.packet_id = String(target.packetId);
   if (target.trayId != null) fields.tray_id = String(target.trayId);
   if (target.plantingId != null) fields.planting_id = String(target.plantingId);
+  if (target.taskId != null) fields.task_id = String(target.taskId);
   return fields;
 }

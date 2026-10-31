@@ -47,5 +47,6 @@ test("wording", () => {
 test("photo upload fields", () => {
   expect(scanFields("c1")).toEqual({ read_packet: "true", client_id: "c1" });
   expect(photoFields({ trayId: 4 }, "c2")).toEqual({ client_id: "c2", tray_id: "4" });
+  expect(photoFields({ taskId: 6 }, "c4")).toEqual({ client_id: "c4", task_id: "6" });
   expect(photoFields({ plantingId: 9, packetId: 2 }, "c3")).toEqual({ client_id: "c3", packet_id: "2", planting_id: "9" });
 });
