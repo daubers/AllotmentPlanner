@@ -77,11 +77,21 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await page.emulateMedia({ media: "print" });
   await expect(page.locator(".subbar")).toBeHidden();
   await expect(page.locator(".today-controls")).toBeHidden();
+  await expect(sheet.locator(".box")).toHaveCount(1);
+  await expect(sheet.locator(".box")).toBeVisible(); // the pen box prints; the screen tick box does not
+  await expect(sheet.getByLabel("Complete Water the beans")).toBeHidden();
   await page.pdf({ path: "test-results/today.pdf", format: "A4" });
   await page.setViewportSize({ width: 794, height: 700 }); // A4 width at 96dpi
   await page.screenshot({ path: "test-results/today-print.png" });
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.emulateMedia({ media: "screen" });
+
+  // On screen the job can be ticked off and unticked again; it stays on the sheet meanwhile.
+  await sheet.getByLabel("Complete Water the beans").check();
+  await expect(sheet.getByLabel("Reopen Water the beans")).toBeChecked();
+  await expect(sheet.getByText("Water the beans")).toBeVisible();
+  await sheet.getByLabel("Reopen Water the beans").uncheck();
+  await expect(sheet.getByLabel("Complete Water the beans")).not.toBeChecked();
 
   // The Tasks page shows it with its location, and completing it moves it away.
   await openPage(page, "Work", "Tasks");

@@ -9,6 +9,35 @@ const features = [
   { id: 2, properties: { name: "", kind: "tree" } },
 ];
 
+describe("groupByLocation with trays and plantings", () => {
+  const places = { trays: [{ id: 7, name: "Spring tray" }], plantings: [{ id: 3, label: "Carrot in Bed 1", feature_id: 1 }] };
+
+  it("gives a tray's and a planting's jobs a section each, with a link to where they are", () => {
+    const sections = groupByLocation(
+      [task(1, { tray_id: 7 }), task(2, { planting_id: 3 }), task(3, { feature_id: 1 }), task(4)],
+      features,
+      places,
+    );
+    expect(sections.map((s) => [s.title, s.to])).toEqual([
+      ["Bed 1", "beds/1"],
+      ["Tray: Spring tray", "trays/7"],
+      ["Carrot in Bed 1", "beds/1"],
+      ["Anywhere", undefined],
+    ]);
+  });
+
+  it("does not lose a job whose tray or planting is unknown", () => {
+    const sections = groupByLocation([task(1, { tray_id: 99 }), task(2, { planting_id: 98 })], features, places);
+    expect(sections.map((s) => s.title)).toEqual(["Anywhere"]);
+    expect(flatten(sections)).toHaveLength(2);
+  });
+
+  it("only links beds, not other shapes", () => {
+    const sections = groupByLocation([task(1, { feature_id: 2 })], features, places);
+    expect(sections[0].to).toBeUndefined();
+  });
+});
+
 describe("groupByLocation", () => {
   it("orders sections by map order, then pinned-on-map, then anywhere", () => {
     const sections = groupByLocation(

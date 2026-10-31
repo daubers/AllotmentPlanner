@@ -58,7 +58,7 @@ function TheMap() {
       </p>
       <p>To select something hidden underneath another shape, hold Alt (Option on a Mac) and click: each click moves down to the next shape under the pointer. You can also pick any shape from the list.</p>
       <h2>Tasks on the map</h2>
-      <p>Select a shape and add a task under <em>Tasks here</em>; it shows as a 📌 on the map. The <em>Tasks</em> and <em>Today</em> pages (in <em>Work</em>) list them all, and Today prints as a clean list to take to the plot.</p>
+      <p>Select a shape and add a task under <em>Tasks here</em>; it shows as a 📌 on the map. The <em>Tasks</em> and <em>Today</em> pages (in <em>Work</em>) list them all, and Today prints as a clean list to take to the plot. On screen you can tick jobs off on Today as you do them (they stay on the page, struck through, until you change the date); the printed list keeps empty boxes to tick with a pen. Each heading links to its bed or seed tray.</p>
       <h2>Adding and editing tasks</h2>
       <p>
         Press <em>+ New task</em> on the <em>Tasks</em> page, or <em>More…</em> beside a shape on the map. A task can have notes,
