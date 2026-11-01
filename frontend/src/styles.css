@@ -432,3 +432,20 @@ a.button.secondary { background: none; color: var(--accent); border: 1px solid v
 .stats b { font-size: .95rem; }
 .admin .stats { margin-bottom: 1rem; }
 .packet-form .notice { margin: 0; padding: .6rem .9rem; background: var(--surface); border: 1px solid #c58a00; border-left-width: 4px; border-radius: 6px; }
+
+/* Day lists */
+.daylists { list-style: none; padding: 0; margin: 1rem 0 0; display: grid; gap: .75rem; }
+.daylist { border-top: 1px solid var(--border); padding-top: .6rem; display: grid; gap: .3rem; }
+.daylist form { display: flex; flex-wrap: wrap; gap: .5rem; }
+.daylist form input[name="name"] { flex: 1; min-width: 9rem; }
+.daylist p { margin: 0; }
+.plan-list { margin-bottom: 1rem; padding: .6rem .9rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.plan-list summary { cursor: pointer; font-weight: 600; }
+.plan-list input[type="search"] { margin: .6rem 0; max-width: 20rem; }
+.plan-tasks { list-style: none; padding: 0; margin: 0 0 .75rem; display: grid; gap: .3rem; max-height: 16rem; overflow: auto; }
+.plan-tasks .check { display: flex; gap: .5rem; align-items: baseline; color: var(--text); }
+.plan-tasks .check input { width: auto; }
+.remove-from-list { margin-left: auto; }
+.daylist-new { flex-wrap: wrap; margin-top: 0; }
+.daylist-new input[name="name"] { flex: 1 1 12rem; min-width: 0; }
+.daylist-new input[type="date"] { flex: 0 1 11rem; }

@@ -246,6 +246,7 @@ class TodoSchema(Schema):
         fields.Nested(FeatureSchema), metadata={"description": "The whole map, for the sketch"}
     )
     members = fields.List(fields.Nested(TodoMemberSchema))
+    title = fields.String(allow_none=True, metadata={"description": "The day list's name, if any"})
 
 
 class MediaUploadFormSchema(Schema):
@@ -1083,3 +1084,30 @@ class LogsSchema(Schema):
         allow_none=True, metadata={"description": "Pass as before_id for more"}
     )
     services = fields.List(fields.String())
+
+
+class DayListInSchema(Schema):
+    name = fields.String(required=True, validate=validate.Length(min=1, max=120))
+    date = fields.Date(allow_none=True, load_default=None)
+    task_ids = fields.List(fields.Integer(), load_default=list)
+
+
+class DayListPatchSchema(Schema):
+    name = fields.String(validate=validate.Length(min=1, max=120))
+    date = fields.Date(allow_none=True)
+
+
+class DayListSchema(Schema):
+    id = fields.Integer()
+    name = fields.String()
+    date = fields.Date(allow_none=True)
+    task_ids = fields.List(fields.Integer(), metadata={"description": "Tasks on the list"})
+    task_count = fields.Integer()
+    done_count = fields.Integer()
+    created_at = fields.DateTime()
+
+
+class DayListTasksSchema(Schema):
+    task_ids = fields.List(
+        fields.Integer(), required=True, validate=validate.Length(min=1, max=500)
+    )

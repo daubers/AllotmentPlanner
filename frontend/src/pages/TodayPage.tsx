@@ -3,17 +3,29 @@ import { Link, useSearchParams } from "react-router-dom";
 import { buildSketch, type SketchFeature } from "../map/sketch";
 import { usePlantings } from "../plantings/hooks";
 import { localDate, type Task } from "../tasks/group";
+import DayListsDialog from "../tasks/DayListsDialog";
+import { useDayListActions, useDayListSheet, useDayLists, useSelectedList } from "../tasks/dayLists";
 import { useTaskActions, useTodo } from "../tasks/hooks";
+import PlanList from "../tasks/PlanList";
 import { daysBetween, flatten, groupByLocation, longDate, type Places, type SheetFeature } from "../tasks/today";
 import { useTrays } from "../trays/hooks";
 import { useAllotment } from "./AllotmentLayout";
 
 export default function TodayPage() {
-  const { id } = useAllotment();
+  const { id, canEdit } = useAllotment();
   const [params, setParams] = useSearchParams();
   const date = params.get("date") || localDate();
   const includeUndated = params.get("undated") === "1";
+  const lists = useDayLists(id);
+  const [, selectList] = useSelectedList(id);
+  const [managing, setManaging] = useState(false);
+  // A list in the URL (?list=3) replaces "everything due" with that list; an unknown id falls back.
+  const requested = Number(params.get("list")) || null;
+  const list = lists.data?.find((l) => l.id === requested) ?? null;
+  const listId = list?.id ?? null;
   const todo = useTodo(id, date, includeUndated);
+  const listSheet = useDayListSheet(id, listId);
+  const sheet = listId != null ? listSheet : todo;
 
   const set = (key: string, value: string | null) => {
     const next = new URLSearchParams(params);
@@ -26,18 +38,52 @@ export default function TodayPage() {
     <main className="page wide today">
       <div className="no-print today-controls">
         <label>
-          Date
-          <input type="date" value={date} onChange={(e) => e.target.value && set("date", e.target.value)} />
+          List
+          <select
+            value={listId ?? ""}
+            onChange={(e) => {
+              set("list", e.target.value || null);
+              if (e.target.value) selectList(Number(e.target.value));
+            }}
+          >
+            <option value="">Everything due</option>
+            {(lists.data ?? []).map((l) => (
+              <option key={l.id} value={l.id}>{l.name}{l.date ? ` (${l.date})` : ""}</option>
+            ))}
+          </select>
         </label>
-        <label className="check">
-          <input type="checkbox" checked={includeUndated} onChange={(e) => set("undated", e.target.checked ? "1" : null)} />
-          Include jobs with no date
-        </label>
-        <button onClick={() => window.print()} disabled={!todo.data}>🖨 Print</button>
+        {listId == null && (
+          <>
+            <label>
+              Date
+              <input type="date" value={date} onChange={(e) => e.target.value && set("date", e.target.value)} />
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={includeUndated} onChange={(e) => set("undated", e.target.checked ? "1" : null)} />
+              Include jobs with no date
+            </label>
+          </>
+        )}
+        <button type="button" className="secondary" onClick={() => setManaging(true)}>{canEdit ? "Manage lists" : "Lists"}</button>
+        <button onClick={() => window.print()} disabled={!sheet.data}>🖨 Print</button>
       </div>
+      {managing && (
+        <DayListsDialog
+          allotmentId={id}
+          canEdit={canEdit}
+          onClose={() => setManaging(false)}
+          onCreated={(made) => {
+            set("list", String(made.id));
+            selectList(made.id!);
+          }}
+        />
+      )}
+      {list && canEdit && <PlanList allotmentId={id} list={list} />}
 
-      {todo.isLoading && <p className="muted">Loading…</p>}
-      {todo.data && <Sheet key={`${date}:${includeUndated}`} allotmentId={id} date={date} data={todo.data} />}
+      {sheet.isLoading && <p className="muted">Loading…</p>}
+      {sheet.data && (
+        <Sheet key={`${listId}:${date}:${includeUndated}`} allotmentId={id} date={listId != null ? sheet.data.date ?? date : date} data={sheet.data} listId={listId} />
+      )}
     </main>
   );
 }
@@ -45,9 +91,10 @@ export default function TodayPage() {
 type TodoData = NonNullable<ReturnType<typeof useTodo>["data"]>;
 
 /** The day's list. Ticking a job here completes it but keeps it on the sheet, struck through, until the date changes. */
-function Sheet({ allotmentId, date, data }: { allotmentId: number; date: string; data: TodoData }) {
+function Sheet({ allotmentId, date, data, listId = null }: { allotmentId: number; date: string; data: TodoData; listId?: number | null }) {
   const { canEdit } = useAllotment();
   const actions = useTaskActions(allotmentId);
+  const listActions = useDayListActions(allotmentId);
   const trays = useTrays(allotmentId);
   const plantings = usePlantings(allotmentId, { growing: true });
   // Jobs ticked on this sheet, and whether they are still ticked (an unticked one stays until the list refreshes).
@@ -71,7 +118,8 @@ function Sheet({ allotmentId, date, data }: { allotmentId: number; date: string;
   const sketch = buildSketch(features, ordered);
   const who = new Map((data.members ?? []).map((m) => [m.user_id, m.display_name]));
 
-  const isTicked = (t: Task) => touched.get(t.id!)?.done ?? false;
+  // A list keeps finished jobs on it, so those start out ticked.
+  const isTicked = (t: Task) => touched.get(t.id!)?.done ?? t.status === "done";
   const tick = (t: Task) => {
     const done = !isTicked(t);
     (done ? actions.complete : actions.reopen).mutate(t.id!);
@@ -81,8 +129,8 @@ function Sheet({ allotmentId, date, data }: { allotmentId: number; date: string;
   return (
     <article className="sheet" aria-label="Todo list">
       <header>
-        <h1>{data.allotment?.name}</h1>
-        <p className="sheet-date">{longDate(date)}</p>
+        <h1>{data.title ?? data.allotment?.name}</h1>
+        <p className="sheet-date">{data.title ? `${data.allotment?.name} · ` : ""}{longDate(date)}</p>
       </header>
 
       {sketch.shapes.length > 0 && (
@@ -112,7 +160,7 @@ function Sheet({ allotmentId, date, data }: { allotmentId: number; date: string;
       )}
 
       {ordered.length === 0 ? (
-        <p className="all-clear">Nothing due. Enjoy the plot! 🌱</p>
+        <p className="all-clear">{listId != null ? "Nothing on this list yet. Add jobs above, or from the Tasks page." : "Nothing due. Enjoy the plot! 🌱"}</p>
       ) : (
         sections.map((section) => (
           <section key={section.title} className="sheet-section">
@@ -142,6 +190,9 @@ function Sheet({ allotmentId, date, data }: { allotmentId: number; date: string;
                       {t.assignee_id != null && who.get(t.assignee_id) && <em> · {who.get(t.assignee_id)}</em>}
                       {t.description && <span className="notes">{t.description}</span>}
                     </span>
+                    {canEdit && listId != null && (
+                      <button type="button" className="link no-print remove-from-list" aria-label={`Take ${t.title} off the list`} onClick={() => listActions.removeTask.mutate({ id: listId, taskId: t.id! })}>✕</button>
+                    )}
                   </li>
                 );
               })}

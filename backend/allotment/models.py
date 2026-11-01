@@ -594,3 +594,37 @@ class LogEntry(db.Model):
     request_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     task_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class DayList(db.Model):
+    """A hand-picked list of tasks for a day or a round of jobs; it prints as a todo sheet."""
+
+    __tablename__ = "day_lists"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(120))
+    # The day it is for, if any (not called `date`: that would hide the type in this class).
+    for_date: Mapped[date | None] = mapped_column("date", Date, nullable=True)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    items: Mapped[list["DayListItem"]] = relationship(
+        back_populates="day_list", cascade="all, delete-orphan", order_by="DayListItem.id"
+    )
+
+
+class DayListItem(db.Model):
+    __tablename__ = "day_list_items"
+    __table_args__ = (UniqueConstraint("list_id", "task_id", name="uq_day_list_task"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    list_id: Mapped[int] = mapped_column(ForeignKey("day_lists.id", ondelete="CASCADE"), index=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    day_list: Mapped[DayList] = relationship(back_populates="items")

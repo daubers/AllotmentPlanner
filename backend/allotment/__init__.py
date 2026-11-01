@@ -8,6 +8,7 @@ from .api import (
     admin,
     allotments,
     auth,
+    day_lists,
     features,
     limits,
     mapping,
@@ -52,6 +53,7 @@ def create_app(config: type = Config) -> Flask:
     api.register_blueprint(features.blp)
     api.register_blueprint(tasks.blp)
     api.register_blueprint(todo.blp)
+    api.register_blueprint(day_lists.blp)
     api.register_blueprint(media.blp)
     api.register_blueprint(media.files_blp)
     api.register_blueprint(overview.blp)
