@@ -27,6 +27,10 @@ export default function TrayPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Selected cells that a smaller size would cut off, while waiting for the person to agree.
+  const [cellsLost, setCellsLost] = useState(0);
+  const detailsForm = useRef<HTMLFormElement>(null);
+  const resizeConfirmed = useRef(false);
 
   const t = tray.data;
   if (tray.isLoading) return <main className="page"><p className="muted">Loading…</p></main>;
@@ -55,18 +59,27 @@ export default function TrayPage() {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const text = (k: string) => String(f.get(k) ?? "").trim();
+    const newRows = Number(f.get("rows")), newCols = Number(f.get("cols"));
+    const lost = [...selected].map(posOf).filter((p) => p.row >= newRows || p.col >= newCols).length;
+    if (lost > 0 && !resizeConfirmed.current) {
+      setCellsLost(lost);
+      return;
+    }
+    resizeConfirmed.current = false;
+    setCellsLost(0);
     try {
       await actions.patch.mutateAsync({
         id: trayId,
         name: text("name"),
-        rows: Number(f.get("rows")),
-        cols: Number(f.get("cols")),
+        rows: newRows,
+        cols: newCols,
         tray_type: text("tray_type"),
         location: text("location"),
         sown_on: text("sown_on") || null,
         notes: text("notes"),
         status: text("status") as "active",
       });
+      if (lost > 0) setSelected(new Set());
       setError(null);
       setNotice("Saved");
     } catch (err) {
@@ -246,7 +259,7 @@ export default function TrayPage() {
 
       <details className="tray-details">
         <summary>Tray details</summary>
-        <form className="packet-form" onSubmit={(e) => void saveDetails(e)} key={`${t.id}-${t.updated_at}`}>
+        <form className="packet-form" ref={detailsForm} onSubmit={(e) => void saveDetails(e)} onChange={() => setCellsLost(0)} key={`${t.id}-${t.updated_at}`}>
           <fieldset disabled={!canEdit}>
             <legend>About</legend>
             <label>Name<input name="name" defaultValue={t.name} required maxLength={200} /></label>
@@ -265,7 +278,14 @@ export default function TrayPage() {
             </label>
           </fieldset>
           <label>Notes<textarea name="notes" rows={3} defaultValue={t.notes} disabled={!canEdit} maxLength={5000} /></label>
-          {canEdit && <button type="submit" disabled={actions.patch.isPending}>Save</button>}
+          {cellsLost > 0 && (
+            <p className="notice" role="alert">
+              The new size has no room for {cellsLost} of the {selected.size} selected cell{selected.size === 1 ? "" : "s"}. Saving will clear the selection.{" "}
+              <button type="button" onClick={() => { resizeConfirmed.current = true; detailsForm.current?.requestSubmit(); }}>Save and clear selection</button>{" "}
+              <button type="button" className="secondary" onClick={() => setCellsLost(0)}>Cancel</button>
+            </p>
+          )}
+          {canEdit && !cellsLost && <button type="submit" disabled={actions.patch.isPending}>Save</button>}
         </form>
         {canEdit && (
           <p className="danger-zone">
