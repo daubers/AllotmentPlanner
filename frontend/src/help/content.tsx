@@ -67,6 +67,11 @@ function TheMap() {
         the list with ✕ (the job itself is kept), or press <em>Print</em> for a paper copy. Jobs you finish stay on the sheet, struck
         through. Everyone in the allotment sees the same lists.
       </p>
+      <p>
+        On the <em>Tasks</em> page, the 📋 box on a task adds it to a list (or makes a new one), and a list you used last gets a quick
+        <em> ＋ list name</em> button on every task. In <em>Select</em> mode, tick several tasks and use <em>Add to list</em>. A task shows
+        which lists it is on, and its dialog lets you take it off.
+      </p>
       <h2>Adding and editing tasks</h2>
       <p>
         Press <em>+ New task</em> on the <em>Tasks</em> page, or <em>More…</em> beside a shape on the map. A task can have notes,

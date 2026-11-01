@@ -4,7 +4,9 @@ import PlaceOptions from "./PlaceOptions";
 import { usePlantings } from "../plantings/hooks";
 import { useTrays } from "../trays/hooks";
 import type { Task } from "./group";
+import { useDayListActions, useDayLists } from "./dayLists";
 import { useFeatureOptions, useMembers, useTaskActions, type NewTask } from "./hooks";
+import ListAdd from "./ListAdd";
 
 const PRIORITIES = ["low", "normal", "high"] as const;
 const RECURRENCES = ["daily", "weekly", "monthly"] as const;
@@ -40,6 +42,9 @@ export default function TaskDialog({ allotmentId, canEdit, task, place, onClose 
   const plantings = usePlantings(allotmentId, { growing: true });
   const members = useMembers(allotmentId);
   const actions = useTaskActions(allotmentId);
+  const dayLists = useDayLists(allotmentId);
+  const listActions = useDayListActions(allotmentId);
+  const onLists = (dayLists.data ?? []).filter((l) => task?.id != null && l.task_ids?.includes(task.id));
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   // A select only takes its default when it is created, so those fed by a query are re-made once it arrives.
@@ -141,6 +146,30 @@ export default function TaskDialog({ allotmentId, canEdit, task, place, onClose 
             </select>
           </label>
         </div>
+        {editing && task?.id != null && (onLists.length > 0 || canEdit) && (
+          <div className="task-lists">
+            <span>Day lists</span>
+            {onLists.length === 0 && <span className="muted">not on any list</span>}
+            {onLists.map((l) => (
+              <span key={l.id} className="badge on-list">
+                📋 {l.name}
+                {canEdit && (
+                  <button
+                    type="button"
+                    className="link"
+                    aria-label={`Take this task off ${l.name}`}
+                    onClick={() => listActions.removeTask.mutate({ id: l.id!, taskId: task.id! }, { onError: (err) => setError((err as Error).message) })}
+                  >
+                    ✕
+                  </button>
+                )}
+              </span>
+            ))}
+            {canEdit && (
+              <ListAdd allotmentId={allotmentId} taskIds={[task.id]} label="Add this task to a list" placeholder="Add to a list…" except={onLists.map((l) => l.id!)} onError={setError} />
+            )}
+          </div>
+        )}
         {done && task?.completed_at && (
           <p className="done-note">
             Done by {who(task.completed_by)} on {new Date(task.completed_at).toLocaleDateString("en-GB")}.

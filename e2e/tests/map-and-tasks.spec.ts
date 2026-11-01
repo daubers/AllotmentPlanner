@@ -117,6 +117,16 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await page.getByRole("button", { name: "Clear filters" }).click();
   await expect(page.getByRole("button", { name: "Water the beans" })).toBeVisible();
 
+  // A day list: made from a task's menu, then used as a todo sheet.
+  await page.getByLabel("Add Water the beans to a list").selectOption("new");
+  await page.getByLabel("New list name").fill("Saturday");
+  await page.getByRole("button", { name: "Add list" }).click();
+  await expect(page.getByText("Added 1 task to Saturday")).toBeVisible();
+  await page.getByRole("link", { name: "Open the sheet" }).click();
+  await expect(page.getByRole("heading", { name: "Saturday" })).toBeVisible();
+  await expect(page.getByLabel("Complete Water the beans")).toBeVisible();
+  await openPage(page, "Work", "Tasks");
+
   await page.getByLabel("Complete Water the beans").click();
   await expect(page.getByText("Nothing to do")).toBeVisible();
   await page.getByRole("button", { name: /Show completed \(1\)/ }).click();

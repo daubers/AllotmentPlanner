@@ -449,3 +449,14 @@ a.button.secondary { background: none; color: var(--accent); border: 1px solid v
 .daylist-new { flex-wrap: wrap; margin-top: 0; }
 .daylist-new input[name="name"] { flex: 1 1 12rem; min-width: 0; }
 .daylist-new input[type="date"] { flex: 0 1 11rem; }
+.on-list { color: var(--accent); border-color: var(--accent); }
+.quick-add { padding: .2rem .55rem; font-size: .8rem; white-space: nowrap; }
+.task-lists { display: flex; flex-wrap: wrap; gap: .4rem .6rem; align-items: center; }
+.task-lists .badge button { margin-left: .25rem; padding: 0; }
+.on-list { border-radius: 8px; }
+@media (max-width: 600px) {
+  .task { flex-wrap: wrap; }
+  .task-main { flex: 1 1 calc(100% - 3rem); min-width: 0; }
+  .task .reschedule, .task .quick-add { margin-left: 2.2rem; }
+  .task .reschedule + .reschedule { margin-left: 0; }
+}

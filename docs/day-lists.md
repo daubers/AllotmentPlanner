@@ -1,6 +1,6 @@
 # Day lists: pick tasks into named lists, then a todo sheet (print or in the app)
 
-Status: planned, not built yet.
+Status: built (AM-90 lists, sheet and Today panel; AM-91 adding from the Tasks page and task dialog).
 
 ## Context
 Today builds its sheet automatically from "everything due on or before a date". There is no way to hand-pick what to do
