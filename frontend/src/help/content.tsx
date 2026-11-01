@@ -96,7 +96,7 @@ function SeedsAndTrays() {
       <h2>Trays</h2>
       <p>
         <em>Trays</em> shows a grid of cells. Select cells (or a whole row or column), sow a packet into them, and
-        later mark them <em>Came up</em> or <em>Failed</em>. Each kind of seed has its own colour. Photos of a tray stay linked to it.
+        later mark them <em>Came up</em> or <em>Failed</em>. To correct what was sown, select the cells and change the seed, the number of seeds, the sown date or the note, then press <em>Sow / update</em>; a field you leave blank is left as it is.  Each kind of seed has its own colour. Photos of a tray stay linked to it.
       </p>
       <h2>Beds and what is growing</h2>
       <p>
