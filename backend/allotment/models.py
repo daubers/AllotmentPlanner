@@ -39,6 +39,8 @@ class User(db.Model):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     display_name: Mapped[str] = mapped_column(String(100))
     password_hash: Mapped[str] = mapped_column(String(255))
+    # Can open the admin page (worker state, jobs, logs). Set with `flask make-admin`.
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     memberships: Mapped[list["Membership"]] = relationship(
@@ -576,3 +578,19 @@ class MapSuggestion(db.Model):
         ForeignKey("map_features.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class LogEntry(db.Model):
+    """A log line kept for the admin page: warnings and errors, plus task and job outcomes."""
+
+    __tablename__ = "log_entries"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    service: Mapped[str] = mapped_column(String(20))  # api | worker | beat
+    host: Mapped[str] = mapped_column(String(100), default="")
+    level: Mapped[str] = mapped_column(String(10), index=True)  # info | warning | error | critical
+    event: Mapped[str] = mapped_column(Text)
+    request_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    task_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    data: Mapped[dict | None] = mapped_column(JSON, nullable=True)

@@ -31,6 +31,7 @@ class UserSchema(Schema):
     id = fields.Integer(dump_only=True)
     email = fields.Email(dump_only=True)
     display_name = fields.String(dump_only=True)
+    is_admin = fields.Boolean(dump_only=True)
 
 
 class TokenSchema(Schema):
@@ -969,3 +970,116 @@ class BoundaryFromGpxSchema(Schema):
     points_in = fields.Integer()
     points_out = fields.Integer()
     warnings = fields.List(fields.String())
+
+
+class ActiveTaskSchema(Schema):
+    id = fields.String()
+    name = fields.String()
+    running_seconds = fields.Float(allow_none=True)
+
+
+class WorkerSchema(Schema):
+    name = fields.String(metadata={"description": "Celery node name, e.g. celery@host"})
+    queues = fields.List(fields.String())
+    concurrency = fields.Integer(allow_none=True)
+    pid = fields.Integer(allow_none=True)
+    uptime_seconds = fields.Integer(allow_none=True)
+    processed = fields.Integer(allow_none=True, metadata={"description": "Tasks since it started"})
+    reserved = fields.Integer(metadata={"description": "Tasks fetched and waiting for a slot"})
+    active = fields.List(fields.Nested(ActiveTaskSchema))
+    version = fields.String(allow_none=True)
+    gpu = fields.String(allow_none=True, metadata={"description": "Name of the GPU, if it has one"})
+
+
+class QueueSchema(Schema):
+    name = fields.String()
+    depth = fields.Integer(
+        allow_none=True, metadata={"description": "Tasks waiting (null: unknown)"}
+    )
+    consumers = fields.Integer(metadata={"description": "Workers listening to this queue"})
+
+
+class BeatEntrySchema(Schema):
+    name = fields.String()
+    task = fields.String()
+    schedule = fields.String()
+    last_run = fields.DateTime(allow_none=True)
+    last_state = fields.String(allow_none=True)
+
+
+class WorkersSchema(Schema):
+    workers = fields.List(fields.Nested(WorkerSchema))
+    queues = fields.List(fields.Nested(QueueSchema))
+    beat = fields.List(fields.Nested(BeatEntrySchema))
+    error = fields.String(
+        allow_none=True, metadata={"description": "Why the workers could not be asked"}
+    )
+    checked_at = fields.DateTime()
+
+
+class SystemSchema(Schema):
+    version = fields.String()
+    server_time = fields.DateTime()
+    checks = fields.Dict(keys=fields.String(), values=fields.String())
+    users = fields.Integer()
+    allotments = fields.Integer()
+    log_rows = fields.Integer()
+    log_retention_days = fields.Integer()
+
+
+class JobSchema(Schema):
+    kind = fields.String(metadata={"description": "map | scan | mastodon"})
+    id = fields.Integer()
+    label = fields.String()
+    status = fields.String()
+    stage = fields.String(allow_none=True)
+    error = fields.String(allow_none=True)
+    allotment_id = fields.Integer()
+    allotment_name = fields.String(allow_none=True)
+    created_at = fields.DateTime()
+    started_at = fields.DateTime(allow_none=True)
+    finished_at = fields.DateTime(allow_none=True)
+
+
+class JobCountSchema(Schema):
+    kind = fields.String()
+    waiting = fields.Integer(metadata={"description": "Queued or running now"})
+    failed_24h = fields.Integer()
+
+
+class JobsSchema(Schema):
+    jobs = fields.List(fields.Nested(JobSchema))
+    counts = fields.List(fields.Nested(JobCountSchema))
+
+
+class LogQuerySchema(Schema):
+    level = fields.String(
+        validate=validate.OneOf(["info", "warning", "error", "critical"]),
+        metadata={"description": "This level and worse"},
+    )
+    service = fields.String()
+    q = fields.String(metadata={"description": "Words in the message (case-insensitive)"})
+    request_id = fields.String()
+    task_id = fields.String()
+    before_id = fields.Integer(metadata={"description": "Only entries older than this id"})
+    limit = fields.Integer(validate=validate.Range(min=1, max=200), load_default=100)
+
+
+class LogEntrySchema(Schema):
+    id = fields.Integer()
+    at = fields.DateTime()
+    service = fields.String()
+    host = fields.String()
+    level = fields.String()
+    event = fields.String()
+    request_id = fields.String(allow_none=True)
+    task_id = fields.String(allow_none=True)
+    data = fields.Dict(allow_none=True)
+
+
+class LogsSchema(Schema):
+    entries = fields.List(fields.Nested(LogEntrySchema))
+    next_before = fields.Integer(
+        allow_none=True, metadata={"description": "Pass as before_id for more"}
+    )
+    services = fields.List(fields.String())

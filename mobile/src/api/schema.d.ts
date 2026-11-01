@@ -195,6 +195,166 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/workers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Which workers are online, what they are doing, how long the queues are, the schedule. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Workers"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Is everything the app depends on reachable, and which version is running. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["System"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recent map jobs, packet scans and Mastodon posts, and how many are waiting or failed. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Jobs"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stored log lines, newest first: warnings, errors and task outcomes. */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description This level and worse */
+                    level?: "info" | "warning" | "error" | "critical";
+                    service?: string;
+                    /** @description Words in the message (case-insensitive) */
+                    q?: string;
+                    request_id?: string;
+                    task_id?: string;
+                    /** @description Only entries older than this id */
+                    before_id?: number;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Logs"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/allotments": {
         parameters: {
             query?: never;
@@ -3402,6 +3562,7 @@ export interface components {
             /** Format: email */
             readonly email?: string;
             readonly display_name?: string;
+            readonly is_admin?: boolean;
         };
         Token: {
             access_token?: string;
@@ -3415,6 +3576,110 @@ export interface components {
         };
         AccessToken: {
             access_token?: string;
+        };
+        ActiveTask: {
+            id?: string;
+            name?: string;
+            running_seconds?: number | null;
+        };
+        Worker: {
+            /** @description Celery node name, e.g. celery@host */
+            name?: string;
+            queues?: string[];
+            concurrency?: number | null;
+            pid?: number | null;
+            uptime_seconds?: number | null;
+            /** @description Tasks since it started */
+            processed?: number | null;
+            /** @description Tasks fetched and waiting for a slot */
+            reserved?: number;
+            active?: components["schemas"]["ActiveTask"][];
+            version?: string | null;
+            /** @description Name of the GPU, if it has one */
+            gpu?: string | null;
+        };
+        Queue: {
+            name?: string;
+            /** @description Tasks waiting (null: unknown) */
+            depth?: number | null;
+            /** @description Workers listening to this queue */
+            consumers?: number;
+        };
+        BeatEntry: {
+            name?: string;
+            task?: string;
+            schedule?: string;
+            /** Format: date-time */
+            last_run?: string | null;
+            last_state?: string | null;
+        };
+        Workers: {
+            workers?: components["schemas"]["Worker"][];
+            queues?: components["schemas"]["Queue"][];
+            beat?: components["schemas"]["BeatEntry"][];
+            /** @description Why the workers could not be asked */
+            error?: string | null;
+            /** Format: date-time */
+            checked_at?: string;
+        };
+        System: {
+            version?: string;
+            /** Format: date-time */
+            server_time?: string;
+            checks?: {
+                [key: string]: string;
+            };
+            users?: number;
+            allotments?: number;
+            log_rows?: number;
+            log_retention_days?: number;
+        };
+        Job: {
+            /** @description map | scan | mastodon */
+            kind?: string;
+            id?: number;
+            label?: string;
+            status?: string;
+            stage?: string | null;
+            error?: string | null;
+            allotment_id?: number;
+            allotment_name?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            started_at?: string | null;
+            /** Format: date-time */
+            finished_at?: string | null;
+        };
+        JobCount: {
+            kind?: string;
+            /** @description Queued or running now */
+            waiting?: number;
+            failed_24h?: number;
+        };
+        Jobs: {
+            jobs?: components["schemas"]["Job"][];
+            counts?: components["schemas"]["JobCount"][];
+        };
+        LogEntry: {
+            id?: number;
+            /** Format: date-time */
+            at?: string;
+            service?: string;
+            host?: string;
+            level?: string;
+            event?: string;
+            request_id?: string | null;
+            task_id?: string | null;
+            data?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        Logs: {
+            entries?: components["schemas"]["LogEntry"][];
+            /** @description Pass as before_id for more */
+            next_before?: number | null;
+            services?: string[];
         };
         Allotment: {
             readonly id?: number;

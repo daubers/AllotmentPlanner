@@ -18,6 +18,7 @@ from .fediverse import MastodonClient, MastodonError
 from .metrics import MASTODON_POSTS
 from .models import (
     Allotment,
+    LogEntry,
     MapJob,
     MastodonAccount,
     MastodonPost,
@@ -447,3 +448,14 @@ def run_packet_scan(scan_id: int) -> str:
             payload={"missing": scan.missing, "calendar": scan.calendar_source},
         )
         return "ready"
+
+
+@celery.task(name="allotment.prune_logs")
+def prune_logs() -> int:
+    """Drop log lines older than LOG_RETENTION_DAYS (the admin page's log table)."""
+    with _app().app_context():
+        days = current_app.config["LOG_RETENTION_DAYS"]
+        cutoff = datetime.now(UTC) - timedelta(days=days)
+        removed = LogEntry.query.filter(LogEntry.at < cutoff).delete()
+        db.session.commit()
+        return removed

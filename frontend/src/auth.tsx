@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api, getSession, setSession, setSessionExpiredHandler } from "./api/client";
 
-type User = { id?: number; email?: string; display_name?: string };
+type User = { id?: number; email?: string; display_name?: string; is_admin?: boolean };
 
 type AuthState = {
   user: User | null;

@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth";
 import { HelpIndex, HelpTopic } from "./help/Help";
+import AdminPage from "./pages/AdminPage";
 import AllotmentLayout from "./pages/AllotmentLayout";
 import Allotments from "./pages/Allotments";
 import LayersPage from "./pages/LayersPage";
@@ -44,7 +45,7 @@ export default function App() {
         <nav className="topbar no-print">
           <span>🌱 Allotment Planner</span>
           <span>
-            <Link to="/help" className="plain">Help</Link> {user.display_name} <button className="link" onClick={logout}>Sign out</button>
+            {user.is_admin && <Link to="/admin" className="plain">Admin</Link>} <Link to="/help" className="plain">Help</Link> {user.display_name} <button className="link" onClick={logout}>Sign out</button>
           </span>
         </nav>
       )}
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Home />} />
         <Route path="/privacy" element={<Privacy />} />
+        <Route path="/admin" element={<Protected><AdminPage /></Protected>} />
         <Route path="/help" element={<HelpIndex />} />
         <Route path="/help/:topic" element={<HelpTopic />} />
         <Route path="/allotments/:id" element={<Protected><AllotmentLayout /></Protected>}>

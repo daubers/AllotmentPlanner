@@ -2,9 +2,10 @@ from flask import Flask
 from flask_jwt_extended import JWTManager
 from flask_smorest import Api
 
-from . import cli, events, health, mastodon_posts, models  # noqa: F401 - models register with SQLAlchemy
+from . import cli, events, health, mastodon_posts, models, ops_log  # noqa: F401 - models register with SQLAlchemy
 from .activity import record_activity
 from .api import (
+    admin,
     allotments,
     auth,
     features,
@@ -34,7 +35,11 @@ def create_app(config: type = Config) -> Flask:
     app = Flask(__name__)
     app.config.from_object(config)
 
-    configure_logging(app.config["LOG_LEVEL"])
+    configure_logging(
+        app.config["LOG_LEVEL"],
+        app.config["SQLALCHEMY_DATABASE_URI"] if app.config["LOG_TO_DB"] else None,
+    )
+    ops_log.set_service("api")
     celery.conf.task_always_eager = app.config.get("CELERY_ALWAYS_EAGER", False)
     celery.conf.task_eager_propagates = True
     db.init_app(app)
@@ -42,6 +47,7 @@ def create_app(config: type = Config) -> Flask:
     JWTManager(app)
     api = Api(app)
     api.register_blueprint(auth.blp)
+    api.register_blueprint(admin.blp)
     api.register_blueprint(allotments.blp)
     api.register_blueprint(features.blp)
     api.register_blueprint(tasks.blp)

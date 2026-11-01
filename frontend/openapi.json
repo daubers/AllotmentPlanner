@@ -137,6 +137,171 @@
         ]
       }
     },
+    "/api/v1/admin/workers": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workers"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Which workers are online, what they are doing, how long the queues are, the schedule.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/system": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/System"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Is everything the app depends on reachable, and which version is running.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/jobs": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Jobs"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Recent map jobs, packet scans and Mastodon posts, and how many are waiting or failed.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/logs": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "level",
+            "description": "This level and worse",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "info",
+                "warning",
+                "error",
+                "critical"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "service",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "description": "Words in the message (case-insensitive)",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "request_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "task_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "before_id",
+            "description": "Only entries older than this id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 200
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Logs"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Stored log lines, newest first: warnings, errors and task outcomes.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/allotments": {
       "get": {
         "responses": {
@@ -3651,6 +3816,10 @@
       "description": "Authentication"
     },
     {
+      "name": "admin",
+      "description": "Worker state, jobs and logs (site admins only)"
+    },
+    {
       "name": "allotments",
       "description": "Allotments and members"
     },
@@ -3836,6 +4005,10 @@
           "display_name": {
             "type": "string",
             "readOnly": true
+          },
+          "is_admin": {
+            "type": "boolean",
+            "readOnly": true
           }
         },
         "additionalProperties": false
@@ -3878,6 +4051,323 @@
         "properties": {
           "access_token": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ActiveTask": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "running_seconds": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Worker": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Celery node name, e.g. celery@host"
+          },
+          "queues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "concurrency": {
+            "type": "integer",
+            "nullable": true
+          },
+          "pid": {
+            "type": "integer",
+            "nullable": true
+          },
+          "uptime_seconds": {
+            "type": "integer",
+            "nullable": true
+          },
+          "processed": {
+            "type": "integer",
+            "description": "Tasks since it started",
+            "nullable": true
+          },
+          "reserved": {
+            "type": "integer",
+            "description": "Tasks fetched and waiting for a slot"
+          },
+          "active": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActiveTask"
+            }
+          },
+          "version": {
+            "type": "string",
+            "nullable": true
+          },
+          "gpu": {
+            "type": "string",
+            "description": "Name of the GPU, if it has one",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Queue": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "depth": {
+            "type": "integer",
+            "description": "Tasks waiting (null: unknown)",
+            "nullable": true
+          },
+          "consumers": {
+            "type": "integer",
+            "description": "Workers listening to this queue"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BeatEntry": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "task": {
+            "type": "string"
+          },
+          "schedule": {
+            "type": "string"
+          },
+          "last_run": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "last_state": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Workers": {
+        "type": "object",
+        "properties": {
+          "workers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Worker"
+            }
+          },
+          "queues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Queue"
+            }
+          },
+          "beat": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BeatEntry"
+            }
+          },
+          "error": {
+            "type": "string",
+            "description": "Why the workers could not be asked",
+            "nullable": true
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "System": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "server_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "checks": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "users": {
+            "type": "integer"
+          },
+          "allotments": {
+            "type": "integer"
+          },
+          "log_rows": {
+            "type": "integer"
+          },
+          "log_retention_days": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "map | scan | mastodon"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "allotment_id": {
+            "type": "integer"
+          },
+          "allotment_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "JobCount": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "waiting": {
+            "type": "integer",
+            "description": "Queued or running now"
+          },
+          "failed_24h": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Jobs": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Job"
+            }
+          },
+          "counts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobCount"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "LogEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "service": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "event": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "task_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Logs": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LogEntry"
+            }
+          },
+          "next_before": {
+            "type": "integer",
+            "description": "Pass as before_id for more",
+            "nullable": true
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": false

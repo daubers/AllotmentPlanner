@@ -29,6 +29,7 @@ x-env: &env
   S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY}
   TORCH_DEVICE: ${TORCH_DEVICE:-auto}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  APP_VERSION: ${TAG:-local}
   FLASK_APP: allotment:create_app
   HOME: /tmp
 

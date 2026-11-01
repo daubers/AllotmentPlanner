@@ -257,6 +257,7 @@ To pin a known-good version, set `TAG` in `.env`. Rolling back the *code* is `TA
 - `GET /healthz` (process is up) and `GET /readyz` (database and Redis reachable) on the API; the compose healthcheck uses `/readyz`.
 - `GET /metrics` is Prometheus format (request counts and latencies, domain events, Celery task outcomes). It is served by the API but not through the public port, so scrape it from inside the Docker network (`api:8000`); `deploy/prometheus/prometheus.yml` shows a scrape config.
 - Logs are structured JSON on stdout: `docker compose logs -f api worker`.
+- **Admin page** (`/admin`, linked in the top bar for admins): which Celery workers are online (queues, what each is running, uptime, version, GPU), queue lengths, the schedule and when each scheduled job last ran, recent map jobs / packet scans / Mastodon posts, database, Redis and storage checks, and a searchable log. The log keeps warnings, errors and task outcomes from the API and every worker (including ones on other machines) in the database for `LOG_RETENTION_DAYS` days. Give someone access with `docker compose exec api flask make-admin you@example.com` (add `--revoke` to take it away).
 - OpenTelemetry traces are exported if `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
 
 ### Troubleshooting
@@ -311,6 +312,8 @@ Set in `.env` (development: `.env.example`; production: `deploy/.env.production.
 | `TORCH_DEVICE` | `auto` | worker only: `auto` uses a GPU if there is one, `cpu` never does, `cuda` insists (and refuses to start without one) |
 | `MAX_UPLOAD_MB` | `4096` | largest accepted upload; keep nginx's `client_max_body_size` in step |
 | `LOG_LEVEL` | `INFO` | |
+| `LOG_TO_DB` / `LOG_RETENTION_DAYS` | `1` / `14` | keep warnings, errors and task outcomes in the database for the admin page, and for how many days |
+| `APP_VERSION` | `dev` | shown on the admin page; the production compose file sets it from `TAG` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | send traces to an OpenTelemetry collector |
 | `MASTODON_PHOTO_BATCH_SECONDS` | `180` | a burst of photos becomes one post |
 | `MASTODON_DIGEST_HOUR_UTC` | `19` | when the daily digest is posted |
