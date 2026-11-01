@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cellMap, colourIndex, daysSince, describeCell, key, posOf, selectAll, summarise, toggle, toggleCol, toggleRow } from "./grid";
+import { cellMap, colourIndex, describeSelection, daysSince, describeCell, key, posOf, selectAll, summarise, toggle, toggleCol, toggleRow } from "./grid";
 
 describe("selection", () => {
   it("toggles single cells", () => {
@@ -49,5 +49,25 @@ describe("wording", () => {
   it("counts days since a date", () => {
     expect(daysSince("2026-03-01", new Date(2026, 2, 13, 15, 0))).toBe(12);
     expect(daysSince(null)).toBeNull();
+  });
+});
+
+describe("describeSelection", () => {
+  const cells = cellMap([
+    { row: 0, col: 0, packet_id: 7, count: 3, status: "sown", sown_on: "2026-03-01" },
+    { row: 0, col: 1, packet_id: 7, count: 3, status: "sown", sown_on: "2026-03-01" },
+    { row: 0, col: 2, packet_id: 9, count: 1, status: "sown", sown_on: "2026-03-05" },
+  ]);
+  const name = (id?: number | null) => (id === 7 ? "Tomato" : id === 9 ? "Leek" : undefined);
+  it("says what the picked cells hold", () => {
+    expect(describeSelection(new Set(["0,0", "0,1"]), cells, name)).toBe("2 with Tomato, 3 seeds each, sown 2026-03-01");
+  });
+  it("says where they differ, and counts the empty ones", () => {
+    expect(describeSelection(new Set(["0,0", "0,2", "1,1"]), cells, name)).toBe(
+      "2 with different seeds, different numbers of seeds, sown on different dates; 1 empty",
+    );
+  });
+  it("is blank with nothing picked", () => {
+    expect(describeSelection(new Set(), cells, name)).toBe("");
   });
 });

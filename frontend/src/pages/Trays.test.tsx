@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -119,6 +119,40 @@ describe("Tray page", () => {
       cells: [{ row: 1, col: 0 }, { row: 1, col: 1 }],
       set: { packet_id: 7, count: 3 },
     });
+  });
+
+  it("edits just the seed count of cells already sown", async () => {
+    patch.mockResolvedValue({ data: tray });
+    setup("owner", "/a/trays/3");
+    await userEvent.click(await screen.findByRole("button", { name: "Row 1, column 1: Tomato (Moneymaker), sown" }));
+    await userEvent.click(screen.getByRole("button", { name: "Row 1, column 2: Tomato (Moneymaker), sown" }));
+    expect(screen.getByText(/Picked: 2 with Tomato \(Moneymaker\)/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sow / update" })).toBeDisabled();
+    await userEvent.type(screen.getByLabelText("Seeds per cell"), "4");
+    await userEvent.click(screen.getByRole("button", { name: "Sow / update" }));
+    await waitFor(() => expect(patch).toHaveBeenCalled());
+    expect(patch.mock.calls[0][1].body.set).toEqual({ count: 4 });
+    expect(await screen.findByRole("status")).toHaveTextContent("Updated 2 cells");
+  });
+
+  it("changes the sown date and note of sown cells without touching the seed", async () => {
+    patch.mockResolvedValue({ data: tray });
+    setup("owner", "/a/trays/3");
+    await userEvent.click(await screen.findByRole("button", { name: "Row 1, column 1: Tomato (Moneymaker), sown" }));
+    await userEvent.type(within(screen.getByRole("region", { name: "Change the selected cells" })).getByLabelText("Sown on"), "2026-02-20");
+    await userEvent.type(screen.getByLabelText("Note for these cells"), "moved to the sill");
+    await userEvent.click(screen.getByRole("button", { name: "Sow / update" }));
+    await waitFor(() => expect(patch).toHaveBeenCalled());
+    expect(patch.mock.calls[0][1].body.set).toEqual({ sown_on: "2026-02-20", note: "moved to the sill" });
+  });
+
+  it("still needs a seed to sow into an empty cell", async () => {
+    setup("owner", "/a/trays/3");
+    await userEvent.click(await screen.findByRole("button", { name: "Row 3, column 4: empty" }));
+    await userEvent.type(screen.getByLabelText("Seeds per cell"), "2");
+    expect(screen.getByRole("button", { name: "Sow" })).toBeDisabled();
+    await userEvent.selectOptions(screen.getByLabelText("Seed"), "7");
+    expect(screen.getByRole("button", { name: "Sow" })).toBeEnabled();
   });
 
   it("picks a whole row and marks it as come up", async () => {

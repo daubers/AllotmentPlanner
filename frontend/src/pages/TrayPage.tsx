@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { uploadMedia, useMediaActions } from "../media/hooks";
 import { usePackets } from "../seeds/hooks";
 import {
-  cellMap, colourIndex, describeCell, key, posOf, selectAll, summarise, toggle, toggleCol, toggleRow,
+  cellMap, colourIndex, describeCell, describeSelection, key, posOf, selectAll, summarise, toggle, toggleCol, toggleRow,
 } from "../trays/grid";
 import { useTray, useTrayActions, type CellChange } from "../trays/hooks";
 import PlantOutPanel from "../trays/PlantOutPanel";
@@ -21,8 +21,10 @@ export default function TrayPage() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [packetId, setPacketId] = useState("");
-  const [count, setCount] = useState("1");
-  const [note, setNote] = useState("");
+  // Blank means "leave as it is" for these, so a cell already sown can be edited one field at a time.
+  const [count, setCount] = useState("");
+  const [sownOn, setSownOn] = useState("");
+  const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -47,6 +49,8 @@ export default function TrayPage() {
     try {
       await actions.setCells.mutateAsync({ id: trayId, cells: picked, set });
       setSelected(new Set());
+      setSownOn("");
+      setNote(null);
       setError(null);
       setNotice(done);
     } catch (err) {
@@ -113,6 +117,17 @@ export default function TrayPage() {
   }
 
   const n = selected.size;
+  const holding = [...selected].filter((k) => cells.has(k)).length;
+  const hasEmpty = holding < n;
+  const edit: CellChange = {
+    ...(packetId ? { packet_id: Number(packetId) } : {}),
+    ...(count ? { count: Number(count) } : {}),
+    ...(sownOn ? { sown_on: sownOn } : {}),
+    ...(note !== null ? { note } : {}),
+  };
+  // New cells need a seed; cells already sown can have any one thing changed.
+  const canSow = n > 0 && Object.keys(edit).length > 0 && (!hasEmpty || !!packetId) && !actions.setCells.isPending;
+  const current = describeSelection(selected, cells, nameOf);
   return (
     <main className="page wide">
       <p><Link to="..">← All trays</Link></p>
@@ -178,23 +193,28 @@ export default function TrayPage() {
             <label>
               Seed
               <select value={packetId} onChange={(e) => setPacketId(e.target.value)}>
-                <option value="">Choose a packet…</option>
+                <option value="">{n > 0 && !hasEmpty ? "Keep the current seed" : "Choose a packet…"}</option>
                 {(packets.data ?? []).map((p) => <option key={p.id} value={p.id}>{names.get(p.id)}</option>)}
               </select>
             </label>
             <label>
               Seeds per cell
-              <input type="number" min={1} max={1000} value={count} onChange={(e) => setCount(e.target.value)} />
+              <input type="number" min={1} max={1000} value={count} placeholder={holding > 0 ? "keep" : "1"} onChange={(e) => setCount(e.target.value)} />
             </label>
-            <button type="button" disabled={n === 0 || !packetId || actions.setCells.isPending}
-              onClick={() => void apply({ packet_id: Number(packetId), count: Number(count) || 1 }, `Sown in ${n} cell${n === 1 ? "" : "s"}`)}>
-              Sow
+            <button type="button" disabled={!canSow}
+              onClick={() => void apply(edit, holding === 0 ? `Sown in ${n} cell${n === 1 ? "" : "s"}` : `Updated ${n} cell${n === 1 ? "" : "s"}`)}>
+              {holding === 0 ? "Sow" : "Sow / update"}
             </button>
           </div>
           <label>
-            Note for these cells
-            <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="optional" />
+            Sown on
+            <input type="date" value={sownOn} onChange={(e) => setSownOn(e.target.value)} />
           </label>
+          <label>
+            Note for these cells
+            <input value={note ?? ""} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder={holding > 0 ? "keep" : "optional"} />
+          </label>
+          {current && <p className="hint">Picked: {current}. Leave a field blank to keep what the cells have now.</p>}
           <div className="inline">
             <button type="button" className="secondary" disabled={n === 0 || actions.setCells.isPending}
               onClick={() => void apply({ status: "germinated", ...(note ? { note } : {}) }, "Marked as come up")}>Came up ✓</button>

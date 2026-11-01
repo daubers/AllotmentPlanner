@@ -84,3 +84,26 @@ export function daysSince(iso: string | null | undefined, now = new Date()): num
   const then = new Date(`${iso}T00:00:00`);
   return Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - then.getTime()) / 86_400_000);
 }
+
+/**
+ * What the picked cells hold now, in words, so an edit can say what it will change:
+ * "2 sown with Tomato, 3 seeds each, sown 2026-03-01; 1 empty". Empty when nothing is picked.
+ */
+export function describeSelection(selected: ReadonlySet<string>, cells: ReadonlyMap<string, TrayCell>, nameOf: (id?: number | null) => string | undefined): string {
+  const picked = [...selected].map((k) => cells.get(k));
+  const held = picked.filter((c): c is TrayCell => !!c);
+  const empty = picked.length - held.length;
+  const parts: string[] = [];
+  if (held.length > 0) {
+    const same = <T,>(values: T[]): T | "mixed" => (values.every((v) => v === values[0]) ? values[0] : "mixed");
+    const packet = same(held.map((c) => c.packet_id ?? null));
+    const count = same(held.map((c) => c.count ?? null));
+    const sown = same(held.map((c) => c.sown_on ?? null));
+    const kind = packet === "mixed" ? "different seeds" : packet == null ? "unknown seed" : nameOf(packet) ?? "unknown seed";
+    const seeds = count === "mixed" ? "different numbers of seeds" : count == null ? "" : `${count} seed${count === 1 ? "" : "s"} each`;
+    const date = sown === "mixed" ? "sown on different dates" : sown == null ? "" : `sown ${sown}`;
+    parts.push(`${held.length} with ${[kind, seeds, date].filter(Boolean).join(", ")}`);
+  }
+  if (empty > 0) parts.push(`${empty} empty`);
+  return parts.join("; ");
+}
