@@ -141,6 +141,35 @@ describe("Tray page", () => {
     expect(screen.getByRole("button", { name: "Row 3, column 4: empty" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("warns before a smaller size cuts off selected cells, then clears the selection", async () => {
+    patch.mockResolvedValue({ data: tray });
+    setup("owner", "/a/trays/3");
+    await userEvent.click(await screen.findByRole("button", { name: "Row 3, column 4: empty" }));
+    await userEvent.click(screen.getByRole("button", { name: "Row 1, column 1: Tomato (Moneymaker), sown" }));
+    await userEvent.click(screen.getByText("Tray details"));
+    await userEvent.clear(screen.getByLabelText("Columns"));
+    await userEvent.type(screen.getByLabelText("Columns"), "2");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("no room for 1 of the 2 selected cells");
+    expect(patch).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Save and clear selection" }));
+    await waitFor(() => expect(patch).toHaveBeenCalled());
+    expect(patch.mock.calls[0][1].body).toMatchObject({ rows: 3, cols: 2 });
+    await waitFor(() => expect(screen.getByText("selected", { exact: false }).textContent).toContain("0"));
+  });
+
+  it("saves a smaller size straight away when no selected cell is cut off", async () => {
+    patch.mockResolvedValue({ data: tray });
+    setup("owner", "/a/trays/3");
+    await userEvent.click(await screen.findByRole("button", { name: "Row 1, column 1: Tomato (Moneymaker), sown" }));
+    await userEvent.click(screen.getByText("Tray details"));
+    await userEvent.clear(screen.getByLabelText("Columns"));
+    await userEvent.type(screen.getByLabelText("Columns"), "2");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(patch).toHaveBeenCalled());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("lets viewers look but not change", async () => {
     setup("viewer", "/a/trays/3");
     await screen.findByRole("table");
