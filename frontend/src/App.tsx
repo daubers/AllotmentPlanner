@@ -43,7 +43,7 @@ export default function App() {
     <>
       {user && (
         <nav className="topbar no-print">
-          <span>🌱 Allotment Planner</span>
+          <span><Link to="/" className="plain">🌱 Allotment Planner</Link></span>
           <span>
             {user.is_admin && <Link to="/admin" className="plain">Admin</Link>} <Link to="/help" className="plain">Help</Link> {user.display_name} <button className="link" onClick={logout}>Sign out</button>
           </span>

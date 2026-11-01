@@ -77,6 +77,12 @@ describe("Admin page", () => {
     expect(get).not.toHaveBeenCalled();
   });
 
+  it("has a way back to the allotments", async () => {
+    setup();
+    await screen.findByText("celery@gpu");
+    expect(screen.getByRole("link", { name: "← Allotments" })).toHaveAttribute("href", "/");
+  });
+
   it("shows each worker, what it is running and its GPU", async () => {
     setup();
     const card = (await screen.findByText("celery@gpu")).closest("li")!;

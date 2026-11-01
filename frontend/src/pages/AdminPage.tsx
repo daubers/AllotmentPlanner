@@ -36,6 +36,7 @@ export default function AdminPage() {
   const tab: Tab = TABS.some(([key]) => key === requested) ? (requested as Tab) : "workers";
   return (
     <main className="page admin">
+      <p><Link to="/">← Allotments</Link></p>
       <h1>Admin</h1>
       <div className="pages" role="tablist">
         {TABS.map(([key, label]) => (
