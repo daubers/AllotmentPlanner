@@ -59,6 +59,14 @@ function TheMap() {
       <p>To select something hidden underneath another shape, hold Alt (Option on a Mac) and click: each click moves down to the next shape under the pointer. You can also pick any shape from the list.</p>
       <h2>Tasks on the map</h2>
       <p>Select a shape and add a task under <em>Tasks here</em>; it shows as a 📌 on the map. The <em>Tasks</em> and <em>Today</em> pages (in <em>Work</em>) list them all, and Today prints as a clean list to take to the plot. On screen you can tick jobs off on Today as you do them (they stay on the page, struck through, until you change the date); the printed list keeps empty boxes to tick with a pen. Each heading links to its bed or seed tray.</p>
+      <h2>Day lists</h2>
+      <p>
+        A day list is a hand-picked set of jobs, like <em>Saturday morning</em> or <em>Watering round</em>. On <em>Today</em> choose
+        <em> Manage lists</em> to make one (give it a date if you like), then open <em>Add jobs to…</em> to tick the jobs to put on it.
+        Choosing the list in the <em>List</em> box turns the page into that list&rsquo;s todo sheet: tick jobs off on screen, take one off
+        the list with ✕ (the job itself is kept), or press <em>Print</em> for a paper copy. Jobs you finish stay on the sheet, struck
+        through. Everyone in the allotment sees the same lists.
+      </p>
       <h2>Adding and editing tasks</h2>
       <p>
         Press <em>+ New task</em> on the <em>Tasks</em> page, or <em>More…</em> beside a shape on the map. A task can have notes,

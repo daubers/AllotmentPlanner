@@ -55,6 +55,9 @@ export function useTaskActions(allotmentId: number) {
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["tasks", allotmentId] });
     void qc.invalidateQueries({ queryKey: ["todo", allotmentId] });
+    // Day lists show task state too (done counts, the sheet).
+    void qc.invalidateQueries({ queryKey: ["day-lists", allotmentId] });
+    void qc.invalidateQueries({ queryKey: ["day-list-sheet", allotmentId] });
   };
   /** Show a tick or untick at once; the refresh that follows settles it (or puts it back on failure). */
   const optimistic = (status: "done" | "todo") => async (id: number) => {
