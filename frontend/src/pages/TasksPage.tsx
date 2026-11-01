@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth";
 import { usePlantings } from "../plantings/hooks";
 import { DEFAULT_FILTERS, filterTasks, isFiltered, readFilters, rescheduleDates, writeFilters, type Filters } from "../tasks/filter";
 import { groupTasks, type Task } from "../tasks/group";
+import { useDayLists, useDayListActions, useSelectedList } from "../tasks/dayLists";
+import ListAdd from "../tasks/ListAdd";
 import PlaceOptions from "../tasks/PlaceOptions";
 import TaskDialog from "../tasks/TaskDialog";
 import { useFeatureOptions, useMembers, useTaskActions, useTasks } from "../tasks/hooks";
@@ -27,6 +29,16 @@ export default function TasksPage() {
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [added, setAdded] = useState<{ listId: number; name: string; count: number } | null>(null);
+  const dayLists = useDayLists(id);
+  const listActions = useDayListActions(id);
+  const [selectedList] = useSelectedList(id);
+  const quickList = dayLists.data?.find((l) => l.id === selectedList) ?? null;
+  const listsOf = (taskId: number) => (dayLists.data ?? []).filter((l) => l.task_ids?.includes(taskId));
+  const listAdded = (listId: number, name: string, count: number) => {
+    setError(null);
+    setAdded({ listId, name, count });
+  };
 
   const change = (patch: Partial<Filters>) => setParams(writeFilters({ ...filters, ...patch }, params), { replace: true });
   const featureName = (fid?: number | null) => features.data?.find((f) => f.id === fid)?.name;
@@ -92,8 +104,28 @@ export default function TasksPage() {
           {who(t.assignee_id) && <span>👤 {who(t.assignee_id)}</span>}
           {t.status === "doing" && <span className="badge">doing</span>}
           {t.priority === "high" && <span className="badge high">high</span>}
+          {listsOf(t.id!).map((l) => (
+            <span key={l.id} className="badge on-list" title={`On the list ${l.name}`}>📋 {l.name}</span>
+          ))}
         </span>
       </div>
+      {canEdit && !selecting && t.status !== "done" && quickList && !quickList.task_ids?.includes(t.id!) && (
+        <button
+          type="button"
+          className="secondary quick-add"
+          aria-label={`Add ${t.title} to ${quickList.name}`}
+          disabled={listActions.addTasks.isPending}
+          onClick={() => void run(async () => {
+            await listActions.addTasks.mutateAsync({ id: quickList.id!, taskIds: [t.id!] });
+            listAdded(quickList.id!, quickList.name!, 1);
+          })}
+        >
+          ＋ {quickList.name}
+        </button>
+      )}
+      {canEdit && !selecting && t.status !== "done" && (
+        <ListAdd allotmentId={id} taskIds={[t.id!]} label={`Add ${t.title} to a list`} except={listsOf(t.id!).map((l) => l.id!)} onAdded={listAdded} onError={setError} />
+      )}
       {canEdit && !selecting && t.status !== "done" && (
         <select className="reschedule" aria-label={`Reschedule ${t.title}`} value="" onChange={(e) => reschedule(t, e.target.value)}>
           <option value="">📅</option>
@@ -174,6 +206,18 @@ export default function TasksPage() {
           <button type="button" className="secondary" disabled={picked.size === 0 || actions.bulk.isPending} onClick={() => bulk("reschedule", dates.tomorrow)}>Tomorrow</button>
           <button type="button" className="secondary" disabled={picked.size === 0 || actions.bulk.isPending} onClick={() => bulk("reschedule", dates.nextWeek)}>Next week</button>
           <button type="button" className="secondary" disabled={picked.size === 0 || actions.bulk.isPending} onClick={() => bulk("reschedule", null)}>No date</button>
+          <ListAdd
+            allotmentId={id}
+            mode="bulk"
+            taskIds={[...picked]}
+            label="Day list for the selected tasks"
+            placeholder="Choose a list…"
+            onAdded={(listId, name, count) => {
+              listAdded(listId, name, count);
+              leaveSelecting();
+            }}
+            onError={setError}
+          />
           {!confirmDelete ? (
             <button type="button" className="danger" disabled={picked.size === 0} onClick={() => setConfirmDelete(true)}>Delete</button>
           ) : (
@@ -186,6 +230,11 @@ export default function TasksPage() {
         </div>
       )}
       {error && <p role="alert" className="error">{error}</p>}
+      {added && (
+        <p role="status" className="ok">
+          Added {added.count} task{added.count === 1 ? "" : "s"} to {added.name}. <Link to={`../today?list=${added.listId}`}>Open the sheet</Link>
+        </p>
+      )}
 
       {tasks.isLoading && <p className="muted">Loading…</p>}
       {tasks.data && open === 0 && filters.status !== "done" && (
