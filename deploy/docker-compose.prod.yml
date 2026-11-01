@@ -27,6 +27,7 @@ x-app-env: &app-env
   REGISTRATION: ${REGISTRATION:-invite}
   INVITE_TTL_DAYS: ${INVITE_TTL_DAYS:-7}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  APP_VERSION: ${TAG:-latest}
   # The apps run as an unprivileged user with no home folder.
   HOME: /tmp
 

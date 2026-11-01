@@ -58,3 +58,16 @@ def require_role(minimum: Role):
         return wrapper
 
     return decorator
+
+
+def require_admin(fn):
+    """Only site admins (``User.is_admin``) may call this; everyone else gets 403."""
+
+    @wraps(fn)
+    @jwt_required()
+    def wrapper(*args, **kwargs):
+        if not current_user().is_admin:
+            abort(403, description="Requires a site admin")
+        return fn(*args, **kwargs)
+
+    return wrapper

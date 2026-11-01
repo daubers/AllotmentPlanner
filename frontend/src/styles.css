@@ -397,3 +397,37 @@ a.button.secondary { background: none; color: var(--accent); border: 1px solid v
 .topbar > span { white-space: nowrap; }
 .topbar > span:last-child { flex-wrap: wrap; gap: .25rem 1rem; }
 @media (max-width: 480px) { .topbar > span:last-child { gap: .25rem .75rem; } }
+
+/* Admin page */
+.admin { max-width: 960px; }
+.admin-section { margin: 1.5rem 0; }
+.admin-checks { list-style: none; display: flex; gap: 1.25rem; flex-wrap: wrap; padding: 0; margin: 0 0 .5rem; }
+.admin-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: .7rem .9rem; display: grid; gap: .3rem; }
+.admin-card p { margin: 0; }
+.admin-card-head { display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
+.admin-active { list-style: none; margin: 0; padding: 0; display: grid; gap: .2rem; font-size: .9rem; }
+.admin-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.admin-table th { text-align: left; color: var(--muted); font-weight: 600; }
+.admin-table th, .admin-table td { padding: .35rem .5rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+.ok-badge { color: var(--accent); border-color: var(--accent); }
+.bad-badge, .bad { color: var(--danger); }
+.bad-badge { border-color: var(--danger); }
+.small { font-size: .8rem; }
+.admin-chips { display: flex; gap: .5rem; margin: 0 0 .75rem; }
+.log-list { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; gap: .3rem; }
+.log { background: var(--surface); border: 1px solid var(--border); border-left-width: 4px; border-radius: 6px; padding: .4rem .6rem; font-size: .88rem; }
+.log-warning { border-left-color: #c58a00; } .log-error, .log-critical { border-left-color: var(--danger); }
+.log-head { display: flex; gap: .6rem; flex-wrap: wrap; align-items: baseline; font-size: .78rem; color: var(--muted); }
+.log-level { font-weight: 700; text-transform: uppercase; font-size: .7rem; }
+.level-error, .level-critical { color: var(--danger); } .level-warning { color: #c58a00; }
+.log summary { cursor: pointer; word-break: break-word; }
+.log .job-log { max-height: 20rem; }
+.admin-table.jobs td:first-child { word-break: break-word; }
+@media (max-width: 600px) { .admin-table { font-size: .8rem; } }
+.pages .page-tab { background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: .5rem .15rem; color: var(--muted); font: inherit; cursor: pointer; }
+.pages .page-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.admin .pages { margin-bottom: 1rem; border-radius: 6px 6px 0 0; }
+.toolbar .check { display: flex; align-items: center; gap: .35rem; color: var(--text); }
+.toolbar .check input { width: auto; }
+.stats b { font-size: .95rem; }
+.admin .stats { margin-bottom: 1rem; }

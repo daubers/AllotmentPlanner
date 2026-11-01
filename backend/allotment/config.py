@@ -38,6 +38,10 @@ class Config:
     MAPPING_TILE_TOKEN_TTL_SECONDS = 6 * 3600
     OTEL_EXPORTER_OTLP_ENDPOINT = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+    # Warnings, errors and task outcomes are also kept in the database for the admin page.
+    LOG_TO_DB = os.environ.get("LOG_TO_DB", "1") == "1"
+    LOG_RETENTION_DAYS = int(os.environ.get("LOG_RETENTION_DAYS", "14"))
+    APP_VERSION = os.environ.get("APP_VERSION", "dev")
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-only-insecure-secret-change-me-in-prod")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=30)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
@@ -64,6 +68,7 @@ def _test_database_url() -> str:
 
 class TestConfig(Config):
     TESTING = True
+    LOG_TO_DB = False  # a test that needs it turns it on
     STORAGE_BACKEND = "file"
     CELERY_ALWAYS_EAGER = True
     MAX_CONTENT_LENGTH = 5 * 1024 * 1024

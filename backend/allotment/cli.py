@@ -34,3 +34,18 @@ def register(app: Flask) -> None:
         copied, skipped = copy_tree(FileStorage(cfg["MEDIA_ROOT"]), dest, dry_run=dry_run)
         verb = "Would copy" if dry_run else "Copied"
         click.echo(f"{verb} {copied} file(s); {skipped} already in the bucket.")
+
+    @app.cli.command("make-admin")
+    @click.argument("email")
+    @click.option("--revoke", is_flag=True, help="Take admin access away instead.")
+    def make_admin(email: str, revoke: bool) -> None:
+        """Let a user open the admin page (worker state, jobs and logs)."""
+        from .extensions import db
+        from .models import User
+
+        user = User.query.filter(db.func.lower(User.email) == email.strip().lower()).one_or_none()
+        if user is None:
+            raise click.UsageError(f"No user with the email {email}.")
+        user.is_admin = not revoke
+        db.session.commit()
+        click.echo(f"{user.email} is {'no longer' if revoke else 'now'} an admin.")
