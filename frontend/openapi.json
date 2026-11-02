@@ -6460,6 +6460,11 @@
               "$ref": "#/components/schemas/TrayKind"
             }
           },
+          "thumb_url": {
+            "type": "string",
+            "description": "Thumbnail of the tray's newest photo, if any",
+            "nullable": true
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -6609,6 +6614,11 @@
             "items": {
               "$ref": "#/components/schemas/TrayKind"
             }
+          },
+          "thumb_url": {
+            "type": "string",
+            "description": "Thumbnail of the tray's newest photo, if any",
+            "nullable": true
           },
           "created_at": {
             "type": "string",

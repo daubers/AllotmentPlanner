@@ -189,3 +189,93 @@ def test_events_and_activity(client, plot):  # noqa: F811
         "tray.cells_updated",
         "tray.deleted",
     ]
+
+
+def photo(client, plot, tid, taken="2026:10:20 10:00:00", **kw):  # noqa: F811
+    up = client.post(
+        plot["url"],
+        data={"file": (io.BytesIO(make_jpeg(taken=taken)), "t.jpg"), "tray_id": str(tid)},
+        headers=plot["editor"],
+        content_type="multipart/form-data",
+    )
+    assert up.status_code == 201, up.json
+    return up.json
+
+
+def listed(client, plot):  # noqa: F811
+    resp = client.get(f"{plot['base']}/trays", headers=plot["viewer"])
+    return {t["id"]: t["thumb_url"] for t in resp.json}
+
+
+def thumb_of(media):
+    return f"/api/v1/media/{media['id']}/thumb"
+
+
+def test_the_list_shows_a_thumbnail_of_a_trays_photo(client, plot):  # noqa: F811
+    bare = tray(client, plot, name="Bare").json["id"]
+    pictured = tray(client, plot, name="Pictured").json["id"]
+    shot = photo(client, plot, pictured)
+    thumbs = listed(client, plot)
+    assert thumbs[bare] is None
+    assert thumbs[pictured].split("?")[0] == thumb_of(shot)
+    assert client.get(thumbs[pictured]).status_code == 200
+    detail = client.get(f"{plot['base']}/trays/{pictured}", headers=plot["viewer"]).json
+    assert detail["thumb_url"].split("?")[0] == thumb_of(shot)
+    assert (
+        client.get(f"{plot['base']}/trays/{bare}", headers=plot["viewer"]).json["thumb_url"] is None
+    )
+
+
+def test_the_newest_photo_is_the_thumbnail(client, plot):  # noqa: F811
+    tid = tray(client, plot).json["id"]
+    photo(client, plot, tid, taken="2026:10:05 09:00:00")
+    newest = photo(client, plot, tid, taken="2026:10:25 09:00:00")
+    photo(client, plot, tid, taken="2026:10:10 09:00:00")
+    assert listed(client, plot)[tid].split("?")[0] == thumb_of(newest)
+    detail = client.get(f"{plot['base']}/trays/{tid}", headers=plot["viewer"]).json
+    assert detail["thumb_url"].split("?")[0] == thumb_of(newest)
+
+
+def test_photos_without_a_thumbnail_and_other_trays_photos_are_skipped(client, plot):  # noqa: F811
+    from allotment.extensions import db
+    from allotment.models import Media
+
+    mine, other = tray(client, plot).json["id"], tray(client, plot, name="Other").json["id"]
+    older = photo(client, plot, mine, taken="2026:10:05 09:00:00")
+    unprocessed = photo(client, plot, mine, taken="2026:10:25 09:00:00")
+    photo(client, plot, other, taken="2026:10:28 09:00:00")
+    db.session.get(Media, unprocessed["id"]).thumb_key = None  # still being processed
+    db.session.commit()
+    assert listed(client, plot)[mine].split("?")[0] == thumb_of(older)
+    only = tray(client, plot, name="Pending only").json["id"]
+    pending = photo(client, plot, only)
+    db.session.get(Media, pending["id"]).thumb_key = None
+    db.session.commit()
+    assert listed(client, plot)[only] is None
+
+
+def test_the_list_reads_photos_in_one_query(client, plot, app):  # noqa: F811
+    from sqlalchemy import event
+
+    from allotment.extensions import db
+
+    def count():
+        seen = []
+
+        def before(conn, cursor, statement, *args):
+            if "FROM media" in statement:
+                seen.append(statement)
+
+        event.listen(db.engine, "before_cursor_execute", before)
+        try:
+            listed(client, plot)
+        finally:
+            event.remove(db.engine, "before_cursor_execute", before)
+        return len(seen)
+
+    first = tray(client, plot).json["id"]
+    photo(client, plot, first)
+    assert count() == 1
+    for n in range(3):
+        photo(client, plot, tray(client, plot, name=f"T{n}").json["id"])
+    assert count() == 1

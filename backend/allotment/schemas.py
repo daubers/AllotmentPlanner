@@ -849,6 +849,9 @@ class TraySummarySchema(Schema):
     status = fields.String()
     counts = fields.Nested(TrayCountsSchema)
     kinds = fields.List(fields.Nested(TrayKindSchema))
+    thumb_url = fields.String(
+        allow_none=True, metadata={"description": "Thumbnail of the tray's newest photo, if any"}
+    )
     created_at = fields.DateTime()
     updated_at = fields.DateTime()
 
