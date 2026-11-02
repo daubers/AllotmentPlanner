@@ -62,6 +62,7 @@ export default function TraysPage() {
             return (
               <li key={t.id}>
                 <Link to={String(t.id)} className="packet-card">
+                  {t.thumb_url ? <img src={t.thumb_url} alt="" className="packet-thumb" /> : <span className="packet-thumb none" aria-hidden="true">🌱</span>}
                   <span className="packet-main">
                     <strong>{t.name}</strong>
                     <span className="muted">

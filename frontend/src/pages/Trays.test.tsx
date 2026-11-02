@@ -79,6 +79,15 @@ describe("Trays page", () => {
     expect(screen.getByText(/3 × 4 · 12-cell · left shelf/)).toBeInTheDocument();
   });
 
+  it("shows a thumbnail of the tray's photo, or a seedling when it has none", async () => {
+    get.mockImplementation(async () => ({ data: [{ ...tray, thumb_url: "/api/v1/media/9/thumb?t=x" }, { ...tray, id: 4, name: "Bare tray", thumb_url: null }] }));
+    setup("owner", "/a/trays");
+    const pictured = (await screen.findByText("Greenhouse 1")).closest("a")!;
+    expect(pictured.querySelector("img.packet-thumb")).toHaveAttribute("src", "/api/v1/media/9/thumb?t=x");
+    expect(screen.getByText("Bare tray").closest("a")!.querySelector("img")).toBeNull();
+    expect(screen.getByText("Bare tray").closest("a")!.querySelector(".packet-thumb.none")).not.toBeNull();
+  });
+
   it("adds a tray from the form", async () => {
     post.mockResolvedValue({ data: { ...tray, id: 4 } });
     setup("owner", "/a/trays");

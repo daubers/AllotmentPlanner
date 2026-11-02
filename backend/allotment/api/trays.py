@@ -2,6 +2,7 @@ from datetime import date
 
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
+from sqlalchemy import func
 
 from .. import events
 from ..extensions import db
@@ -65,7 +66,31 @@ def _packets(packet_ids: set[int]) -> dict[int, SeedPacket]:
     return {p.id: p for p in rows}
 
 
-def tray_to_dict(t: Tray, packets: dict[int, SeedPacket], detail: bool = False) -> dict:
+def _taken(m: Media):
+    return m.taken_at or m.created_at
+
+
+def _thumbs(tray_ids: list[int]) -> dict[int, str]:
+    """The newest photo with a thumbnail for each tray, as its thumbnail link, in one query."""
+    out: dict[int, str] = {}
+    if tray_ids:
+        rows = (
+            db.session.query(Media)
+            .filter(Media.tray_id.in_(tray_ids), Media.thumb_key.isnot(None))
+            .order_by(func.coalesce(Media.taken_at, Media.created_at), Media.id)
+            .all()
+        )
+        for m in rows:  # oldest first, so the newest overwrites
+            out[m.tray_id] = media_to_dict(m)["thumb_url"]
+    return out
+
+
+def tray_to_dict(
+    t: Tray,
+    packets: dict[int, SeedPacket],
+    detail: bool = False,
+    thumbs: dict[int, str] | None = None,
+) -> dict:
     out = {
         "id": t.id,
         **{f: getattr(t, f) for f in TRAY_FIELDS},
@@ -73,6 +98,7 @@ def tray_to_dict(t: Tray, packets: dict[int, SeedPacket], detail: bool = False) 
         "kinds": _kinds(t.cells, packets),
         "created_at": t.created_at,
         "updated_at": t.updated_at,
+        "thumb_url": (thumbs or {}).get(t.id),
     }
     if detail:
         photos = db.session.query(Media).filter_by(tray_id=t.id).order_by(Media.taken_at, Media.id)
@@ -85,7 +111,12 @@ def tray_to_dict(t: Tray, packets: dict[int, SeedPacket], detail: bool = False) 
             }
             for c in t.cells
         ]
+        photos = photos.all()
         out["photos"] = [media_to_dict(m) for m in photos]
+        ready = [m for m in photos if m.thumb_key]
+        if ready:
+            newest = max(ready, key=lambda m: (_taken(m), m.id))
+            out["thumb_url"] = media_to_dict(newest)["thumb_url"]
     return out
 
 
@@ -118,7 +149,8 @@ class TrayList(MethodView):
             q = q.filter(Tray.cells.any(TrayCell.packet_id == args["packet_id"]))
         trays = q.order_by(Tray.sown_on.desc().nulls_last(), Tray.id.desc()).all()
         packets = _packets({c.packet_id for t in trays for c in t.cells if c.packet_id})
-        return [tray_to_dict(t, packets) for t in trays]
+        thumbs = _thumbs([t.id for t in trays])
+        return [tray_to_dict(t, packets, thumbs=thumbs) for t in trays]
 
     @require_role(Role.EDITOR)
     @blp.arguments(TrayInSchema)

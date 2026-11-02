@@ -4565,6 +4565,8 @@ export interface components {
             status?: string;
             counts?: components["schemas"]["TrayCounts"];
             kinds?: components["schemas"]["TrayKind"][];
+            /** @description Thumbnail of the tray's newest photo, if any */
+            thumb_url?: string | null;
             /** Format: date-time */
             created_at?: string;
             /** Format: date-time */
@@ -4610,6 +4612,8 @@ export interface components {
             status?: string;
             counts?: components["schemas"]["TrayCounts"];
             kinds?: components["schemas"]["TrayKind"][];
+            /** @description Thumbnail of the tray's newest photo, if any */
+            thumb_url?: string | null;
             /** Format: date-time */
             created_at?: string;
             /** Format: date-time */
