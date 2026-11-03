@@ -76,6 +76,8 @@ jobs:
           apk="$(ls dist/*.apk | head -n1)"
           base="https://pkgs.daubney.dev/endpoints/allotment-apps/content"
           for name in "$(basename "$apk")" latest.apk; do
+            # ProGet refuses to overwrite an asset ("already exists"), so clear the old one first. A missing one is fine.
+            curl -sS -o /dev/null -X DELETE -H "X-ApiKey: $PKGS_API_KEY" "$base/$name" || true
             curl -fsS -X PUT -H "X-ApiKey: $PKGS_API_KEY" --data-binary "@$apk" "$base/$name"
           done
           echo "Published: $base/latest.apk"
