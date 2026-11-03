@@ -1,0 +1,26 @@
+name: renew-bao-token
+
+# Keeps BAO_CI_TOKEN (the OpenBao token that lets the mobile build read the Android signing key) alive.
+# It is a periodic token with a 32 day period, renewed by every mobile build; this job renews it on the
+# 1st and 15th as well, so a quiet month cannot let it lapse (the longest gap is 16 days). Cron has no
+# "every 30 days", and twice a month leaves a wide margin.
+
+on:
+  schedule:
+    - cron: "0 6 1,15 * *"
+  workflow_dispatch:
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Renew the token
+        env:
+          BAO_CI_TOKEN: ${{ secrets.BAO_CI_TOKEN }}
+        run: |
+          if [ -z "$BAO_CI_TOKEN" ]; then echo "BAO_CI_TOKEN is not set" >&2; exit 1; fi
+          curl -fsS -X POST -H "X-Vault-Token: $BAO_CI_TOKEN" \
+            https://vault.daubney.dev/v1/auth/token/renew-self -o /tmp/renew.json
+          python3 -c "import json; a=json.load(open('/tmp/renew.json'))['auth']; print('renewed; lease_duration', a['lease_duration'], 'seconds')"
+          rm -f /tmp/renew.json
