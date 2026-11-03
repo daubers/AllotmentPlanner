@@ -48,8 +48,37 @@ jobs:
           echo "$sdk/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
       # Types and tests already ran in test.yml's `mobile` job for this tag.
       - run: npm ci
+      # The release signing key lives in OpenBao (env/shell/android-signing). BAO_CI_TOKEN is a periodic
+      # token that can read only that path. Each run renews it, and renew-bao-token.yml does too on the
+      # 1st and 15th. If it ever lapses, make a new one (docs/ci.md). Without the token the debug key is used.
+      - name: Fetch the release signing key
+        env:
+          BAO_CI_TOKEN: ${{ secrets.BAO_CI_TOKEN }}
+        run: |
+          if [ -z "$BAO_CI_TOKEN" ]; then echo "No BAO_CI_TOKEN: the APK will be signed with the debug key"; exit 0; fi
+          addr=https://vault.daubney.dev
+          curl -fsS -X POST -H "X-Vault-Token: $BAO_CI_TOKEN" "$addr/v1/auth/token/renew-self" -o /dev/null
+          curl -fsS -H "X-Vault-Token: $BAO_CI_TOKEN" "$addr/v1/env/data/shell/android-signing" -o /tmp/signing.json
+          for k in ANDROID_KEYSTORE_B64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS; do
+            v="$(python3 -c "import json,sys; print(json.load(open('/tmp/signing.json'))['data']['data'][sys.argv[1]])" "$k")"
+            echo "::add-mask::$v"
+            echo "$k=$v" >> "$GITHUB_ENV"
+          done
+          rm -f /tmp/signing.json
       - name: Build the APK
         run: scripts/build-android.sh
+      # Keep the APK on the ProGet "allotment-apps" asset directory so it can be downloaded on the
+      # phone: a stable link (latest.apk) plus one copy per build.
+      - name: Publish the APK to pkgs.daubney.dev
+        env:
+          PKGS_API_KEY: ${{ secrets.PKGS_API_KEY }}
+        run: |
+          apk="$(ls dist/*.apk | head -n1)"
+          base="https://pkgs.daubney.dev/endpoints/allotment-apps/content"
+          for name in "$(basename "$apk")" latest.apk; do
+            curl -fsS -X PUT -H "X-ApiKey: $PKGS_API_KEY" --data-binary "@$apk" "$base/$name"
+          done
+          echo "Published: $base/latest.apk"
       # v3: Gitea's artifact server does not speak the v4 protocol.
       - uses: actions/upload-artifact@v3
         with:
