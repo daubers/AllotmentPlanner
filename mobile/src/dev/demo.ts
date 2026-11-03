@@ -125,6 +125,23 @@ function seedDemo(path: string, method: string, body: any, query: URLSearchParam
   return null;
 }
 
+let jobs: any[] | null = null;
+/** The demo's jobs, made once so ticking one off sticks. */
+function demoTasks() {
+  if (jobs) return jobs;
+  const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+  const job = (id: number, title: string, due: string | null, extra = {}) => ({ id, title, description: "", status: "todo", priority: "normal", due_date: due, feature_id: null, location: null, ...extra });
+  jobs = [
+    job(1, "Water the tomatoes", day(0), { feature_id: 1, priority: "high", description: "Deep water at the base, not the leaves." }),
+    job(2, "Tie in the beans", day(-2), { feature_id: 1 }),
+    job(3, "Fix the shed door", day(0), { feature_id: 2 }),
+    job(4, "Net the strawberries", day(-1), { location: { type: "Point", coordinates: at(7, 9) } }),
+    job(5, "Order manure", day(5), { feature_id: 1 }),
+    job(6, "Check the pond liner", null, { feature_id: 3 }),
+  ];
+  return jobs;
+}
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -140,7 +157,15 @@ async function handle(url: string, method: string, body: any): Promise<Response>
       { id: 2, name: "Community orchard", description: "", length_unit: "m", role: "viewer" },
     ]);
   }
+  if (path.endsWith("/tasks") && method === "GET") return json(demoTasks().filter((t) => t.status !== "done"));
+  const tick = path.match(/\/tasks\/(\d+)\/(complete|reopen)$/);
+  if (tick && method === "POST") {
+    const t = demoTasks().find((x) => x.id === Number(tick[1]));
+    if (t) t.status = tick[2] === "complete" ? "done" : "todo";
+    return json(t ?? {});
+  }
   if (path.endsWith("/features")) {
+    if (path.includes("/allotments/2/")) return json({ type: "FeatureCollection", features: [] });
     const f = (id: number, g: unknown) => ({ type: "Feature", id, geometry: g, properties: { name: "", kind: "bed" } });
     return json({ type: "FeatureCollection", features: [f(1, BED), f(2, SHED), f(3, POND)] });
   }

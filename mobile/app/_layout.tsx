@@ -3,6 +3,7 @@ import { Redirect, Stack, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { DemoFrame } from "../src/dev/DemoFrame";
 import { AppProvider, useApp } from "../src/state/AppProvider";
+import { DialogHost } from "../src/ui/dialog";
 
 function Gate() {
   const { signedIn } = useApp();
@@ -25,6 +26,7 @@ function Gate() {
       <Stack.Screen name="found/[id]" />
       <Stack.Screen name="tasks/index" />
       <Stack.Screen name="tasks/new" />
+      <Stack.Screen name="tasks/[id]" />
       <Stack.Screen name="beds/index" />
       <Stack.Screen name="beds/[id]" />
       <Stack.Screen name="photo" options={{ animation: "slide_from_bottom" }} />
@@ -38,6 +40,7 @@ export default function RootLayout() {
   return (
     <AppProvider>
       <StatusBar style="auto" />
+      <DialogHost />
       <DemoFrame>
         <Gate />
       </DemoFrame>

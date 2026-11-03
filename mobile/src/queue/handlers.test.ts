@@ -104,3 +104,12 @@ test("a copy the app made is deleted once the server has it, but not before", as
   await ok.upload({ ...job, deleteAfterUpload: false }, ctx);
   expect(removeFile).toHaveBeenCalledTimes(1);
 });
+
+test("an upload tells who is listening the server's id for it", async () => {
+  const session = await signedIn();
+  const onUploaded = jest.fn();
+  const uploadFile = jest.fn().mockResolvedValue({ status: 201, body: '{"id": 42}' });
+  const { upload } = makeHandlers({ session, uploadFile, onUploaded });
+  await upload({ allotmentId: 7, uri: "file:///p.jpg", name: "p.jpg", mimeType: "image/jpeg", fields: { client_id: "abc" } }, ctx);
+  expect(onUploaded).toHaveBeenCalledWith("abc", 42, 7);
+});

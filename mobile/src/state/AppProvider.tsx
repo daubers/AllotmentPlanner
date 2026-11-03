@@ -4,10 +4,10 @@ import { AppState, Platform } from "react-native";
 import { createApi, type Api } from "../api/client";
 import { Session } from "../auth/session";
 import { secureStore } from "../native/secureStore";
+import { forget, isTakenBack, recordSent } from "../capture/sent";
 import { makeHandlers } from "../queue/handlers";
 import { removeFile, uploadFile } from "../queue/nativeUpload";
 import { JobQueue, MemoryJobStore, type QueueState } from "../queue/queue";
-import { SqliteJobStore } from "../queue/sqliteStore";
 
 const ALLOTMENT_KEY = "allotment.current";
 const RUN_EVERY_MS = 15_000;
@@ -37,6 +37,18 @@ export function useQueueState(): QueueState {
   return snapshot;
 }
 
+/** The on-disk queue. Loaded only when needed: expo-sqlite throws on import where its native module is missing. */
+async function openStore() {
+  try {
+    const { SqliteJobStore } = require("../queue/sqliteStore") as typeof import("../queue/sqliteStore");
+    return await SqliteJobStore.open();
+  } catch (err) {
+    // The demo (a stock Expo Go whose build lacks SQLite) can run with a queue in memory; the real app never does.
+    if (process.env.EXPO_PUBLIC_DEMO === "1") return new MemoryJobStore();
+    throw err;
+  }
+}
+
 type Booted = { session: Session; queue: JobQueue };
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -48,8 +60,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const session = new Session(secureStore);
       await session.load();
       // The browser preview has no SQLite; its queue lives in memory only.
-      const store = Platform.OS === "web" ? new MemoryJobStore() : await SqliteJobStore.open();
-      const queue = new JobQueue(store, makeHandlers({ session, uploadFile, removeFile }));
+      const store = Platform.OS === "web" ? new MemoryJobStore() : await openStore();
+      const queue: JobQueue = new JobQueue(
+        store,
+        makeHandlers({
+          session,
+          uploadFile,
+          removeFile,
+          onUploaded: (clientId, mediaId, allotment) => {
+            recordSent(clientId, mediaId);
+            // Taken back while it was still going up: remove it from the server now it is there.
+            if (isTakenBack(clientId)) {
+              forget(clientId);
+              void queue.enqueue("request", { method: "DELETE", path: `/api/v1/allotments/${allotment}/media/${mediaId}` });
+            }
+          },
+        }),
+      );
       const saved = await secureStore.get(ALLOTMENT_KEY);
       if (saved) setAllotmentId(Number(saved));
       setBooted({ session, queue });

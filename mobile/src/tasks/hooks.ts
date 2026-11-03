@@ -1,5 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "expo-router";
 import { useCallback } from "react";
+import { showDialog } from "../ui/dialog";
 import { useApp } from "../state/AppProvider";
 import { completeRequest, createRequest, localJob, reopenRequest, withStatus, type NewJob, type Task } from "./model";
 
@@ -64,4 +66,30 @@ export function useCanEdit(): boolean {
   });
   const current = allotments.data?.find((a) => a.id === allotmentId);
   return current ? current.role !== "viewer" : false;
+}
+
+/**
+ * Tick a job off (or put it back). Finishing one asks whether to add photos, as many as wanted, which go to the
+ * camera screen already linked to the job. `leave` is for the job's own screen: it closes once the question is answered.
+ */
+export function useDoneFlow() {
+  const tick = useTick();
+  const router = useRouter();
+  return useCallback(
+    async (taskId: number, title: string, done: boolean, opts?: { leave?: boolean }) => {
+      await tick(taskId, done);
+      if (!done) return;
+      const photos = { pathname: "/photo" as const, params: { taskId: String(taskId) } };
+      showDialog({
+        title: "Add photos?",
+        message: `Photograph "${title}" while you're there. You can take as many as you like.`,
+        actions: [
+          { label: "Add photos", kind: "primary", onPress: () => (opts?.leave ? router.replace(photos) : router.push(photos)) },
+          { label: "Not now", kind: "secondary", onPress: () => opts?.leave && router.back() },
+        ],
+        onDismiss: () => opts?.leave && router.back(),
+      });
+    },
+    [tick, router],
+  );
 }
