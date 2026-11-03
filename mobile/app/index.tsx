@@ -3,9 +3,14 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { useFound } from "../src/found/hooks";
+import JobSwitch from "../src/tasks/JobSwitch";
+import PlotMap from "../src/plot/PlotMap";
+import { jobsFor, pinsFor, type Selection } from "../src/plot/pins";
+import { dueLabel } from "../src/tasks/model";
+import { usePlotShapes } from "../src/plot/hooks";
 import { useChecklist } from "../src/measure/hooks";
 import { useApp, useQueueState } from "../src/state/AppProvider";
-import { useTasks } from "../src/tasks/hooks";
+import { useDoneFlow, useTasks } from "../src/tasks/hooks";
 import { localDate } from "../src/tasks/model";
 import { Banner, Button, Card, Chip, Loading, ProgressBar, Row, Screen, Section, T } from "../src/ui/kit";
 import { radius, space, usePalette } from "../src/ui/theme";
@@ -62,6 +67,51 @@ function Tile({
   );
 }
 
+/** A job in the map's card: tap the text to open it, flick the switch to mark it done. */
+function JobLine({
+  title,
+  subtitle,
+  late,
+  done,
+  first,
+  canTick,
+  onOpen,
+  onTick,
+}: {
+  title: string;
+  subtitle: string;
+  late: boolean;
+  done: boolean;
+  first: boolean;
+  canTick: boolean;
+  onOpen: () => void;
+  onTick: (done: boolean) => void;
+}) {
+  const p = usePalette();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: space.sm, borderTopWidth: first ? 0 : 1, borderTopColor: p.border }}>
+      <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={`Open job: ${title}`} style={{ flex: 1, gap: 2 }}>
+        <T kind="body" style={{ fontWeight: "500", textDecorationLine: done ? "line-through" : "none" }} muted={done}>
+          {title}
+        </T>
+        {subtitle ? (
+          <T kind="caption" muted={!late} tone={late ? "danger" : undefined}>
+            {subtitle}
+          </T>
+        ) : null}
+      </Pressable>
+      <JobSwitch title={title} done={done} disabled={!canTick} onChange={onTick} />
+    </View>
+  );
+}
+
+/** What to call the selected thing: its name, else its kind ("Bed", "Shed"), else where a job was pinned. */
+function selectionName(sel: Selection, shapes: { id: number; kind: string; name: string }[]): string {
+  if (sel.kind === "spot") return "Pinned on the map";
+  const s = shapes.find((x) => x.id === sel.id);
+  return s?.name || (s ? s.kind.charAt(0).toUpperCase() + s.kind.slice(1) : "This spot");
+}
+
 export default function Home() {
   const { api, session, queue, allotmentId, chooseAllotment } = useApp();
   const router = useRouter();
@@ -69,10 +119,13 @@ export default function Home() {
   const checklist = useChecklist();
   const found = useFound();
   const tasks = useTasks();
+  const finish = useDoneFlow();
+  const plot = usePlotShapes();
   const today = localDate();
   const jobs = (tasks.data ?? []).filter((t) => t.status !== "done" && (!t.due_date || t.due_date <= today));
   const late = jobs.filter((t) => t.due_date && t.due_date < today).length;
   const [switching, setSwitching] = useState(false);
+  const [selected, setSelected] = useState<Selection | null>(null);
 
   const allotments = useQuery({
     queryKey: ["allotments", session.serverUrl],
@@ -151,6 +204,49 @@ export default function Home() {
         <Card>
           <T kind="heading">No allotments yet</T>
           <T muted>Create one in the web app, then it will appear here.</T>
+        </Card>
+      ) : null}
+
+      {current && plot.data && plot.data.length > 0 ? (
+        <View style={{ gap: space.sm }}>
+          <PlotMap shapes={plot.data} pins={pinsFor(plot.data, tasks.data, today)} selected={selected} onSelect={setSelected} />
+          <T kind="caption" muted>
+            {selected ? "Tap the ground to clear." : "Tap a bed or a numbered pin to see its jobs. Pins show jobs due today or late; red means late."}
+          </T>
+          {selected ? (
+            <Card>
+              <T kind="heading">{selectionName(selected, plot.data)}</T>
+              {(() => {
+                const list = jobsFor(selected, tasks.data);
+                return list.length === 0 ? (
+                  <T muted>No open jobs here.</T>
+                ) : (
+                  list.map((t, i) => (
+                    <JobLine
+                      key={t.id}
+                      first={i === 0}
+                      title={t.title ?? ""}
+                      subtitle={[dueLabel(t.due_date), t.priority === "high" ? "High priority" : ""].filter(Boolean).join(" · ")}
+                      late={!!t.due_date && t.due_date < today}
+                      done={t.status === "done"}
+                      canTick={canEdit && (t.id ?? 0) > 0}
+                      onOpen={() => router.push({ pathname: "/tasks/[id]", params: { id: String(t.id) } })}
+                      onTick={(done) => void finish(t.id!, t.title ?? "this job", done)}
+                    />
+                  ))
+                );
+              })()}
+            </Card>
+          ) : null}
+        </View>
+      ) : null}
+      {current && plot.data && plot.data.length === 0 ? (
+        <Card>
+          <T kind="heading">Your map will appear here</T>
+          <T muted>
+            Nothing has been drawn for this plot yet. Open the web app, go to Map and draw your beds, paths and shed, or use "Photograph the plot" below to build a map from
+            photos and trace over it on the web. Whatever you draw shows up here.
+          </T>
         </Card>
       ) : null}
 

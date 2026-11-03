@@ -3,37 +3,27 @@ import React from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useBeds } from "../../src/beds/hooks";
 import { dueLabel, groupTasks, type Task } from "../../src/tasks/model";
-import { useCanEdit, useTasks, useTick } from "../../src/tasks/hooks";
+import JobSwitch from "../../src/tasks/JobSwitch";
+import { useCanEdit, useDoneFlow, useTasks } from "../../src/tasks/hooks";
 import { useApp } from "../../src/state/AppProvider";
 import { Banner, Button, Card, Chip, Empty, Loading, Screen, Section, T } from "../../src/ui/kit";
 import { space, usePalette } from "../../src/ui/theme";
 
-function Job({ task, place, canEdit, onTick, onPhoto }: { task: Task; place?: string; canEdit: boolean; onTick: (done: boolean) => void; onPhoto: () => void }) {
+function Job({ task, place, canEdit, onTick, onOpen }: { task: Task; place?: string; canEdit: boolean; onTick: (done: boolean) => void; onOpen: () => void }) {
   const p = usePalette();
   const done = task.status === "done";
   const late = !done && (dueLabel(task.due_date).includes("late"));
   const detail = [dueLabel(task.due_date), place, task.priority === "high" ? "High priority" : ""].filter(Boolean).join(" · ");
   return (
     <View style={[styles.job, { borderTopColor: p.border }]}>
-      <Pressable
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: done, disabled: !canEdit || task.id! < 0 }}
-        accessibilityLabel={`${done ? "Put back" : "Done"}: ${task.title}`}
-        disabled={!canEdit || task.id! < 0}
-        onPress={() => onTick(!done)}
-        hitSlop={8}
-        style={[styles.box, { borderColor: done ? p.accent : p.muted, backgroundColor: done ? p.accent : "transparent" }]}
-      >
-        {done ? <T kind="heading" style={{ color: p.onAccent, fontSize: 18, lineHeight: 20 }}>✓</T> : null}
-      </Pressable>
-      <View style={{ flex: 1, gap: 2 }}>
+      <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={`Open job: ${task.title}`} style={{ flex: 1, gap: 2 }}>
         <T kind="body" style={{ fontWeight: "500", textDecorationLine: done ? "line-through" : "none" }} muted={done}>
           {task.title}
         </T>
         {detail ? <T kind="caption" muted tone={late ? "danger" : "neutral"}>{detail}</T> : null}
         {task.id! < 0 ? <T kind="caption" muted>Waiting to send</T> : null}
-      </View>
-      {canEdit && task.id! > 0 ? <Button label="Photo" kind="quiet" small onPress={onPhoto} /> : null}
+      </Pressable>
+      <JobSwitch title={task.title ?? "job"} done={done} disabled={!canEdit || task.id! < 0} onChange={onTick} />
     </View>
   );
 }
@@ -43,7 +33,7 @@ export default function Jobs() {
   const { allotmentId } = useApp();
   const tasks = useTasks();
   const beds = useBeds();
-  const tick = useTick();
+  const finish = useDoneFlow();
   const canEdit = useCanEdit();
   const g = groupTasks(tasks.data ?? []);
   const total = g.overdue.length + g.today.length + g.upcoming.length + g.undated.length;
@@ -59,8 +49,8 @@ export default function Jobs() {
               task={t}
               canEdit={canEdit}
               place={bedName(t.feature_id) ?? (t.location ? "Pinned on the map" : undefined)}
-              onTick={(done) => void tick(t.id!, done)}
-              onPhoto={() => router.push({ pathname: "/photo", params: { taskId: String(t.id) } })}
+              onTick={(done) => void finish(t.id!, t.title ?? "this job", done)}
+              onOpen={() => router.push({ pathname: "/tasks/[id]", params: { id: String(t.id) } })}
             />
           ))}
         </Card>

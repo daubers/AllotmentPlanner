@@ -18,6 +18,8 @@ export type Deps = {
   uploadFile: (args: UploadArgs) => Promise<UploadResult>;
   /** Delete a local file once it is safely on the server. */
   removeFile?: (uri: string) => void;
+  /** Told when an upload is on the server: the id the app gave it (its client_id), the server's id for it, and the allotment. */
+  onUploaded?: (clientId: string, mediaId: number, allotmentId: number) => void;
 };
 
 export type RequestJob = { method: "POST" | "PUT" | "PATCH" | "DELETE"; path: string; body?: unknown };
@@ -95,6 +97,15 @@ export function makeHandlers(deps: Deps): Record<string, Handler> {
       }
       await checkResponse(result.status, result.body, deps.session);
       ctx.onProgress(1);
+      const clientId = payload.fields?.client_id;
+      if (clientId) {
+        try {
+          const id = JSON.parse(result.body)?.id;
+          if (typeof id === "number") deps.onUploaded?.(clientId, id, payload.allotmentId);
+        } catch {
+          /* no id in the answer: it just can't be taken back from the app */
+        }
+      }
       if (payload.deleteAfterUpload) {
         try {
           deps.removeFile?.(payload.uri);
