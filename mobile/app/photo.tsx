@@ -8,6 +8,7 @@ import { forget, removeWhenSent, sentMediaId } from "../src/capture/sent";
 import { keepPhoto } from "../src/capture/storage";
 import { removeFile } from "../src/queue/nativeUpload";
 import { showDialog } from "../src/ui/dialog";
+import UploadBanner from "../src/ui/UploadBanner";
 import { newId } from "../src/queue/queue";
 import { photoFields, scanFields } from "../src/seeds/model";
 import { useApp } from "../src/state/AppProvider";
@@ -149,7 +150,8 @@ export default function Photo() {
         <View style={{ gap: space.sm }}>
           <Button label="Allow the camera" onPress={() => void ask()} />
           <Button label="Choose from library instead" kind="secondary" onPress={() => void pick()} disabled={busy} />
-          {taken > 0 ? <Banner tone="ok" text={`${taken} photo${taken === 1 ? "" : "s"} saved; sending when there is signal.`} /> : null}
+          <UploadBanner />
+          {taken > 0 ? <Banner tone="ok" text={`${taken} photo${taken === 1 ? "" : "s"} saved on this phone.`} /> : null}
           <Thumbnails photos={thumbs} onRemove={askRemove} />
         </View>
       </Screen>
@@ -163,8 +165,9 @@ export default function Photo() {
       footer={
         <View style={{ gap: space.sm }}>
           {taken > 0 ? (
-            <Banner tone="ok" text={scanning ? `${taken} sent to be read. They appear under "To review" in Seeds.` : `${taken} photo${taken === 1 ? "" : "s"} saved; sending when there is signal.`} />
+            <Banner tone="ok" text={scanning ? `${taken} sent to be read. They appear under "To review" in Seeds.` : `${taken} photo${taken === 1 ? "" : "s"} saved on this phone.`} />
           ) : null}
+          <UploadBanner />
           <Thumbnails photos={thumbs} onRemove={askRemove} />
           {note ? <Banner tone="warn" text={note} /> : null}
           <Button label={busy ? "Saving…" : "Take photo"} onPress={() => void shoot()} busy={busy} />

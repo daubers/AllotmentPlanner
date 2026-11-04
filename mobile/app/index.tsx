@@ -4,12 +4,13 @@ import React, { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { useFound } from "../src/found/hooks";
 import JobSwitch from "../src/tasks/JobSwitch";
+import UploadBanner from "../src/ui/UploadBanner";
 import PlotMap from "../src/plot/PlotMap";
 import { jobsFor, pinsFor, type Selection } from "../src/plot/pins";
 import { dueLabel } from "../src/tasks/model";
 import { usePlotShapes } from "../src/plot/hooks";
 import { useChecklist } from "../src/measure/hooks";
-import { useApp, useQueueState } from "../src/state/AppProvider";
+import { useApp } from "../src/state/AppProvider";
 import { useDoneFlow, useTasks } from "../src/tasks/hooks";
 import { localDate } from "../src/tasks/model";
 import { Banner, Button, Card, Chip, Loading, ProgressBar, Row, Screen, Section, T } from "../src/ui/kit";
@@ -115,7 +116,6 @@ function selectionName(sel: Selection, shapes: { id: number; kind: string; name:
 export default function Home() {
   const { api, session, queue, allotmentId, chooseAllotment } = useApp();
   const router = useRouter();
-  const state = useQueueState();
   const checklist = useChecklist();
   const found = useFound();
   const tasks = useTasks();
@@ -147,18 +147,6 @@ export default function Home() {
   const many = (allotments.data?.length ?? 0) > 1;
   const canEdit = current ? current.role !== "viewer" : false;
   const c = checklist.data;
-
-  const banner =
-    state.failed > 0 ? (
-      <Banner tone="danger" text={`${state.failed} ${state.failed === 1 ? "item" : "items"} couldn't be sent`} action="Review" onAction={() => router.push("/uploads")} />
-    ) : state.pending > 0 ? (
-      <Banner
-        tone="warn"
-        text={state.active ? `Sending… ${Math.round(state.active.progress * 100)}%  (${state.pending} waiting)` : `${state.pending} waiting to send`}
-        action="Details"
-        onAction={() => router.push("/uploads")}
-      />
-    ) : null;
 
   return (
     <Screen back={false}>
@@ -197,7 +185,7 @@ export default function Home() {
         </Card>
       ) : null}
 
-      {banner}
+      <UploadBanner />
       {allotments.isLoading ? <Loading label="Loading your plot…" /> : null}
       {allotments.isError ? <Banner tone="danger" text={allotments.error.message} action="Try again" onAction={() => allotments.refetch()} /> : null}
       {allotments.data?.length === 0 ? (

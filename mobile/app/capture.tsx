@@ -21,6 +21,7 @@ import { keepPhoto } from "../src/capture/storage";
 import { newId } from "../src/queue/queue";
 import { CaptureSummary, Hud, Pill } from "../src/capture/ui";
 import { Banner, Button, Card, Loading, Screen, T, type Tone } from "../src/ui/kit";
+import UploadBanner from "../src/ui/UploadBanner";
 import { radius, space, usePalette } from "../src/ui/theme";
 
 export default function Capture() {
@@ -195,6 +196,7 @@ export default function Capture() {
           <Hud label="Compass" value={heading === null ? "none" : `${Math.round(heading)}°`} tone={compassTone} />
           <Hud label="Camera" value={levelText} tone={levelTone} />
         </View>
+        <UploadBanner />
         {top ? (
           <Banner tone={top.level === "block" ? "danger" : "warn"} text={top.text} />
         ) : shots.length === 0 ? (
