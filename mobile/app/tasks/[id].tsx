@@ -7,6 +7,7 @@ import { useCanEdit, useDoneFlow, useTasks } from "../../src/tasks/hooks";
 import { dueLabel } from "../../src/tasks/model";
 import { Banner, Button, Card, Chip, Loading, Row, Screen, T } from "../../src/ui/kit";
 import { space } from "../../src/ui/theme";
+import UploadBanner from "../../src/ui/UploadBanner";
 
 /** One job: what it is, when it is due, where it is, and a switch to mark it done. */
 export default function Job() {
@@ -36,6 +37,7 @@ export default function Job() {
 
   return (
     <Screen title={task.title ?? "Job"} subtitle={done ? "Done" : late ? due : undefined}>
+      <UploadBanner />
       <Card>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.md }}>
           <T kind="heading">{done ? "Done" : "Mark as done"}</T>
