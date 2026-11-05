@@ -1,5 +1,11 @@
 /** One step the person can take back. `undo` and `redo` put the map and the server back. */
-export type Step = { label: string; undo(): Promise<void>; redo(): Promise<void> };
+export type Step = {
+  label: string;
+  undo(): Promise<void>;
+  redo(): Promise<void>;
+  /** The feature this step changed (read late, as undoing a delete gives it a new id). */
+  target?: () => number;
+};
 
 const LIMIT = 100;
 
@@ -25,12 +31,22 @@ export class History {
     return this.undone.at(-1)?.label ?? null;
   }
 
-  async undo(): Promise<boolean> {
-    return this.run(this.done, this.undone, "undo");
+  /** Label of the latest undoable step for one feature. */
+  undoLabelFor(id: number): string | null {
+    return this.latest(this.done, id)?.label ?? null;
   }
 
-  async redo(): Promise<boolean> {
-    return this.run(this.undone, this.done, "redo");
+  redoLabelFor(id: number): string | null {
+    return this.latest(this.undone, id)?.label ?? null;
+  }
+
+  /** Undoes the latest step, or with an id, the latest step for that feature alone. */
+  async undo(id?: number): Promise<boolean> {
+    return this.run(this.done, this.undone, "undo", id);
+  }
+
+  async redo(id?: number): Promise<boolean> {
+    return this.run(this.undone, this.done, "redo", id);
   }
 
   clear(): void {
@@ -44,14 +60,20 @@ export class History {
     return () => this.listeners.delete(fn);
   }
 
-  private async run(from: Step[], to: Step[], way: "undo" | "redo"): Promise<boolean> {
+  private latest(steps: Step[], id?: number): Step | undefined {
+    if (id === undefined) return steps.at(-1);
+    for (let i = steps.length - 1; i >= 0; i--) if (steps[i].target?.() === id) return steps[i];
+    return undefined;
+  }
+
+  private async run(from: Step[], to: Step[], way: "undo" | "redo", id?: number): Promise<boolean> {
     if (this.busy) return false;
-    const step = from.at(-1);
+    const step = this.latest(from, id);
     if (!step) return false;
     this.busy = true;
     try {
       await step[way]();
-      from.pop();
+      from.splice(from.lastIndexOf(step), 1);
       to.push(step);
       return true;
     } catch {

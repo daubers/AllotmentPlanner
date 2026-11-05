@@ -3,7 +3,7 @@ import "@geoman-io/leaflet-geoman-free";
 import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { LayersControl, MapContainer, TileLayer, useMap } from "react-leaflet";
 import { api } from "../api/client";
 import type { Task } from "../tasks/group";
@@ -76,21 +76,25 @@ function InitialView({ drawn, allotmentId, suggestions }: { drawn: Box | null | 
   return null;
 }
 
-function TaskPins({ group, tasks, version }: { group: React.RefObject<L.FeatureGroup>; tasks: Task[]; version: unknown }) {
+function TaskPins({ group, tasks, version, onMove }: { group: React.RefObject<L.FeatureGroup>; tasks: Task[]; version: unknown; onMove?: (tasks: Task[], to: L.LatLng) => Promise<boolean> }) {
   const map = useMap();
   useEffect(() => {
     const pins = L.layerGroup().addTo(map);
     const find = (id: number) => group.current.getLayers().find((l) => (l as LayerWithId).featureId === id);
     for (const { latlng, tasks: here } of pinGroups(tasks, find)) {
       const icon = L.divIcon({ className: "", html: '<span class="task-pin">📌</span>', iconSize: [22, 22], iconAnchor: [4, 22] });
-      L.marker(latlng, { icon, keyboard: false, title: `${here.length} open task${here.length > 1 ? "s" : ""}` })
+      const marker = L.marker(latlng, { icon, keyboard: false, draggable: !!onMove, title: `${here.length} open task${here.length > 1 ? "s" : ""}` })
         .bindPopup(pinPopup(here))
         .addTo(pins);
+      // A dropped pin is saved (and can be undone); if the save fails it goes back where it was.
+      marker.on("dragend", async () => {
+        if (!(await onMove!(here, marker.getLatLng()))) marker.setLatLng(latlng);
+      });
     }
     return () => {
       pins.remove();
     };
-  }, [map, group, tasks, version]);
+  }, [map, group, tasks, version, onMove]);
   return null;
 }
 
@@ -190,7 +194,7 @@ function Editor({ allotmentId, canEdit, group, history, selected, onItems, onBou
         if (!data) return;
         saved.set(id, now);
         if (before) {
-          history.record({ label: `Move ${nameOf(id)}`, undo: () => writeShape(id, before), redo: () => writeShape(id, now) });
+          history.record({ label: `Move ${nameOf(id)}`, target: () => resolve(id), undo: () => writeShape(id, before), redo: () => writeShape(id, now) });
         }
       };
       layer.on("pm:edit", save);
@@ -278,7 +282,7 @@ function Editor({ allotmentId, canEdit, group, history, selected, onItems, onBou
 
     const removed = (id: number, snap: Snapshot | null, label: string) => {
       if (!snap) return;
-      history.record({ label: `Delete ${label}`, undo: () => revive(id, snap), redo: () => destroy(resolve(id)) });
+      history.record({ label: `Delete ${label}`, target: () => resolve(id), undo: () => revive(id, snap), redo: () => destroy(resolve(id)) });
     };
 
     if (canEdit) {
@@ -308,7 +312,7 @@ function Editor({ allotmentId, canEdit, group, history, selected, onItems, onBou
         onSelect(created.id);
         const snap = snapshotOf(created.id, layer);
         if (snap) {
-          history.record({ label: `Add ${nameOf(created.id)}`, undo: () => destroy(resolve(created.id)), redo: () => revive(created.id, snap) });
+          history.record({ label: `Add ${nameOf(created.id)}`, target: () => resolve(created.id), undo: () => destroy(resolve(created.id)), redo: () => revive(created.id, snap) });
         }
       });
       map.on("pm:remove", async (e) => {
@@ -338,7 +342,7 @@ function Editor({ allotmentId, canEdit, group, history, selected, onItems, onBou
         return;
       }
       const label = "locked" in props ? `${props.locked ? "Lock" : "Unlock"} ${was.name || was.kind}` : "z" in props ? `Reorder ${was.name || was.kind}` : `Edit ${was.name || was.kind}`;
-      history.record({ label, undo: () => setProps(resolve(id), before), redo: () => setProps(resolve(id), props) });
+      history.record({ label, target: () => resolve(id), undo: () => setProps(resolve(id), before), redo: () => setProps(resolve(id), props) });
     };
 
     registerActions({
@@ -410,10 +414,57 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [canEdit, history]);
   const current = items.find((i) => i.id === selected);
+  // With something selected, the buttons act on that object alone; otherwise on the latest change anywhere.
+  const undoLabel = selected === null ? history.undoLabel : history.undoLabelFor(selected);
+  const redoLabel = selected === null ? history.redoLabel : history.redoLabelFor(selected);
   const group = useRef(L.featureGroup());
   const tasks = useTasks(allotmentId);
   const [drawnBounds, setDrawnBounds] = useState<Box | null | undefined>(undefined); // undefined: not loaded yet
   const taskActions = useTaskActions(allotmentId);
+  const updateTask = taskActions.update.mutateAsync;
+  /** Moves task pins to a new point, as one undoable step. A task with no point of its own goes back to following its feature. */
+  const { complete, reopen, create, remove } = taskActions;
+  /** Ticks a task off, as an undoable step. */
+  const completeTask = async (t: Task) => {
+    try {
+      await complete.mutateAsync(t.id!);
+    } catch {
+      return;
+    }
+    history.record({ label: `Complete ${t.title}`, undo: async () => void (await reopen.mutateAsync(t.id!)), redo: async () => void (await complete.mutateAsync(t.id!)) });
+  };
+  /** Adds a task, as an undoable step. Redo makes it again, which gives it a new id that undo then follows. */
+  const addTask = async (body: { title: string; feature_id: number }) => {
+    let id: number;
+    try {
+      id = (await create.mutateAsync(body)).id!;
+    } catch {
+      return;
+    }
+    history.record({
+      label: `Add task ${body.title}`,
+      undo: async () => void (await remove.mutateAsync(id)),
+      redo: async () => void (id = (await create.mutateAsync(body)).id!),
+    });
+  };
+  const moveTasks = useCallback(
+    async (moved: Task[], to: L.LatLng) => {
+      const point = { type: "Point", coordinates: [to.lng, to.lat] };
+      const was = moved.map((t) => ({ id: t.id!, location: (t.location ?? null) as Record<string, unknown> | null }));
+      const put = (locations: (Record<string, unknown> | null)[]) => async () => {
+        await Promise.all(was.map((t, i) => updateTask({ id: t.id, body: { location: locations[i] } })));
+      };
+      try {
+        await put(was.map(() => point))();
+      } catch {
+        return false;
+      }
+      const n = moved.length;
+      history.record({ label: `Move ${n > 1 ? `${n} task pins` : "task pin"}`, undo: put(was.map((t) => t.location)), redo: put(was.map(() => point)) });
+      return true;
+    },
+    [updateTask, history],
+  );
   const [taskDialog, setTaskDialog] = useState<number | null>(null);
   const featureTasks = (tasks.data ?? []).filter((t) => t.feature_id === selected && t.status !== "done");
 
@@ -432,7 +483,7 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
         <PhotoLayers allotmentId={allotmentId} />
         <SuggestionShapes allotmentId={allotmentId} suggestions={suggestions.data ?? []} ticked={ticked} focused={focusedSuggestion} />
         <InitialView drawn={drawnBounds} allotmentId={allotmentId} suggestions={{ pending: canEdit && suggestions.isPending, data: suggestions.data }} />
-        <TaskPins group={group} tasks={tasks.data ?? []} version={items} />
+        <TaskPins group={group} tasks={tasks.data ?? []} version={items} onMove={canEdit ? moveTasks : undefined} />
         <Editor
           group={group}
           allotmentId={allotmentId}
@@ -461,13 +512,13 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
         <h2>Map features</h2>
         {canEdit && (
           <div className="history-buttons">
-            <button type="button" disabled={!history.undoLabel} title={history.undoLabel ? `Undo: ${history.undoLabel} (Ctrl/⌘+Z)` : "Nothing to undo"} onClick={() => void history.undo()}>
+            <button type="button" disabled={!undoLabel} title={undoLabel ? `Undo: ${undoLabel}${selected === null ? " (Ctrl/⌘+Z)" : ""}` : "Nothing to undo"} onClick={() => void history.undo(selected ?? undefined)}>
               ↶ Undo
             </button>
-            <button type="button" disabled={!history.redoLabel} title={history.redoLabel ? `Redo: ${history.redoLabel} (Ctrl/⌘+Shift+Z)` : "Nothing to redo"} onClick={() => void history.redo()}>
+            <button type="button" disabled={!redoLabel} title={redoLabel ? `Redo: ${redoLabel}${selected === null ? " (Ctrl/⌘+Shift+Z)" : ""}` : "Nothing to redo"} onClick={() => void history.redo(selected ?? undefined)}>
               ↷ Redo
             </button>
-            {history.undoLabel && <span className="muted">{history.undoLabel}</span>}
+            {undoLabel && <span className="muted">{undoLabel}</span>}
           </div>
         )}
         {!canEdit && <p className="muted">View only: ask an owner for editor access to draw.</p>}
@@ -522,7 +573,7 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
             <ul className="tasks">
               {featureTasks.map((t) => (
                 <li key={t.id} className="task">
-                  <input type="checkbox" aria-label={`Complete ${t.title}`} disabled={!canEdit} checked={false} onChange={() => taskActions.complete.mutate(t.id!)} />
+                  <input type="checkbox" aria-label={`Complete ${t.title}`} disabled={!canEdit} checked={false} onChange={() => void completeTask(t)} />
                   <div className="task-main"><span className="task-title">{t.title}</span>{t.due_date && <span className="task-meta">📅 {t.due_date}</span>}</div>
                 </li>
               ))}
@@ -533,7 +584,7 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
                 onSubmit={(e) => {
                   e.preventDefault();
                   const input = e.currentTarget.elements.namedItem("title") as HTMLInputElement;
-                  if (input.value.trim()) taskActions.create.mutate({ title: input.value.trim(), feature_id: current.id });
+                  if (input.value.trim()) void addTask({ title: input.value.trim(), feature_id: current.id });
                   input.value = "";
                 }}
               >

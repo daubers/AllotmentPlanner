@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { History } from "./history";
+import { History, type Step } from "./history";
 
 function counter() {
   const log: string[] = [];
@@ -65,5 +65,23 @@ describe("History", () => {
     while (await h.undo()) depth++;
     expect(depth).toBe(100);
     expect(n).toBeGreaterThan(100);
+  });
+});
+
+describe("History per object", () => {
+  it("undoes and redoes only the chosen object's step", async () => {
+    const h = new History();
+    const log: string[] = [];
+    const step = (id: number): Step => ({ label: `m${id}`, target: () => id, undo: async () => void log.push(`u${id}`), redo: async () => void log.push(`r${id}`) });
+    h.record(step(1));
+    h.record(step(2));
+    expect(h.undoLabelFor(1)).toBe("m1");
+    expect(await h.undo(1)).toBe(true);
+    expect(log).toEqual(["u1"]);
+    expect(h.undoLabel).toBe("m2"); // the other object's step is untouched
+    expect(h.undoLabelFor(1)).toBeNull();
+    expect(await h.redo(1)).toBe(true);
+    expect(log).toEqual(["u1", "r1"]);
+    expect(await h.undo(3)).toBe(false);
   });
 });
