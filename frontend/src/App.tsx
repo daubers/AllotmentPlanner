@@ -7,6 +7,7 @@ import AllotmentLayout from "./pages/AllotmentLayout";
 import Allotments from "./pages/Allotments";
 import LayersPage from "./pages/LayersPage";
 import Login from "./pages/Login";
+import NotesPage from "./pages/NotesPage";
 import OverviewPage from "./pages/OverviewPage";
 import PhotosPage from "./pages/PhotosPage";
 import BedPage from "./pages/BedPage";
@@ -61,6 +62,7 @@ export default function App() {
           <Route path="tasks" element={<TasksPage />} />
           <Route path="today" element={<TodayPage />} />
           <Route path="photos" element={<PhotosPage />} />
+          <Route path="notes" element={<NotesPage />} />
           <Route path="overview" element={<OverviewPage />} />
           <Route path="layers" element={<LayersPage />} />
           <Route path="seeds" element={<SeedsPage />} />

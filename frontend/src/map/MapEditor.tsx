@@ -3,6 +3,8 @@ import "@geoman-io/leaflet-geoman-free";
 import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import NoteList, { AddNote } from "../notes/NoteList";
+import { useNoteActions, useNotes, type Note } from "../notes/hooks";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { LayersControl, MapContainer, TileLayer, useMap } from "react-leaflet";
 import { api } from "../api/client";
@@ -447,6 +449,48 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
       redo: async () => void (id = (await create.mutateAsync(body)).id!),
     });
   };
+  const noteActions = useNoteActions(allotmentId);
+  const notes = useNotes(allotmentId, selected);
+  /** Adds a note to a feature, as an undoable step. Redo makes it again (new id), which undo then follows. */
+  const addNote = async (featureId: number, body: string) => {
+    let made: Note;
+    try {
+      made = await noteActions.create.mutateAsync({ feature_id: featureId, body });
+    } catch {
+      return;
+    }
+    let id = made.id!;
+    history.record({
+      label: "Add note",
+      target: () => featureId,
+      undo: async () => void (await noteActions.remove.mutateAsync(id)),
+      redo: async () => void (id = (await noteActions.create.mutateAsync({ feature_id: featureId, body, noted_at: made.noted_at })).id!),
+    });
+  };
+  const editNote = async (note: Note, patch: { body: string; noted_at: string }) => {
+    const before = { body: note.body ?? "", noted_at: note.noted_at! };
+    await noteActions.update.mutateAsync({ id: note.id!, body: patch });
+    history.record({
+      label: "Edit note",
+      target: () => note.feature_id!,
+      undo: async () => void (await noteActions.update.mutateAsync({ id: note.id!, body: before })),
+      redo: async () => void (await noteActions.update.mutateAsync({ id: note.id!, body: patch })),
+    });
+  };
+  const deleteNote = async (note: Note) => {
+    try {
+      await noteActions.remove.mutateAsync(note.id!);
+    } catch {
+      return;
+    }
+    let id = note.id!;
+    history.record({
+      label: "Delete note",
+      target: () => note.feature_id!,
+      undo: async () => void (id = (await noteActions.create.mutateAsync({ feature_id: note.feature_id!, body: note.body ?? "", noted_at: note.noted_at })).id!),
+      redo: async () => void (await noteActions.remove.mutateAsync(id)),
+    });
+  };
   const moveTasks = useCallback(
     async (moved: Task[], to: L.LatLng) => {
       const point = { type: "Point", coordinates: [to.lng, to.lat] };
@@ -593,6 +637,14 @@ export default function MapEditor({ allotmentId, canEdit }: Props) {
                 <button type="button" className="secondary" onClick={() => setTaskDialog(current.id)}>More…</button>
               </form>
             )}
+          </section>
+        )}
+        {current && (
+          <section className="panel-notes">
+            <h3>Notes</h3>
+            {notes.data?.length === 0 && <p className="muted">No notes yet.</p>}
+            <NoteList notes={notes.data ?? []} canEdit={canEdit} onEdit={editNote} onDelete={deleteNote} />
+            {canEdit && <AddNote onAdd={(body) => addNote(current.id, body)} />}
           </section>
         )}
         {taskDialog !== null && (

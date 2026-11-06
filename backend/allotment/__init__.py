@@ -15,6 +15,7 @@ from .api import (
     mastodon,
     measurements,
     media,
+    notes,
     overview,
     packet_scans,
     packets,
@@ -65,6 +66,7 @@ def create_app(config: type = Config) -> Flask:
     api.register_blueprint(limits.blp)
     api.register_blueprint(suggestions.blp)
     api.register_blueprint(measurements.blp)
+    api.register_blueprint(notes.blp)
     api.register_blueprint(mapping.blp)
     api.register_blueprint(mapping.tiles_blp)
 
