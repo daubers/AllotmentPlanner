@@ -3,7 +3,10 @@ import pytest
 from allotment.extensions import db
 from allotment.models import FeatureNote
 
-SQUARE = {"type": "Polygon", "coordinates": [[[0, 0], [0, 0.0001], [0.0001, 0.0001], [0.0001, 0], [0, 0]]]}
+SQUARE = {
+    "type": "Polygon",
+    "coordinates": [[[0, 0], [0, 0.0001], [0.0001, 0.0001], [0.0001, 0], [0, 0]]],
+}
 
 
 @pytest.fixture
@@ -29,7 +32,9 @@ def feature(client, plot, name="Bed 1"):
 
 def note(client, plot, fid, body="Sowed carrots", **extra):
     resp = client.post(
-        f"{plot['base']}/notes", json={"feature_id": fid, "body": body, **extra}, headers=plot["owner"]
+        f"{plot['base']}/notes",
+        json={"feature_id": fid, "body": body, **extra},
+        headers=plot["owner"],
     )
     assert resp.status_code == 201, resp.json
     return resp.json
@@ -38,9 +43,18 @@ def note(client, plot, fid, body="Sowed carrots", **extra):
 def test_create_edit_delete(client, plot):
     fid = feature(client, plot)
     made = note(client, plot, fid, "  Sowed carrots  ")
-    assert (made["body"], made["feature_id"], made["feature_name"], made["author"]) == ("Sowed carrots", fid, "Bed 1", "Owner")
+    assert (made["body"], made["feature_id"], made["feature_name"], made["author"]) == (
+        "Sowed carrots",
+        fid,
+        "Bed 1",
+        "Owner",
+    )
     url = f"{plot['base']}/notes/{made['id']}"
-    edited = client.patch(url, json={"body": "Sowed parsnips", "noted_at": "2026-11-01T09:30:00+00:00"}, headers=plot["owner"])
+    edited = client.patch(
+        url,
+        json={"body": "Sowed parsnips", "noted_at": "2026-11-01T09:30:00+00:00"},
+        headers=plot["owner"],
+    )
     assert edited.status_code == 200
     assert edited.json["body"] == "Sowed parsnips"
     assert edited.json["noted_at"].startswith("2026-11-01T09:30")
@@ -70,7 +84,9 @@ def test_roles(client, plot):
     url = f"{plot['base']}/notes/{made['id']}"
     body = {"feature_id": fid, "body": "x"}
     assert client.get(f"{plot['base']}/notes", headers=plot["viewer"]).status_code == 200
-    assert client.post(f"{plot['base']}/notes", json=body, headers=plot["viewer"]).status_code == 403
+    assert (
+        client.post(f"{plot['base']}/notes", json=body, headers=plot["viewer"]).status_code == 403
+    )
     assert client.patch(url, json={"body": "x"}, headers=plot["viewer"]).status_code == 403
     assert client.delete(url, headers=plot["viewer"]).status_code == 403
     assert client.get(f"{plot['base']}/notes", headers=plot["stranger"]).status_code == 404
@@ -78,21 +94,35 @@ def test_roles(client, plot):
 
 def test_body_is_required_and_not_empty(client, plot):
     fid = feature(client, plot)
-    resp = client.post(f"{plot['base']}/notes", json={"feature_id": fid, "body": ""}, headers=plot["owner"])
+    resp = client.post(
+        f"{plot['base']}/notes", json={"feature_id": fid, "body": ""}, headers=plot["owner"]
+    )
     assert resp.status_code == 422
 
 
 def test_other_allotments_features_and_notes_are_off_limits(client, register, plot):
     other_owner, _ = register("other@example.com", "Other")
     other = {"base": "", "owner": other_owner}
-    oid = client.post("/api/v1/allotments", json={"name": "Elsewhere"}, headers=other_owner).json["id"]
+    oid = client.post("/api/v1/allotments", json={"name": "Elsewhere"}, headers=other_owner).json[
+        "id"
+    ]
     other["base"] = f"/api/v1/allotments/{oid}"
     foreign = feature(client, other)
-    resp = client.post(f"{plot['base']}/notes", json={"feature_id": foreign, "body": "x"}, headers=plot["owner"])
+    resp = client.post(
+        f"{plot['base']}/notes", json={"feature_id": foreign, "body": "x"}, headers=plot["owner"]
+    )
     assert resp.status_code == 422
     theirs = note(client, other, foreign)
-    assert client.patch(f"{plot['base']}/notes/{theirs['id']}", json={"body": "x"}, headers=plot["owner"]).status_code == 404
-    assert client.delete(f"{plot['base']}/notes/{theirs['id']}", headers=plot["owner"]).status_code == 404
+    assert (
+        client.patch(
+            f"{plot['base']}/notes/{theirs['id']}", json={"body": "x"}, headers=plot["owner"]
+        ).status_code
+        == 404
+    )
+    assert (
+        client.delete(f"{plot['base']}/notes/{theirs['id']}", headers=plot["owner"]).status_code
+        == 404
+    )
 
 
 def test_deleting_the_feature_removes_its_notes(client, plot):
@@ -104,7 +134,11 @@ def test_deleting_the_feature_removes_its_notes(client, plot):
 
 def test_locked_feature_still_takes_notes(client, plot):
     fid = feature(client, plot)
-    client.patch(f"{plot['base']}/features/{fid}", json={"properties": {"locked": True}}, headers=plot["owner"])
+    client.patch(
+        f"{plot['base']}/features/{fid}",
+        json={"properties": {"locked": True}},
+        headers=plot["owner"],
+    )
     assert note(client, plot, fid)["id"]
 
 
