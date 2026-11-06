@@ -146,7 +146,7 @@ class Measurement(db.Model):
 
 
 class FeatureNote(db.Model):
-    """A dated note on a drawn feature. Any number a day; `noted_at` is when it is about, and can be changed."""
+    """A dated note on a feature. Any number a day; `noted_at` is when it is about, and editable."""
 
     __tablename__ = "feature_notes"
 

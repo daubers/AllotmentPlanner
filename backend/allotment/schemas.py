@@ -1119,7 +1119,11 @@ class DayListTasksSchema(Schema):
 class FeatureNoteInSchema(Schema):
     feature_id = fields.Integer(required=True)
     body = fields.String(required=True, validate=validate.Length(min=1, max=5000))
-    noted_at = fields.DateTime(load_default=None, allow_none=True, metadata={"description": "When it is about; now if left out"})
+    noted_at = fields.DateTime(
+        load_default=None,
+        allow_none=True,
+        metadata={"description": "When it is about; now if left out"},
+    )
 
 
 class FeatureNotePatchSchema(Schema):
@@ -1137,6 +1141,8 @@ class FeatureNoteSchema(Schema):
     feature_name = fields.String()
     body = fields.String()
     noted_at = fields.DateTime()
-    author = fields.String(allow_none=True, metadata={"description": "Display name of who wrote it"})
+    author = fields.String(
+        allow_none=True, metadata={"description": "Display name of who wrote it"}
+    )
     created_at = fields.DateTime()
     updated_at = fields.DateTime()
