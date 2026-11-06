@@ -1114,3 +1114,29 @@ class DayListTasksSchema(Schema):
     task_ids = fields.List(
         fields.Integer(), required=True, validate=validate.Length(min=1, max=500)
     )
+
+
+class FeatureNoteInSchema(Schema):
+    feature_id = fields.Integer(required=True)
+    body = fields.String(required=True, validate=validate.Length(min=1, max=5000))
+    noted_at = fields.DateTime(load_default=None, allow_none=True, metadata={"description": "When it is about; now if left out"})
+
+
+class FeatureNotePatchSchema(Schema):
+    body = fields.String(validate=validate.Length(min=1, max=5000))
+    noted_at = fields.DateTime()
+
+
+class FeatureNoteQuerySchema(Schema):
+    feature_id = fields.Integer()
+
+
+class FeatureNoteSchema(Schema):
+    id = fields.Integer()
+    feature_id = fields.Integer()
+    feature_name = fields.String()
+    body = fields.String()
+    noted_at = fields.DateTime()
+    author = fields.String(allow_none=True, metadata={"description": "Display name of who wrote it"})
+    created_at = fields.DateTime()
+    updated_at = fields.DateTime()

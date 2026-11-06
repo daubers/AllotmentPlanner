@@ -145,6 +145,29 @@ class Measurement(db.Model):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class FeatureNote(db.Model):
+    """A dated note on a drawn feature. Any number a day; `noted_at` is when it is about, and can be changed."""
+
+    __tablename__ = "feature_notes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    feature_id: Mapped[int] = mapped_column(
+        ForeignKey("map_features.id", ondelete="CASCADE"), index=True
+    )
+    body: Mapped[str] = mapped_column(Text)
+    noted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
+
+
 class TaskStatus(enum.StrEnum):
     TODO = "todo"
     DOING = "doing"

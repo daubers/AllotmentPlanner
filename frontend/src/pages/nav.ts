@@ -6,7 +6,7 @@ export const NAV: NavGroup[] = [
   { key: "plot", label: "Plot", pages: [{ to: "", label: "Map", end: true }, { to: "layers", label: "Map from photos" }] },
   { key: "grow", label: "Grow", pages: [{ to: "seeds", label: "Seeds" }, { to: "trays", label: "Trays" }, { to: "beds", label: "Beds" }] },
   { key: "work", label: "Work", pages: [{ to: "today", label: "Today" }, { to: "tasks", label: "Tasks" }] },
-  { key: "record", label: "Record", pages: [{ to: "photos", label: "Photos" }, { to: "overview", label: "Overview" }] },
+  { key: "record", label: "Record", pages: [{ to: "photos", label: "Photos" }, { to: "notes", label: "Notes" }, { to: "overview", label: "Overview" }] },
 ];
 
 /** The first path segment after /allotments/:id ("" for the map itself). */

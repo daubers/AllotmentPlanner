@@ -65,6 +65,24 @@ test("register, draw a bed, pin a task to it, complete it", async ({ page }) => 
   await expect(page.getByText("Water the beans")).toBeVisible();
   await expect(page.locator(".task-pin")).toHaveCount(1);
 
+  // Notes on the feature: several in a day, each editable and removable, and on the Notes page too.
+  await page.getByLabel("New note").fill("Sowed the first row");
+  await page.getByRole("button", { name: "Add note" }).click();
+  await expect(page.getByText("Sowed the first row")).toBeVisible();
+  await page.getByLabel("New note").fill("Watered it in");
+  await page.getByRole("button", { name: "Add note" }).click();
+  await expect(page.locator(".panel-notes .note")).toHaveCount(2);
+  await page.locator(".panel-notes .note", { hasText: "Watered it in" }).getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Note", { exact: true }).fill("Watered it in well");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Watered it in well")).toBeVisible();
+  await openPage(page, "Record", "Notes");
+  await expect(page.locator(".note-day .note")).toHaveCount(2);
+  await expect(page.locator(".note-day .note").first().locator(".note-feature")).toHaveText("Bed 1");
+  await page.locator(".note", { hasText: "Sowed the first row" }).getByRole("button", { name: "Delete" }).click();
+  await expect(page.locator(".note-day .note")).toHaveCount(1);
+  await openPage(page, "Plot", "Map");
+
   // The Today sheet: undated jobs are hidden until asked for, then listed under their bed,
   // and the print stylesheet strips the app chrome. The PDF is kept for eyeballing.
   await openPage(page, "Work", "Today");

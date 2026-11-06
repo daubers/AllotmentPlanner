@@ -3731,6 +3731,160 @@
         }
       ]
     },
+    "/api/v1/allotments/{allotment_id}/notes": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "feature_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FeatureNote"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Notes, newest first; `feature_id` narrows to one feature.",
+        "tags": [
+          "notes"
+        ]
+      },
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureNote"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeatureNoteIn"
+              }
+            }
+          }
+        },
+        "summary": "Add a note to a feature.",
+        "tags": [
+          "notes"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/notes/{note_id}": {
+      "patch": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureNote"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeatureNotePatch"
+              }
+            }
+          }
+        },
+        "summary": "Change a note's text or the time it is about.",
+        "tags": [
+          "notes"
+        ]
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Delete a note.",
+        "tags": [
+          "notes"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "note_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
     "/api/v1/allotments/{allotment_id}/map-jobs": {
       "get": {
         "responses": {
@@ -4194,6 +4348,10 @@
     {
       "name": "measurements",
       "description": "Measuring checklist: distances taken on site that correct the drawn shapes"
+    },
+    {
+      "name": "notes",
+      "description": "Dated notes on map features, any number a day"
     },
     {
       "name": "mapping",
@@ -7331,6 +7489,81 @@
             "items": {
               "$ref": "#/components/schemas/FitFeature"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "FeatureNote": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "feature_id": {
+            "type": "integer"
+          },
+          "feature_name": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "noted_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "author": {
+            "type": "string",
+            "description": "Display name of who wrote it",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FeatureNoteIn": {
+        "type": "object",
+        "properties": {
+          "feature_id": {
+            "type": "integer"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "noted_at": {
+            "type": "string",
+            "format": "date-time",
+            "default": null,
+            "description": "When it is about; now if left out",
+            "nullable": true
+          }
+        },
+        "required": [
+          "body",
+          "feature_id"
+        ],
+        "additionalProperties": false
+      },
+      "FeatureNotePatch": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "noted_at": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "additionalProperties": false
