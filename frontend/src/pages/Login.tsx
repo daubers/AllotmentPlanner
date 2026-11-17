@@ -12,6 +12,11 @@ export const SSO_ERRORS: Record<string, string> = {
   expired: "That sign-in took too long. Please try again.",
   invalid_state: "That sign-in could not be completed in this browser. Please try again.",
   provider_unreachable: "The sign-in provider could not be reached. Try again in a moment.",
+  already_linked: "That login at the provider is already linked to a different account here.",
+  provider_already_linked: "You already have a login linked from that provider. Unlink it first to use another.",
+  link_expired: "That link request took too long. Please try again.",
+  invalid_id_token: "The provider's reply could not be checked. Please try again.",
+  token_exchange_failed: "The provider refused the sign-in. Please try again.",
 };
 export const ssoError = (code: string | null): string | null =>
   code ? (SSO_ERRORS[code] ?? "Sign-in failed. Please try again.") : null;

@@ -3895,7 +3895,7 @@
             "description": "Redirects to the provider, or back to the app"
           }
         },
-        "summary": "Send the browser to the provider to sign in.",
+        "summary": "Send the browser to the provider to sign in (or, with `link`, to link a login).",
         "tags": [
           "oidc"
         ],
@@ -3921,6 +3921,13 @@
           {
             "in": "query",
             "name": "redirect",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link",
             "schema": {
               "type": "string"
             }
@@ -4001,6 +4008,90 @@
           "oidc"
         ]
       }
+    },
+    "/api/v1/auth/oidc/identities": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthMethods"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "The ways the signed-in user can sign in.",
+        "tags": [
+          "oidc"
+        ]
+      }
+    },
+    "/api/v1/auth/oidc/identities/{identity_id}": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Unlink a provider. Refused if it is the only way left to sign in.",
+        "tags": [
+          "oidc"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "identity_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/auth/oidc/{provider_id}/link": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OidcLinkStart"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Begin linking a provider to the signed-in account; go to the returned `url`.",
+        "tags": [
+          "oidc"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "provider_id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ]
     },
     "/api/v1/allotments/{allotment_id}/tasks/{task_id}/comments": {
       "get": {
@@ -7885,6 +7976,56 @@
         "required": [
           "code"
         ],
+        "additionalProperties": false
+      },
+      "OidcIdentity": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "provider_name": {
+            "type": "string",
+            "description": "Null when the server no longer offers this provider",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AuthMethods": {
+        "type": "object",
+        "properties": {
+          "has_password": {
+            "type": "boolean"
+          },
+          "identities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OidcIdentity"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "OidcLinkStart": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Send the browser here to link; works once, briefly"
+          }
+        },
         "additionalProperties": false
       },
       "TaskComment": {
