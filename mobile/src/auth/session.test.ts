@@ -1,4 +1,4 @@
-import { Session, normaliseServerUrl, secondsLeft, type KeyValueStore } from "./session";
+import { Session, normaliseServerUrl, parseSignInResult, secondsLeft, signInUrl, ssoMessage, type KeyValueStore } from "./session";
 
 function memory(): KeyValueStore & { data: Map<string, string> } {
   const data = new Map<string, string>();
@@ -88,4 +88,44 @@ test("going offline during a refresh keeps the login; a refused refresh signs ou
   await refused.authHeader();
   expect(refused.signedIn).toBe(false);
   expect(expired).toHaveBeenCalledTimes(1);
+});
+
+test("the sign-in address asks the server to send the phone back to the app", () => {
+  expect(signInUrl("https://plot.example.com", "authentik")).toBe(
+    "https://plot.example.com/api/v1/auth/oidc/authentik/login?client=mobile&redirect=allotment%3A%2F%2Fauth",
+  );
+});
+
+test("a finished sign-in gives a code, or says what went wrong", () => {
+  expect(parseSignInResult("allotment://auth?code=abc123")).toEqual({ code: "abc123" });
+  expect(parseSignInResult("allotment://auth?error=not_invited")).toEqual({ error: "not_invited" });
+  expect(parseSignInResult("allotment://auth")).toEqual({ error: "failed" });
+  expect(parseSignInResult("allotment://auth?code=a%2Bb#frag")).toEqual({ code: "a+b" });
+  expect(ssoMessage("not_invited")).toMatch(/no account/);
+  expect(ssoMessage("something_new")).toMatch(/Sign-in failed/);
+});
+
+test("single sign-on providers come from the server's config, and a dead server just has none", async () => {
+  const offered = new Session(memory(), jest.fn().mockResolvedValue(json(200, { registration: "invite", oidc: [{ id: "google", name: "Google" }, { id: "", name: "broken" }] })));
+  expect(await offered.providers("plot.example.com")).toEqual([{ id: "google", name: "Google" }]);
+  const down = new Session(memory(), jest.fn().mockRejectedValue(new Error("offline")));
+  expect(await down.providers("plot.example.com")).toEqual([]);
+  expect(await new Session(memory(), jest.fn()).providers("")).toEqual([]);
+});
+
+test("a one-time code is swapped for a login that is saved like a password login", async () => {
+  const store = memory();
+  const fetchImpl = jest.fn().mockResolvedValue(json(200, { access_token: jwt(900), refresh_token: "r" }));
+  const session = new Session(store, fetchImpl);
+  await session.loginWithCode("plot.example.com", "one-time");
+  expect(fetchImpl.mock.calls[0][0]).toBe("http://plot.example.com/api/v1/auth/oidc/exchange");
+  expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({ code: "one-time" });
+  expect(session.signedIn).toBe(true);
+  expect(store.data.get("allotment.server")).toBe("http://plot.example.com");
+});
+
+test("an expired code asks the person to try again", async () => {
+  const session = new Session(memory(), jest.fn().mockResolvedValue(json(401, { message: "expired" })));
+  await expect(session.loginWithCode("plot.example.com", "old")).rejects.toThrow(/expired/);
+  expect(session.signedIn).toBe(false);
 });

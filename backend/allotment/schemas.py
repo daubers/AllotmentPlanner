@@ -85,8 +85,20 @@ class InviteSchema(Schema):
     expires_in_days = fields.Integer()
 
 
+class OidcProviderSchema(Schema):
+    id = fields.String(metadata={"description": "Used in /auth/oidc/<id>/login"})
+    name = fields.String(metadata={"description": "What the sign-in button says"})
+
+
 class AuthConfigSchema(Schema):
     registration = fields.String(metadata={"description": "open or invite"})
+    oidc = fields.List(
+        fields.Nested(OidcProviderSchema), metadata={"description": "Single sign-on providers"}
+    )
+
+
+class OidcExchangeSchema(Schema):
+    code = fields.String(required=True, validate=validate.Length(min=1, max=200))
 
 
 class MemberUpdateSchema(Schema):
