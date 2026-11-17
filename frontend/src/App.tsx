@@ -7,6 +7,7 @@ import AllotmentLayout from "./pages/AllotmentLayout";
 import Allotments from "./pages/Allotments";
 import LayersPage from "./pages/LayersPage";
 import Login from "./pages/Login";
+import OidcCallback from "./pages/OidcCallback";
 import NotesPage from "./pages/NotesPage";
 import OverviewPage from "./pages/OverviewPage";
 import PhotosPage from "./pages/PhotosPage";
@@ -52,6 +53,7 @@ export default function App() {
       )}
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/auth/callback" element={<OidcCallback />} />
         <Route path="/" element={<Home />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/admin" element={<Protected><AdminPage /></Protected>} />

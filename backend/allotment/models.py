@@ -38,7 +38,8 @@ class User(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     display_name: Mapped[str] = mapped_column(String(100))
-    password_hash: Mapped[str] = mapped_column(String(255))
+    # Null for someone who has only signed in through an OIDC provider.
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Can open the admin page (worker state, jobs, logs). Set with `flask make-admin`.
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
@@ -46,6 +47,34 @@ class User(db.Model):
     memberships: Mapped[list["Membership"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+
+
+class OidcIdentity(db.Model):
+    """A login at an OIDC provider, tied to a user. `subject` is the provider's id for them."""
+
+    __tablename__ = "oidc_identities"
+    __table_args__ = (UniqueConstraint("provider", "subject", name="uq_oidc_provider_subject"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(64))
+    subject: Mapped[str] = mapped_column(String(255))
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class OidcLoginCode(db.Model):
+    """A one-time code the browser or phone swaps for tokens, so tokens never travel in a URL.
+
+    Only a hash is stored. It is deleted when used and is worthless after `expires_at`.
+    """
+
+    __tablename__ = "oidc_login_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
 class Allotment(db.Model):

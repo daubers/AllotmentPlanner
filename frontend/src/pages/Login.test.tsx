@@ -85,4 +85,42 @@ describe("Login", () => {
       }),
     );
   });
+
+  describe("single sign-on", () => {
+    it("offers a button for each provider", async () => {
+      get.mockResolvedValue({ data: { registration: "invite", oidc: [{ id: "authentik", name: "Authentik" }, { id: "google", name: "Google" }] } });
+      setup();
+      const link = await screen.findByRole("link", { name: "Sign in with Authentik" });
+      expect(link).toHaveAttribute("href", "/api/v1/auth/oidc/authentik/login?client=web");
+      expect(screen.getByRole("link", { name: "Sign in with Google" })).toBeInTheDocument();
+    });
+
+    it("carries an invite code through to the provider", async () => {
+      get.mockResolvedValue({ data: { registration: "invite", oidc: [{ id: "authentik", name: "Authentik" }] } });
+      setup("/login?invite=abc.def");
+      expect(await screen.findByRole("link", { name: "Sign in with Authentik" })).toHaveAttribute(
+        "href",
+        "/api/v1/auth/oidc/authentik/login?client=web&invite=abc.def",
+      );
+    });
+
+    it("shows no buttons when no provider is set up", async () => {
+      get.mockResolvedValue({ data: { registration: "open", oidc: [] } });
+      setup();
+      await waitFor(() => expect(get).toHaveBeenCalled());
+      expect(screen.queryByRole("group", { name: "Single sign-on" })).not.toBeInTheDocument();
+    });
+
+    it("explains why a sign-in was turned away", () => {
+      get.mockResolvedValue({ data: { registration: "invite" } });
+      setup("/login?error=not_invited");
+      expect(screen.getByRole("alert")).toHaveTextContent("no account for that address");
+    });
+
+    it("has a plain message for an error it does not know", () => {
+      get.mockResolvedValue({ data: { registration: "invite" } });
+      setup("/login?error=something_new");
+      expect(screen.getByRole("alert")).toHaveTextContent("Sign-in failed");
+    });
+  });
 });

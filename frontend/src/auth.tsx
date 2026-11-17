@@ -8,6 +8,8 @@ type AuthState = {
   loading: boolean;
   login(email: string, password: string): Promise<string | null>;
   register(email: string, displayName: string, password: string, inviteCode?: string): Promise<string | null>;
+  /** Finish a single sign-on: swap the one-time code the provider flow ended with for a login. */
+  oidcLogin(code: string): Promise<string | null>;
   logout(): void;
 };
 
@@ -51,6 +53,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       async login(email, password) {
         const { data, error } = await api.POST("/api/v1/auth/login", { body: { email, password } });
         if (!data) return errorMessage(error, "Login failed");
+        setSession({ access_token: data.access_token!, refresh_token: data.refresh_token! });
+        setUser(data.user ?? null);
+        return null;
+      },
+      async oidcLogin(code) {
+        const { data, error } = await api.POST("/api/v1/auth/oidc/exchange", { body: { code } });
+        if (!data) return errorMessage(error, "Sign-in failed");
         setSession({ access_token: data.access_token!, refresh_token: data.refresh_token! });
         setUser(data.user ?? null);
         return null;

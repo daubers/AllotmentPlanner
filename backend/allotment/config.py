@@ -1,5 +1,65 @@
+import json
 import os
 from datetime import timedelta
+
+import structlog
+
+_log = structlog.get_logger(__name__)
+
+# Where "sign in with ..." can send people: a standard OpenID Connect issuer, or a preset.
+OIDC_PRESETS = {
+    "google": {"name": "Google", "issuer": "https://accounts.google.com"},
+    # {tenant} is a tenant id, or "organizations" / "consumers". Not "common": its tokens name the
+    # real tenant, so they would not match the issuer.
+    "microsoft": {"name": "Microsoft", "issuer": "https://login.microsoftonline.com/{tenant}/v2.0"},
+}
+
+
+def parse_oidc_providers(raw: str | None) -> list[dict]:
+    """Read the OIDC_PROVIDERS setting (a JSON list) into complete provider entries.
+
+    An entry that is incomplete is skipped with a warning, so a typo never takes the server down.
+    """
+    if not raw or not raw.strip():
+        return []
+    try:
+        entries = json.loads(raw)
+        if not isinstance(entries, list):
+            raise ValueError("expected a list")
+    except ValueError as exc:
+        _log.warning("oidc_providers_invalid", error=str(exc))
+        return []
+    providers = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        preset = OIDC_PRESETS.get(str(entry.get("preset", "")).lower(), {})
+        issuer = entry.get("issuer") or preset.get("issuer", "")
+        needs_tenant = "{tenant}" in issuer
+        tenant = str(entry.get("tenant", "")).strip("/ ")
+        if needs_tenant and tenant:
+            issuer = issuer.replace("{tenant}", tenant)
+        provider = {
+            "id": str(entry.get("id") or entry.get("preset") or "").lower(),
+            "name": entry.get("name") or preset.get("name") or str(entry.get("id", "")),
+            "issuer": issuer.rstrip("/"),
+            "client_id": entry.get("client_id", ""),
+            "client_secret": entry.get("client_secret", ""),
+            "scopes": entry.get("scopes") or "openid email profile",
+        }
+        missing = [k for k in ("id", "issuer", "client_id", "client_secret") if not provider[k]]
+        if missing or (needs_tenant and not tenant) or "//" not in issuer:
+            _log.warning(
+                "oidc_provider_skipped",
+                id=provider["id"],
+                missing=missing + (["tenant"] if needs_tenant and not tenant else []),
+            )
+            continue
+        if any(p["id"] == provider["id"] for p in providers):
+            _log.warning("oidc_provider_duplicate", id=provider["id"])
+            continue
+        providers.append(provider)
+    return providers
 
 
 class Config:
@@ -49,6 +109,23 @@ class Config:
     # (to bootstrap an empty server) and people holding an invite from an allotment owner.
     REGISTRATION = os.environ.get("REGISTRATION", "open").lower()
     INVITE_TTL_DAYS = int(os.environ.get("INVITE_TTL_DAYS", "7"))
+    # Single sign-on. OIDC_PROVIDERS is a JSON list, e.g.
+    #   [{"id": "authentik", "name": "Authentik",
+    #     "issuer": "https://auth.example.com/application/o/allotment/",
+    #     "client_id": "...", "client_secret": "..."},
+    #    {"preset": "google", "client_id": "...", "client_secret": "..."}]
+    # Register {PUBLIC_URL}/api/v1/auth/oidc/<id>/callback as the redirect URI at each provider.
+    OIDC_PROVIDERS = parse_oidc_providers(os.environ.get("OIDC_PROVIDERS"))
+    # The address people use to reach the site (https://plot.example.com); redirect URIs use it.
+    PUBLIC_URL = os.environ.get("PUBLIC_URL", "").rstrip("/")
+    # Where the phone app may be sent back to after signing in (comma separated).
+    OIDC_MOBILE_REDIRECTS = [
+        u.strip()
+        for u in os.environ.get("OIDC_MOBILE_REDIRECTS", "allotment://auth").split(",")
+        if u.strip()
+    ]
+    OIDC_STATE_TTL_SECONDS = 600
+    OIDC_CODE_TTL_SECONDS = 60
     API_TITLE = "Allotment Planner API"
     API_VERSION = "v1"
     OPENAPI_VERSION = "3.0.3"

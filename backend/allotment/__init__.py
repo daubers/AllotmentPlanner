@@ -16,6 +16,7 @@ from .api import (
     measurements,
     media,
     notes,
+    oidc,
     overview,
     packet_scans,
     packets,
@@ -68,6 +69,7 @@ def create_app(config: type = Config) -> Flask:
     api.register_blueprint(suggestions.blp)
     api.register_blueprint(measurements.blp)
     api.register_blueprint(notes.blp)
+    api.register_blueprint(oidc.blp)
     api.register_blueprint(task_comments.blp)
     api.register_blueprint(mapping.blp)
     api.register_blueprint(mapping.tiles_blp)

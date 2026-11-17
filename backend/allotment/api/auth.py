@@ -39,7 +39,12 @@ class AuthConfig(MethodView):
     @blp.response(200, AuthConfigSchema)
     def get(self):
         """How accounts can be created here, so the sign-in page can ask for an invite code."""
-        return {"registration": current_app.config["REGISTRATION"]}
+        return {
+            "registration": current_app.config["REGISTRATION"],
+            "oidc": [
+                {"id": p["id"], "name": p["name"]} for p in current_app.config["OIDC_PROVIDERS"]
+            ],
+        }
 
 
 @blp.route("/register")

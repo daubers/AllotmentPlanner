@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import * as WebBrowser from "expo-web-browser";
+import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LoginError } from "../src/auth/session";
+import { LoginError, normaliseServerUrl, parseSignInResult, signInUrl, ssoMessage, SSO_REDIRECT, type Provider } from "../src/auth/session";
 import { useApp } from "../src/state/AppProvider";
 import { Banner, Button, Card, Field, T } from "../src/ui/kit";
 import { Logo } from "../src/ui/Logo";
@@ -16,6 +17,39 @@ export default function Login() {
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [providers, setProviders] = useState<Provider[]>([]);
+
+  // Ask the server which single sign-on providers it has, once the address looks complete.
+  useEffect(() => {
+    let current = true;
+    setProviders([]);
+    if (!server.trim()) return;
+    const wait = setTimeout(() => void session.providers(server).then((list) => current && setProviders(list)), 600);
+    return () => {
+      current = false;
+      clearTimeout(wait);
+    };
+  }, [server, session]);
+
+  async function signInWith(provider: Provider) {
+    setBusy(true);
+    setError(null);
+    try {
+      const base = normaliseServerUrl(server);
+      const result = await WebBrowser.openAuthSessionAsync(signInUrl(base, provider.id), SSO_REDIRECT);
+      if (result.type !== "success") return; // closed without finishing: nothing to report
+      const { code, error: failure } = parseSignInResult(result.url);
+      if (!code) {
+        setError(ssoMessage(failure ?? "failed"));
+        return;
+      }
+      await session.loginWithCode(server, code);
+    } catch (err) {
+      setError(err instanceof LoginError ? err.message : "Something went wrong signing in");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function submit() {
     setBusy(true);
@@ -63,6 +97,9 @@ export default function Login() {
               </View>
               {error ? <Banner tone="danger" text={error} /> : null}
               <Button label="Sign in" onPress={submit} busy={busy} disabled={!server || !email || !password} />
+              {providers.map((p2) => (
+                <Button key={p2.id} label={`Sign in with ${p2.name}`} kind="secondary" onPress={() => void signInWith(p2)} disabled={busy} />
+              ))}
             </View>
           </Card>
         </ScrollView>

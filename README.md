@@ -194,6 +194,7 @@ To bring someone in, an allotment owner opens **Settings → Invite someone**, e
 - An invite is tied to one email address and expires after `INVITE_TTL_DAYS` (7). It cannot be used for another address, and once that address has an account it is spent. It is a signed code, not a database row, so it cannot be revoked individually; rotating `JWT_SECRET_KEY` cancels every outstanding invite (and signs everyone out).
 - People who already have an account are added with the members API instead (`POST /api/v1/allotments/{id}/members`).
 - With `REGISTRATION=open` anyone who can reach the server can still create an empty account, though they see nothing of other people's allotments. Use that only on a private network.
+- **Single sign-on** (OpenID Connect) can sit beside passwords: set `OIDC_PROVIDERS` and `PUBLIC_URL`, see [docs/oidc.md](docs/oidc.md). It follows the same rule: a provider sign-in only works for someone who already has an account or holds an invite.
 
 ### 6. Workers on other machines
 

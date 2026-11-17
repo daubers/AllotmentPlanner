@@ -3885,6 +3885,123 @@
         }
       ]
     },
+    "/api/v1/auth/oidc/{provider_id}/login": {
+      "get": {
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          },
+          "302": {
+            "description": "Redirects to the provider, or back to the app"
+          }
+        },
+        "summary": "Send the browser to the provider to sign in.",
+        "tags": [
+          "oidc"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "client",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "web",
+                "mobile"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "invite",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "redirect",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "provider_id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ]
+    },
+    "/api/v1/auth/oidc/{provider_id}/callback": {
+      "get": {
+        "responses": {
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          },
+          "302": {
+            "description": "Redirects to the provider, or back to the app"
+          }
+        },
+        "summary": "Where the provider sends the browser back; ends by redirecting with a one-time code.",
+        "tags": [
+          "oidc"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "provider_id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ]
+    },
+    "/api/v1/auth/oidc/exchange": {
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OidcExchange"
+              }
+            }
+          }
+        },
+        "summary": "Swap the one-time code from the redirect for the app's own tokens.",
+        "tags": [
+          "oidc"
+        ]
+      }
+    },
     "/api/v1/allotments/{allotment_id}/tasks/{task_id}/comments": {
       "get": {
         "responses": {
@@ -4513,6 +4630,10 @@
       "description": "Dated notes on map features, any number a day"
     },
     {
+      "name": "oidc",
+      "description": "Sign in with an OpenID Connect provider (single sign-on)"
+    },
+    {
       "name": "task_comments",
       "description": "Timestamped comments on a task, each able to report a status"
     },
@@ -4585,12 +4706,33 @@
         },
         "additionalProperties": false
       },
+      "OidcProvider": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Used in /auth/oidc/<id>/login"
+          },
+          "name": {
+            "type": "string",
+            "description": "What the sign-in button says"
+          }
+        },
+        "additionalProperties": false
+      },
       "AuthConfig": {
         "type": "object",
         "properties": {
           "registration": {
             "type": "string",
             "description": "open or invite"
+          },
+          "oidc": {
+            "type": "array",
+            "description": "Single sign-on providers",
+            "items": {
+              "$ref": "#/components/schemas/OidcProvider"
+            }
           }
         },
         "additionalProperties": false
@@ -7729,6 +7871,20 @@
             "format": "date-time"
           }
         },
+        "additionalProperties": false
+      },
+      "OidcExchange": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "code"
+        ],
         "additionalProperties": false
       },
       "TaskComment": {

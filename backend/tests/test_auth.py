@@ -75,7 +75,7 @@ def _signup(client, email="b@example.com", **extra):
 
 
 def test_auth_config_defaults_to_open(client):
-    assert client.get("/api/v1/auth/config").json == {"registration": "open"}
+    assert client.get("/api/v1/auth/config").json == {"registration": "open", "oidc": []}
 
 
 @pytest.fixture
@@ -84,7 +84,7 @@ def invite_only(app):
 
 
 def test_invite_only_allows_first_account_then_closes(client, invite_only):
-    assert client.get("/api/v1/auth/config").json == {"registration": "invite"}
+    assert client.get("/api/v1/auth/config").json == {"registration": "invite", "oidc": []}
     assert _signup(client, "first@example.com").status_code == 201
     resp = _signup(client, "second@example.com")
     assert resp.status_code == 403

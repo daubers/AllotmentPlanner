@@ -3566,6 +3566,130 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/auth/oidc/{provider_id}/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        /** Send the browser to the provider to sign in. */
+        get: {
+            parameters: {
+                query?: {
+                    client?: "web" | "mobile";
+                    invite?: string;
+                    redirect?: string;
+                };
+                header?: never;
+                path: {
+                    provider_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Redirects to the provider, or back to the app */
+                302: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/oidc/{provider_id}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        /** Where the provider sends the browser back; ends by redirecting with a one-time code. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    provider_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Redirects to the provider, or back to the app */
+                302: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/oidc/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Swap the one-time code from the redirect for the app's own tokens. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["OidcExchange"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Token"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/allotments/{allotment_id}/tasks/{task_id}/comments": {
         parameters: {
             query?: never;
@@ -4127,9 +4251,17 @@ export interface components {
             /** @description Next page number. */
             next_page?: number;
         };
+        OidcProvider: {
+            /** @description Used in /auth/oidc/<id>/login */
+            id?: string;
+            /** @description What the sign-in button says */
+            name?: string;
+        };
         AuthConfig: {
             /** @description open or invite */
             registration?: string;
+            /** @description Single sign-on providers */
+            oidc?: components["schemas"]["OidcProvider"][];
         };
         Register: {
             /** Format: email */
@@ -5159,6 +5291,9 @@ export interface components {
             body?: string;
             /** Format: date-time */
             noted_at?: string;
+        };
+        OidcExchange: {
+            code: string;
         };
         TaskComment: {
             id?: number;

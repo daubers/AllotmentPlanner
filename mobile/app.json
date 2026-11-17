@@ -67,7 +67,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#F1F4EE"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "scheme": "allotment",
     "web": {

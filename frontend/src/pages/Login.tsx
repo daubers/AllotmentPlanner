@@ -3,17 +3,34 @@ import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth";
 
+/** What to say when single sign-on sends someone back with `?error=`. */
+export const SSO_ERRORS: Record<string, string> = {
+  not_invited: "There is no account for that address. Ask for an invite, then sign in with the same email.",
+  email_unverified: "The provider has not verified that email address, so it can't be used to sign in.",
+  no_email: "The provider did not share an email address.",
+  denied: "Sign-in was cancelled or refused at the provider.",
+  expired: "That sign-in took too long. Please try again.",
+  invalid_state: "That sign-in could not be completed in this browser. Please try again.",
+  provider_unreachable: "The sign-in provider could not be reached. Try again in a moment.",
+};
+export const ssoError = (code: string | null): string | null =>
+  code ? (SSO_ERRORS[code] ?? "Sign-in failed. Please try again.") : null;
+
 export default function Login() {
   const { user, login, register } = useAuth();
   const [params] = useSearchParams();
   const invite = params.get("invite") ?? "";
   const [mode, setMode] = useState<"login" | "register">(invite || params.get("register") ? "register" : "login");
   const [inviteOnly, setInviteOnly] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [providers, setProviders] = useState<{ id?: string; name?: string }[]>([]);
+  const [error, setError] = useState<string | null>(ssoError(params.get("error")));
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    void Promise.resolve(api.GET("/api/v1/auth/config")).then((r) => setInviteOnly(r?.data?.registration === "invite"));
+    void Promise.resolve(api.GET("/api/v1/auth/config")).then((r) => {
+      setInviteOnly(r?.data?.registration === "invite");
+      setProviders(r?.data?.oidc ?? []);
+    });
   }, []);
 
   if (user) return <Navigate to="/" replace />;
@@ -62,6 +79,20 @@ export default function Login() {
         )}
         {error && <p role="alert" className="error">{error}</p>}
         <button type="submit" disabled={busy}>{mode === "login" ? "Sign in" : "Register"}</button>
+        {providers.length > 0 && (
+          <div className="sso" role="group" aria-label="Single sign-on">
+            <span className="hint">or</span>
+            {providers.map((p) => (
+              <a
+                key={p.id}
+                className="button secondary"
+                href={`/api/v1/auth/oidc/${encodeURIComponent(p.id ?? "")}/login?client=web${invite ? `&invite=${encodeURIComponent(invite)}` : ""}`}
+              >
+                Sign in with {p.name}
+              </a>
+            ))}
+          </div>
+        )}
         <button type="button" className="link" onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(null); }}>
           {mode === "login" ? "Need an account? Register" : "Have an account? Sign in"}
         </button>

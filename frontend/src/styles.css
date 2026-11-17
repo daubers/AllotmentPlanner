@@ -482,3 +482,6 @@ a.button.secondary { background: none; color: var(--accent); border: 1px solid v
 .add-comment { display: grid; gap: .5rem; }
 .add-comment .row { display: flex; flex-wrap: wrap; gap: .75rem; }
 .add-comment .row label { flex: 1 1 10rem; }
+
+.sso { display: grid; gap: .5rem; justify-items: stretch; text-align: center; }
+.sso a.button { display: block; padding: .5rem .75rem; border: 1px solid var(--border); border-radius: 6px; text-decoration: none; color: inherit; }
