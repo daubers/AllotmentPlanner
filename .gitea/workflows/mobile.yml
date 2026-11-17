@@ -16,7 +16,8 @@ concurrency:
 
 jobs:
   android:
-    runs-on: ubuntu-latest
+    # The Android toolchain is x86-64 only; arm64 runners also carry ubuntu-latest, so pin to amd64.
+    runs-on: [ubuntu-latest, linux-amd64]
     timeout-minutes: 60
     defaults:
       run:
