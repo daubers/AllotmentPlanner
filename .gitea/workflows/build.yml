@@ -13,7 +13,9 @@ jobs:
   # Images build in parallel with the `test` workflow (which has the tests and lint). Only a
   # release tag is deployed, and trigger-deploy below waits for `test` to pass on that tag.
   image:
-    runs-on: ubuntu-latest
+    # The images run on the x86-64 server and are built for whatever the runner is, so pin to amd64
+    # (arm64 runners also carry ubuntu-latest and would push arm64 images).
+    runs-on: [ubuntu-latest, linux-amd64]
     timeout-minutes: 60
     strategy:
       matrix:

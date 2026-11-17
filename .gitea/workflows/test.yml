@@ -76,7 +76,8 @@ jobs:
           git diff --exit-code src/api/schema.d.ts
 
   mobile:
-    runs-on: ubuntu-latest
+    # Hermes' compiler (hermesc) is an x86-64 binary: arm64 runners also carry ubuntu-latest, so pin to amd64.
+    runs-on: [ubuntu-latest, linux-amd64]
     timeout-minutes: 20
     defaults:
       run:
