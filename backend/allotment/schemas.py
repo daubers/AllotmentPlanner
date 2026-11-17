@@ -97,6 +97,28 @@ class AuthConfigSchema(Schema):
     )
 
 
+class OidcIdentitySchema(Schema):
+    id = fields.Integer()
+    provider = fields.String()
+    provider_name = fields.String(
+        allow_none=True,
+        metadata={"description": "Null when the server no longer offers this provider"},
+    )
+    email = fields.String(allow_none=True)
+    created_at = fields.DateTime()
+
+
+class AuthMethodsSchema(Schema):
+    has_password = fields.Boolean()
+    identities = fields.List(fields.Nested(OidcIdentitySchema))
+
+
+class OidcLinkStartSchema(Schema):
+    url = fields.String(
+        metadata={"description": "Send the browser here to link; works once, briefly"}
+    )
+
+
 class OidcExchangeSchema(Schema):
     code = fields.String(required=True, validate=validate.Length(min=1, max=200))
 

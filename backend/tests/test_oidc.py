@@ -395,6 +395,231 @@ def test_a_failed_sign_in_is_recorded(client, idp):
     assert seen == [{"provider": "idp", "reason": "not_invited"}]
 
 
+# --- linking and unlinking a provider from a signed-in account ---------------------------------
+
+
+def start_link(client, headers, provider="idp"):
+    """Ask to link (signed in), then follow the returned address to the provider."""
+    resp = client.post(f"/api/v1/auth/oidc/{provider}/link", headers=headers)
+    assert resp.status_code == 200, resp.json
+    go = client.get(resp.json["url"])
+    assert go.status_code == 302
+    return (
+        resp.json["url"],
+        go,
+        {k: v[0] for k, v in parse_qs(urlparse(go.headers["Location"]).query).items()},
+    )
+
+
+def link(client, idp, headers, claims=None):
+    """The whole linking flow; returns the page the browser ends on, as (path, params)."""
+    _, _, params = start_link(client, headers)
+    return finish(
+        client, params, idp, {"sub": "link-sub", "email": "me@elsewhere.test", **(claims or {})}
+    )
+
+
+def linked(client, headers):
+    return client.get("/api/v1/auth/oidc/identities", headers=headers).json
+
+
+def test_the_account_lists_how_it_can_sign_in(client, register):
+    headers, _ = register("me@example.com", "Me")
+    assert linked(client, headers) == {"has_password": True, "identities": []}
+    assert client.get("/api/v1/auth/oidc/identities").status_code == 401
+
+
+def test_a_signed_in_user_can_link_a_provider_whatever_its_email(client, idp, register):
+    headers, me = register("me@example.com", "Me")
+    target, params = link(client, idp, headers)
+    assert target == "/account?linked=idp"
+    methods = linked(client, headers)
+    [one] = methods["identities"]
+    assert (one["provider"], one["provider_name"], one["email"]) == (
+        "idp",
+        "Test IdP",
+        "me@elsewhere.test",
+    )
+    # From now on that provider login signs them in, as the same account.
+    _, got = sign_in(client, idp, {"sub": "link-sub", "email": "me@elsewhere.test"})
+    assert exchange(client, got["code"]).json["user"]["id"] == me["id"]
+
+
+def test_linking_needs_a_signed_in_user_and_a_known_provider(client, register):
+    assert client.post("/api/v1/auth/oidc/idp/link").status_code == 401
+    headers, _ = register("me@example.com", "Me")
+    assert client.post("/api/v1/auth/oidc/nope/link", headers=headers).status_code == 404
+
+
+def test_a_link_code_works_once(client, idp, register):
+    headers, _ = register("me@example.com", "Me")
+    url, _, _ = start_link(client, headers)
+    again = client.get(url)
+    assert again.headers["Location"] == "/account?error=link_expired"
+
+
+def test_a_link_code_cannot_sign_anyone_in(client, register):
+    headers, _ = register("me@example.com", "Me")
+    code = client.post("/api/v1/auth/oidc/idp/link", headers=headers).json["url"].split("link=")[1]
+    assert exchange(client, code).status_code == 401
+    # ...and it was not spent by that attempt: it still starts the link.
+    assert client.get(f"/api/v1/auth/oidc/idp/login?client=web&link={code}").status_code == 302
+
+
+def test_a_sign_in_code_cannot_start_a_link(client, idp, register):
+    headers, _ = register("me@example.com", "Me")
+    owner = db.session.query(User).filter_by(email="me@example.com").one()
+    code = sso.issue_code(owner)  # a login code
+    resp = client.get(f"/api/v1/auth/oidc/idp/login?client=web&link={code}")
+    assert resp.headers["Location"] == "/account?error=link_expired"
+
+
+def test_an_expired_link_code_is_refused(client, register):
+    headers, _ = register("me@example.com", "Me")
+    url = client.post("/api/v1/auth/oidc/idp/link", headers=headers).json["url"]
+    row = db.session.query(OidcLoginCode).one()
+    row.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    db.session.commit()
+    assert client.get(url).headers["Location"] == "/account?error=link_expired"
+
+
+def test_linking_is_only_for_the_web_app(client, register):
+    headers, _ = register("me@example.com", "Me")
+    url = client.post("/api/v1/auth/oidc/idp/link", headers=headers).json["url"]
+    resp = client.get(url.replace("client=web", "client=mobile&redirect=allotment://auth"))
+    assert resp.status_code == 422
+
+
+def test_a_login_that_belongs_to_someone_else_cannot_be_taken(client, idp, register):
+    other = user("ann@example.com")
+    exchange(client, sign_in(client, idp)[1]["code"])  # ann is linked as sub-1
+    headers, _ = register("me@example.com", "Me")
+    target, _ = link(client, idp, headers, {"sub": "sub-1"})
+    assert target == "/account?error=already_linked"
+    assert linked(client, headers)["identities"] == []
+    assert db.session.query(OidcIdentity).one().user_id == other.id
+
+
+def test_one_login_per_provider_per_account(client, idp, register):
+    headers, _ = register("me@example.com", "Me")
+    assert link(client, idp, headers)[0] == "/account?linked=idp"
+    assert client.post("/api/v1/auth/oidc/idp/link", headers=headers).status_code == 409
+    # Even by going round the front door with a second login at the same provider:
+    code = sso.issue_code(db.session.query(User).filter_by(email="me@example.com").one(), "link")
+    resp = client.get(f"/api/v1/auth/oidc/idp/login?client=web&link={code}")
+    params = {k: v[0] for k, v in parse_qs(urlparse(resp.headers["Location"]).query).items()}
+    target, _ = finish(client, params, idp, {"sub": "a-second-login"})
+    assert target == "/account?error=provider_already_linked"
+    assert len(linked(client, headers)["identities"]) == 1
+
+
+def test_linking_again_with_the_same_login_is_harmless(client, idp, register):
+    headers, _ = register("me@example.com", "Me")
+    link(client, idp, headers)
+    _, _, params = start_link_unchecked(client, headers)
+    target, _ = finish(client, params, idp, {"sub": "link-sub"})
+    assert target == "/account?linked=idp"
+    assert len(linked(client, headers)["identities"]) == 1
+
+
+def start_link_unchecked(client, headers):
+    """Like start_link, for a provider already linked (the API refuses; so must the callback)."""
+    code = sso.issue_code(db.session.query(User).filter_by(email="me@example.com").one(), "link")
+    go = client.get(f"/api/v1/auth/oidc/idp/login?client=web&link={code}")
+    return None, go, {k: v[0] for k, v in parse_qs(urlparse(go.headers["Location"]).query).items()}
+
+
+def test_a_link_must_finish_in_the_browser_that_started_it(client, idp, register):
+    headers, _ = register("me@example.com", "Me")
+    _, _, params = start_link(client, headers)
+    client.delete_cookie(BINDER, path="/api/v1/auth/oidc")
+    target, got = finish(client, params, idp, {"sub": "link-sub"})
+    assert got == {"error": "invalid_state"}
+    assert db.session.query(OidcIdentity).count() == 0
+
+
+def test_a_failed_link_is_not_a_failed_login(client, idp, register):
+    seen = []
+    events.subscribe("user.login_failed", lambda e: seen.append(e))
+    headers, _ = register("me@example.com", "Me")
+    _, _, params = start_link(client, headers)
+    target, _ = finish(client, params, idp, {"nonce": "wrong"})
+    assert target == "/account?error=invalid_id_token"
+    assert seen == []
+
+
+def test_linking_and_unlinking_are_recorded(client, idp, register):
+    seen = []
+    events.subscribe("*", lambda e: seen.append(e.type))
+    headers, _ = register("me@example.com", "Me")
+    link(client, idp, headers)
+    [one] = linked(client, headers)["identities"]
+    client.delete(f"/api/v1/auth/oidc/identities/{one['id']}", headers=headers)
+    assert "user.oidc_linked" in seen and "user.oidc_unlinked" in seen
+
+
+def test_unlinking_removes_the_login(client, idp, register):
+    headers, _ = register("me@example.com", "Me")
+    link(client, idp, headers)
+    [one] = linked(client, headers)["identities"]
+    assert (
+        client.delete(f"/api/v1/auth/oidc/identities/{one['id']}", headers=headers).status_code
+        == 204
+    )
+    assert linked(client, headers)["identities"] == []
+    # The provider login no longer finds the account (its email is not this account's).
+    _, got = sign_in(client, idp, {"sub": "link-sub", "email": "me@elsewhere.test"})
+    assert got == {"error": "not_invited"}
+
+
+def test_one_cannot_unlink_someone_elses_login(client, idp, register):
+    user("ann@example.com")
+    exchange(client, sign_in(client, idp)[1]["code"])
+    ann_link = db.session.query(OidcIdentity).one()
+    headers, _ = register("me@example.com", "Me")
+    resp = client.delete(f"/api/v1/auth/oidc/identities/{ann_link.id}", headers=headers)
+    assert resp.status_code == 404
+    assert db.session.query(OidcIdentity).count() == 1
+    assert client.delete("/api/v1/auth/oidc/identities/99999", headers=headers).status_code == 404
+    assert client.delete(f"/api/v1/auth/oidc/identities/{ann_link.id}").status_code == 401
+
+
+def test_the_only_way_to_sign_in_cannot_be_unlinked(client, idp, app):
+    from flask_jwt_extended import create_access_token
+
+    ann = User(email="ann@example.com", display_name="Ann", password_hash=None)
+    db.session.add(ann)
+    db.session.commit()
+    db.session.add(OidcIdentity(user_id=ann.id, provider="idp", subject="s1", email=None))
+    db.session.add(OidcIdentity(user_id=ann.id, provider="other", subject="s2", email=None))
+    db.session.commit()
+    headers = {"Authorization": f"Bearer {create_access_token(str(ann.id))}"}
+    first, second = linked(client, headers)["identities"]
+    assert linked(client, headers)["has_password"] is False
+    assert (
+        client.delete(f"/api/v1/auth/oidc/identities/{first['id']}", headers=headers).status_code
+        == 204
+    )
+    refused = client.delete(f"/api/v1/auth/oidc/identities/{second['id']}", headers=headers)
+    assert refused.status_code == 409
+    assert "only way" in refused.json["message"]
+    assert len(linked(client, headers)["identities"]) == 1
+
+
+def test_a_provider_the_server_dropped_is_still_listed_so_it_can_be_unlinked(
+    client, idp, app, register
+):
+    headers, _ = register("me@example.com", "Me")
+    link(client, idp, headers)
+    app.config["OIDC_PROVIDERS"] = []
+    [one] = linked(client, headers)["identities"]
+    assert (one["provider"], one["provider_name"]) == ("idp", None)
+    assert (
+        client.delete(f"/api/v1/auth/oidc/identities/{one['id']}", headers=headers).status_code
+        == 204
+    )
+
+
 class TestParsing:
     def test_a_generic_provider(self):
         raw = json.dumps(

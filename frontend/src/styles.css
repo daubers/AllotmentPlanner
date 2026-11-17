@@ -485,3 +485,5 @@ a.button.secondary { background: none; color: var(--accent); border: 1px solid v
 
 .sso { display: grid; gap: .5rem; justify-items: stretch; text-align: center; }
 .sso a.button { display: block; padding: .5rem .75rem; border: 1px solid var(--border); border-radius: 6px; text-decoration: none; color: inherit; }
+
+.signins li { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .6rem .75rem; }

@@ -12,7 +12,7 @@ A provider sign-in never creates an account by itself, so an invite-only server 
 1. **Someone who signed in this way before.** They are matched by the provider's stable id for them, so a
    changed email address does not matter.
 2. **Someone who already has an account**, if the provider says their email is **verified**. The first time,
-   the provider is linked to that account. An unverified email is refused: otherwise anyone could take over an
+   the provider is linked to that account. (They can also link one deliberately from their account page, below.) An unverified email is refused: otherwise anyone could take over an
    account by registering its address at a provider that does not check.
 3. **Someone holding an invite** (Settings → Invite someone) for the email the provider reports. The invite
    link carries through the sign-in, and they get an account (with no password) and their role on that allotment.
@@ -51,6 +51,24 @@ sign in through the provider (there is no password reset for them).
 `PUBLIC_URL` matters behind a reverse proxy: the redirect URI sent to the provider is built from it, and it
 must match what you registered exactly.
 
+## Linking and unlinking (your account page)
+
+Signed-in people manage this themselves: click your name in the top bar to open **Your account**. It lists your
+ways to sign in (the password, and each provider you have linked).
+
+- **Link a provider**: press *Link <provider>*, sign in at the provider, and you are brought back with it
+  linked. No email match is needed, because you are already signed in here and have just proved who you are at
+  the provider too. A provider login that already belongs to another account is refused, and so is a second
+  login from the same provider (unlink the first).
+- **Unlink**: removes the link after a confirmation. It is refused when it would leave you with no way to sign
+  in (no password and no other provider). A provider the server no longer offers still appears, so it can be
+  removed.
+
+Linking works through the web app only; the phone app signs in with a provider but does not manage links.
+Under the hood, *Link* asks the server (`POST /api/v1/auth/oidc/<id>/link`, signed in) for a code that works
+once, for a minute, and only for linking; it cannot be used to sign in. `GET /api/v1/auth/oidc/identities` lists
+your methods and `DELETE /api/v1/auth/oidc/identities/<id>` unlinks one.
+
 ## The phone app
 
 The app opens the provider's page in the system browser sheet and is sent back to `allotment://auth`. That link
@@ -73,5 +91,5 @@ audience and expiry checked against the provider's published keys (asymmetric al
 
 ## Not done yet
 
-- Linking or unlinking a provider from a signed-in account (a first sign-in links by verified email).
+- Managing linked providers in the phone app (it can sign in with a provider, but links are made on the web).
 - Rate limiting on these endpoints (the password login has none either).

@@ -110,7 +110,13 @@ def _client(prov: dict, uri: str, meta: dict) -> OAuth2Session:
 
 
 def start(
-    prov: dict, url_root: str, *, client: str, invite: str = "", back: str = ""
+    prov: dict,
+    url_root: str,
+    *,
+    client: str,
+    invite: str = "",
+    back: str = "",
+    link_user_id: int | None = None,
 ) -> tuple[str, str]:
     """Where to send the person to sign in, and the secret that ties it to their browser."""
     meta = discovery(prov)
@@ -126,6 +132,7 @@ def start(
             "i": invite,
             "r": back,
             "b": binder,
+            "l": link_user_id,
         }
     )
     url, _ = _client(prov, redirect_uri(prov, url_root), meta).create_authorization_url(
@@ -234,22 +241,24 @@ def _hash(code: str) -> str:
     return hashlib.sha256(code.encode()).hexdigest()
 
 
-def issue_code(user: User) -> str:
-    """A one-time code for this user, good for a minute."""
+def issue_code(user: User, purpose: str = "login") -> str:
+    """A one-time code for this user, good for a minute and only for `purpose`."""
     now = datetime.now(UTC)
     db.session.execute(delete(OidcLoginCode).where(OidcLoginCode.expires_at < now))  # tidy up
     code = secrets.token_urlsafe(32)
     expires = now + timedelta(seconds=current_app.config["OIDC_CODE_TTL_SECONDS"])
-    db.session.add(OidcLoginCode(code_hash=_hash(code), user_id=user.id, expires_at=expires))
+    db.session.add(
+        OidcLoginCode(code_hash=_hash(code), user_id=user.id, purpose=purpose, expires_at=expires)
+    )
     db.session.commit()
     return code
 
 
-def redeem_code(code: str) -> User | None:
-    """The user a code was issued to. The code is spent either way, so it works once."""
+def redeem_code(code: str, purpose: str = "login") -> User | None:
+    """The user a code was issued to, if it is for this purpose. It works once."""
     row = db.session.execute(
         delete(OidcLoginCode)
-        .where(OidcLoginCode.code_hash == _hash(code))
+        .where(OidcLoginCode.code_hash == _hash(code), OidcLoginCode.purpose == purpose)
         .returning(OidcLoginCode.user_id, OidcLoginCode.expires_at)
     ).one_or_none()
     db.session.commit()
@@ -259,3 +268,25 @@ def redeem_code(code: str) -> User | None:
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=UTC)
     return db.session.get(User, user_id) if expires_at > datetime.now(UTC) else None
+
+
+def link_identity(prov: dict, claims: dict, user_id: int) -> None:
+    """Tie this provider login to a user who is already signed in and asked for it.
+
+    No email match is needed: the person proved who they are to us, and now to the provider.
+    What is refused is taking over someone else's login, or holding two at one provider.
+    """
+    subject = str(claims["sub"])
+    existing = (
+        db.session.query(OidcIdentity).filter_by(provider=prov["id"], subject=subject).one_or_none()
+    )
+    if existing is not None:
+        if existing.user_id == user_id:
+            return  # already linked: nothing to do
+        raise OidcError("already_linked", f"{prov['id']} login belongs to another account")
+    if db.session.query(OidcIdentity).filter_by(user_id=user_id, provider=prov["id"]).first():
+        raise OidcError("provider_already_linked", f"user already has a {prov['id']} login")
+    email = str(claims.get("email") or "").lower() or None
+    db.session.add(OidcIdentity(user_id=user_id, provider=prov["id"], subject=subject, email=email))
+    db.session.commit()
+    events.emit("user.oidc_linked", actor_id=user_id, payload={"provider": prov["id"]})

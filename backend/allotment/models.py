@@ -74,6 +74,9 @@ class OidcLoginCode(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     code_hash: Mapped[str] = mapped_column(String(64), unique=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    # "login" is swapped for tokens; "link" starts linking a provider to the signed-in user.
+    # A code only works for its own purpose, so a link code can never sign anyone in.
+    purpose: Mapped[str] = mapped_column(String(8), default="login", server_default="login")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 

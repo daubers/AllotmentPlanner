@@ -3575,13 +3575,14 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Send the browser to the provider to sign in. */
+        /** Send the browser to the provider to sign in (or, with `link`, to link a login). */
         get: {
             parameters: {
                 query?: {
                     client?: "web" | "mobile";
                     invite?: string;
                     redirect?: string;
+                    link?: string;
                 };
                 header?: never;
                 path: {
@@ -3681,6 +3682,123 @@ export interface paths {
                     };
                 };
                 422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/oidc/identities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The ways the signed-in user can sign in. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuthMethods"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/oidc/identities/{identity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identity_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Unlink a provider. Refused if it is the only way left to sign in. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    identity_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/oidc/{provider_id}/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Begin linking a provider to the signed-in account; go to the returned `url`. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    provider_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OidcLinkStart"];
+                    };
+                };
                 default: components["responses"]["DEFAULT_ERROR"];
             };
         };
@@ -5294,6 +5412,23 @@ export interface components {
         };
         OidcExchange: {
             code: string;
+        };
+        OidcIdentity: {
+            id?: number;
+            provider?: string;
+            /** @description Null when the server no longer offers this provider */
+            provider_name?: string | null;
+            email?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+        };
+        AuthMethods: {
+            has_password?: boolean;
+            identities?: components["schemas"]["OidcIdentity"][];
+        };
+        OidcLinkStart: {
+            /** @description Send the browser here to link; works once, briefly */
+            url?: string;
         };
         TaskComment: {
             id?: number;
