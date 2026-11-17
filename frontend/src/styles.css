@@ -472,3 +472,13 @@ a.button.secondary { background: none; color: var(--accent); border: 1px solid v
   .task .reschedule, .task .quick-add { margin-left: 2.2rem; }
   .task .reschedule + .reschedule { margin-left: 0; }
 }
+
+.task-comments { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.task-comments h3 { margin: 0 0 .5rem; font-size: 1rem; }
+.task-comment { padding: .6rem .75rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.task-comment .note-body { margin: .35rem 0 0; white-space: pre-wrap; }
+.task-comment .actions { margin-top: .35rem; }
+.task-comment .badge.progress { font-style: italic; }
+.add-comment { display: grid; gap: .5rem; }
+.add-comment .row { display: flex; flex-wrap: wrap; gap: .75rem; }
+.add-comment .row label { flex: 1 1 10rem; }

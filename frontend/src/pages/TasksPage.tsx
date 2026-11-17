@@ -13,7 +13,7 @@ import { useTrays } from "../trays/hooks";
 import { useAllotment } from "./AllotmentLayout";
 
 export default function TasksPage() {
-  const { id, canEdit } = useAllotment();
+  const { id, canEdit, allotment } = useAllotment();
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const filters = readFilters(params);
@@ -255,7 +255,7 @@ export default function TasksPage() {
       )}
       {doneVisible && section("Completed", groups.done)}
       {dialog && (
-        <TaskDialog allotmentId={id} canEdit={canEdit} task={dialog === "new" ? undefined : dialog} onClose={() => setDialog(null)} />
+        <TaskDialog allotmentId={id} canEdit={canEdit} meId={user?.id} isOwner={allotment.role === "owner"} task={dialog === "new" ? undefined : dialog} onClose={() => setDialog(null)} />
       )}
     </main>
   );

@@ -7,6 +7,7 @@ import type { Task } from "./group";
 import { useDayListActions, useDayLists } from "./dayLists";
 import { useFeatureOptions, useMembers, useTaskActions, type NewTask } from "./hooks";
 import ListAdd from "./ListAdd";
+import TaskComments from "./TaskComments";
 
 const PRIORITIES = ["low", "normal", "high"] as const;
 const RECURRENCES = ["daily", "weekly", "monthly"] as const;
@@ -33,10 +34,13 @@ type Props = {
   task?: Task;
   /** Where a new task starts out (e.g. the bed selected on the map). */
   place?: Place;
+  /** The signed-in user and whether they own the allotment: who may edit or delete a comment. */
+  meId?: number;
+  isOwner?: boolean;
   onClose(): void;
 };
 
-export default function TaskDialog({ allotmentId, canEdit, task, place, onClose }: Props) {
+export default function TaskDialog({ allotmentId, canEdit, task, place, meId, isOwner, onClose }: Props) {
   const features = useFeatureOptions(allotmentId);
   const trays = useTrays(allotmentId);
   const plantings = usePlantings(allotmentId, { growing: true });
@@ -192,6 +196,9 @@ export default function TaskDialog({ allotmentId, canEdit, task, place, onClose 
           )}
         </div>
       </form>
+      {editing && task?.id != null && (
+        <TaskComments allotmentId={allotmentId} taskId={task.id} canEdit={canEdit} meId={meId} isOwner={isOwner} />
+      )}
     </Modal>
   );
 }

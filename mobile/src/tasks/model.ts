@@ -1,6 +1,8 @@
 import type { components } from "../api/schema";
 
 export type Task = components["schemas"]["Task"];
+export type TaskComment = components["schemas"]["TaskComment"];
+export type JobStatus = "todo" | "doing" | "done";
 
 export type Groups = { overdue: Task[]; today: Task[]; upcoming: Task[]; undated: Task[] };
 
@@ -84,6 +86,43 @@ export function localJob(job: NewJob, now: number = Date.now()): Task {
 }
 
 /** The task list with one job ticked off or put back, as it should look before the server confirms. */
-export function withStatus(tasks: Task[], taskId: number, status: "done" | "todo"): Task[] {
+export function withStatus(tasks: Task[], taskId: number, status: JobStatus): Task[] {
   return tasks.map((t) => (t.id === taskId ? { ...t, status } : t));
+}
+
+export type NewComment = { body?: string; status?: JobStatus | null; progress?: string | null };
+
+/** The queued request that adds a comment (and, if it carries a status, moves the job). */
+export function commentRequest(allotmentId: number, taskId: number, comment: NewComment) {
+  const body: Record<string, unknown> = {};
+  if (comment.body?.trim()) body.body = comment.body.trim();
+  if (comment.status) body.status = comment.status;
+  if (comment.progress?.trim()) body.progress = comment.progress.trim();
+  return { method: "POST" as const, path: `${base(allotmentId)}/${taskId}/comments`, body };
+}
+
+/** A comment written on the phone, shown before the server has stamped it. Negative id so it never clashes. */
+export function localComment(taskId: number, comment: NewComment, author: string | null, now: number = Date.now()): TaskComment {
+  return {
+    id: -now,
+    task_id: taskId,
+    body: comment.body?.trim() ?? "",
+    status: comment.status ?? null,
+    progress: comment.progress?.trim() || null,
+    author,
+    author_id: null,
+    created_at: new Date(now).toISOString(),
+    updated_at: new Date(now).toISOString(),
+    edited: false,
+  } as TaskComment;
+}
+
+/** Whether a comment has something to send. */
+export const hasSomethingToSay = (c: NewComment): boolean => !!(c.body?.trim() || c.status || c.progress?.trim());
+
+/** "2 Nov, 09:30" in the phone's own time zone. */
+export function commentStamp(iso: string): string {
+  const d = new Date(iso);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${d.getDate()} ${months[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

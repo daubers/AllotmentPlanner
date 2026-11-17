@@ -3,6 +3,7 @@ import React from "react";
 import { View } from "react-native";
 import { useBeds } from "../../src/beds/hooks";
 import JobSwitch from "../../src/tasks/JobSwitch";
+import TaskComments from "../../src/tasks/TaskComments";
 import { useCanEdit, useDoneFlow, useTasks } from "../../src/tasks/hooks";
 import { dueLabel } from "../../src/tasks/model";
 import { Banner, Button, Card, Chip, Loading, Row, Screen, T } from "../../src/ui/kit";
@@ -58,6 +59,7 @@ export default function Job() {
           <T>{task.description}</T>
         </Card>
       ) : null}
+      {!waiting ? <TaskComments taskId={taskId} canEdit={canEdit} /> : null}
       {canEdit && !waiting ? <Button label="Add a photo" kind="secondary" onPress={() => router.push({ pathname: "/photo", params: { taskId: String(taskId) } })} /> : null}
     </Screen>
   );

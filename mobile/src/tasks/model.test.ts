@@ -1,4 +1,4 @@
-import { completeRequest, createRequest, daysFrom, dueLabel, groupTasks, localDate, localJob, reopenRequest, withStatus, type Task } from "./model";
+import { commentRequest, commentStamp, completeRequest, hasSomethingToSay, localComment, createRequest, daysFrom, dueLabel, groupTasks, localDate, localJob, reopenRequest, withStatus, type Task } from "./model";
 
 const t = (id: number, extra: Partial<Task> = {}): Task => ({ id, title: `t${id}`, status: "todo", ...extra }) as Task;
 
@@ -57,4 +57,34 @@ test("a tick shows before the server confirms, without touching the other jobs",
   expect(ticked.map((x) => x.status)).toEqual(["todo", "done"]);
   expect(list[1].status).toBe("todo");
   expect(withStatus(ticked, 2, "todo")[1].status).toBe("todo");
+});
+
+test("a comment is queued with only what was filled in", () => {
+  expect(commentRequest(1, 9, { body: "  Started  ", status: "doing", progress: " " })).toEqual({
+    method: "POST",
+    path: "/api/v1/allotments/1/tasks/9/comments",
+    body: { body: "Started", status: "doing" },
+  });
+  expect(commentRequest(1, 9, { progress: "waiting on seed" }).body).toEqual({ progress: "waiting on seed" });
+});
+
+test("an empty comment has nothing to send", () => {
+  expect(hasSomethingToSay({})).toBe(false);
+  expect(hasSomethingToSay({ body: "  ", progress: " " })).toBe(false);
+  expect(hasSomethingToSay({ status: "done" })).toBe(true);
+  expect(hasSomethingToSay({ body: "hi" })).toBe(true);
+});
+
+test("a comment written offline shows at once with a negative id", () => {
+  const c = localComment(9, { body: " Done the row ", status: "done" }, "You", Date.UTC(2026, 10, 2, 9, 30));
+  expect(c.id).toBeLessThan(0);
+  expect(c).toMatchObject({ task_id: 9, body: "Done the row", status: "done", progress: null, author: "You", edited: false });
+});
+
+test("a comment's time reads as day, month and clock", () => {
+  expect(commentStamp(new Date(2026, 10, 2, 9, 5).toISOString())).toBe("2 Nov, 09:05");
+});
+
+test("a job can be put in progress before the server confirms", () => {
+  expect(withStatus([t(1)], 1, "doing")[0].status).toBe("doing");
 });

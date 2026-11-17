@@ -3885,6 +3885,165 @@
         }
       ]
     },
+    "/api/v1/allotments/{allotment_id}/tasks/{task_id}/comments": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskComment"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Comments on a task, oldest first.",
+        "tags": [
+          "task_comments"
+        ]
+      },
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskComment"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskCommentIn"
+              }
+            }
+          }
+        },
+        "summary": "Add a comment. With a `status` the task moves to it in the same step.",
+        "tags": [
+          "task_comments"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "task_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/tasks/{task_id}/comments/{comment_id}": {
+      "patch": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskComment"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskCommentPatch"
+              }
+            }
+          }
+        },
+        "summary": "Change the text or progress label. Only the author can; the status it set stays.",
+        "tags": [
+          "task_comments"
+        ]
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Delete a comment: its author, or an owner of the allotment.",
+        "tags": [
+          "task_comments"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "task_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "comment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
     "/api/v1/allotments/{allotment_id}/map-jobs": {
       "get": {
         "responses": {
@@ -4352,6 +4511,10 @@
     {
       "name": "notes",
       "description": "Dated notes on map features, any number a day"
+    },
+    {
+      "name": "task_comments",
+      "description": "Timestamped comments on a task, each able to report a status"
     },
     {
       "name": "mapping",
@@ -7564,6 +7727,95 @@
           "noted_at": {
             "type": "string",
             "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TaskComment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "task_id": {
+            "type": "integer"
+          },
+          "body": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "progress": {
+            "type": "string",
+            "nullable": true
+          },
+          "author": {
+            "type": "string",
+            "description": "Display name of who wrote it",
+            "nullable": true
+          },
+          "author_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "edited": {
+            "type": "boolean",
+            "description": "Changed after it was posted"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TaskCommentIn": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "default": "",
+            "maxLength": 5000
+          },
+          "status": {
+            "type": "string",
+            "default": null,
+            "enum": [
+              "todo",
+              "doing",
+              "done",
+              null
+            ],
+            "description": "Move the task to this status as part of the comment",
+            "nullable": true
+          },
+          "progress": {
+            "type": "string",
+            "default": null,
+            "maxLength": 80,
+            "description": "A short progress label, e.g. 'waiting on seed'",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TaskCommentPatch": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "progress": {
+            "type": "string",
+            "maxLength": 80,
+            "nullable": true
           }
         },
         "additionalProperties": false
