@@ -1,4 +1,4 @@
-from marshmallow import Schema, fields, validate
+from marshmallow import Schema, ValidationError, fields, validate, validates_schema
 
 from .models import FeatureKind
 from .plantings import METHODS
@@ -1146,3 +1146,48 @@ class FeatureNoteSchema(Schema):
     )
     created_at = fields.DateTime()
     updated_at = fields.DateTime()
+
+
+class TaskCommentInSchema(Schema):
+    body = fields.String(load_default="", validate=validate.Length(max=5000))
+    status = fields.String(
+        load_default=None,
+        allow_none=True,
+        validate=validate.OneOf(TASK_STATUSES),
+        metadata={"description": "Move the task to this status as part of the comment"},
+    )
+    progress = fields.String(
+        load_default=None,
+        allow_none=True,
+        validate=validate.Length(max=80),
+        metadata={"description": "A short progress label, e.g. 'waiting on seed'"},
+    )
+
+    @validates_schema
+    def something_to_say(self, data, **kwargs):
+        if (
+            not (data.get("body") or "").strip()
+            and not data.get("status")
+            and not (data.get("progress") or "").strip()
+        ):
+            raise ValidationError("Write something, or give a status or progress")
+
+
+class TaskCommentPatchSchema(Schema):
+    body = fields.String(validate=validate.Length(max=5000))
+    progress = fields.String(allow_none=True, validate=validate.Length(max=80))
+
+
+class TaskCommentSchema(Schema):
+    id = fields.Integer()
+    task_id = fields.Integer()
+    body = fields.String()
+    status = fields.String(allow_none=True)
+    progress = fields.String(allow_none=True)
+    author = fields.String(
+        allow_none=True, metadata={"description": "Display name of who wrote it"}
+    )
+    author_id = fields.Integer(allow_none=True)
+    created_at = fields.DateTime()
+    updated_at = fields.DateTime()
+    edited = fields.Boolean(metadata={"description": "Changed after it was posted"})

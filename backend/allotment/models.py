@@ -145,6 +145,29 @@ class Measurement(db.Model):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class TaskComment(db.Model):
+    """A timestamped comment on a task. It can also report progress: `status` is the task status
+    this comment set (null if it left it alone) and `progress` is a short free-text label."""
+
+    __tablename__ = "task_comments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    body: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    progress: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
+
+
 class FeatureNote(db.Model):
     """A dated note on a feature. Any number a day; `noted_at` is when it is about, and editable."""
 

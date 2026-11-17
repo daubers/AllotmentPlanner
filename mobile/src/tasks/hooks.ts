@@ -3,7 +3,19 @@ import { useRouter } from "expo-router";
 import { useCallback } from "react";
 import { showDialog } from "../ui/dialog";
 import { useApp } from "../state/AppProvider";
-import { completeRequest, createRequest, localJob, reopenRequest, withStatus, type NewJob, type Task } from "./model";
+import {
+  commentRequest,
+  completeRequest,
+  createRequest,
+  localComment,
+  localJob,
+  reopenRequest,
+  withStatus,
+  type NewComment,
+  type NewJob,
+  type Task,
+  type TaskComment,
+} from "./model";
 
 /** The allotment's jobs (open and done), from the server. */
 export function useTasks() {
@@ -91,5 +103,42 @@ export function useDoneFlow() {
       });
     },
     [tick, router],
+  );
+}
+
+/** A job's comments, oldest first. */
+export function useTaskComments(taskId: number) {
+  const { api, allotmentId, session } = useApp();
+  return useQuery({
+    queryKey: ["task-comments", session.serverUrl, allotmentId, taskId],
+    enabled: allotmentId !== null && taskId > 0,
+    queryFn: async (): Promise<TaskComment[]> => {
+      const { data, error } = await api.GET("/api/v1/allotments/{allotment_id}/tasks/{task_id}/comments", {
+        params: { path: { allotment_id: allotmentId as number, task_id: taskId } },
+      });
+      if (error || !data) throw new Error("Couldn't load the comments");
+      return data;
+    },
+  });
+}
+
+/** Add a comment: it shows at once (and moves the job if it sets a status) and is sent when there is signal. */
+export function useAddComment(taskId: number) {
+  const { queue, allotmentId, session } = useApp();
+  const client = useQueryClient();
+  return useCallback(
+    async (comment: NewComment) => {
+      if (allotmentId === null || taskId < 0) return;
+      const commentsKey = ["task-comments", session.serverUrl, allotmentId, taskId];
+      const tasksKey = ["tasks", session.serverUrl, allotmentId];
+      client.setQueryData(commentsKey, (old: TaskComment[] | undefined) => [...(old ?? []), localComment(taskId, comment, "You")]);
+      if (comment.status) client.setQueryData(tasksKey, (old: Task[] | undefined) => (old ? withStatus(old, taskId, comment.status!) : old));
+      await queue.enqueue("request", commentRequest(allotmentId, taskId, comment));
+      void queue.run().then(() => {
+        void client.invalidateQueries({ queryKey: commentsKey });
+        void client.invalidateQueries({ queryKey: tasksKey });
+      });
+    },
+    [queue, allotmentId, session.serverUrl, client, taskId],
   );
 }

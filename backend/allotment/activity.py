@@ -13,6 +13,7 @@ RECORDED = {
     "task.created",
     "task.completed",
     "task.reopened",
+    "task.comment_added",
     "media.uploaded",
     "feature.created",
     "feature.updated",

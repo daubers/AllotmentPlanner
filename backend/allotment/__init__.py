@@ -21,6 +21,7 @@ from .api import (
     packets,
     plantings,
     suggestions,
+    task_comments,
     tasks,
     todo,
     trays,
@@ -67,6 +68,7 @@ def create_app(config: type = Config) -> Flask:
     api.register_blueprint(suggestions.blp)
     api.register_blueprint(measurements.blp)
     api.register_blueprint(notes.blp)
+    api.register_blueprint(task_comments.blp)
     api.register_blueprint(mapping.blp)
     api.register_blueprint(mapping.tiles_blp)
 
