@@ -80,9 +80,13 @@ export function sessionRejected(): void {
   }
 }
 
+/** Sign-in endpoints that must work without (or despite a stale) session; other auth routes need the token. */
+const PUBLIC_AUTH = /\/api\/v1\/auth\/(login|register|refresh|config|oidc\/exchange|oidc\/[^/]+\/login|oidc\/[^/]+\/callback)(\?|$)/;
+export const isPublicAuthCall = (url: string): boolean => PUBLIC_AUTH.test(url);
+
 const auth: Middleware = {
   async onRequest({ request }) {
-    if (request.url.includes("/api/v1/auth/") && !request.url.endsWith("/auth/me")) return request;
+    if (isPublicAuthCall(request.url)) return request;
     const header = await authHeader();
     if (header) request.headers.set("Authorization", header);
     return request;
