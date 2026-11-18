@@ -19,6 +19,16 @@ function GettingStarted() {
         <strong>Work</strong> (Today, Tasks) and <strong>Record</strong> (Photos, Overview). Choose a group to see its pages;
         Settings is at the top right.
       </p>
+      <h2>Your data and your account</h2>
+      <p>
+        Open <Link to="/account">Your account</Link> (your name at the top). <em>Download my data</em> prepares a zip of
+        your account details, everything you added and the photos and videos you uploaded; it is built in the
+        background, so give it a few minutes if you have a lot of photos, and the link works for two days.
+        <em> Delete my account</em> removes your account and any allotment that only you belong to, with its photos.
+        If you are the only owner of an allotment that other people share, make one of them an owner first (or delete the
+        allotment); the page tells you which. Things you added to an allotment shared with others stay there, no longer
+        linked to you. If you signed up with a provider and have no password, you confirm with that provider.
+      </p>
       <h2>Who can do what</h2>
       <ul>
         <li><strong>Owner</strong> can do everything, including inviting people and changing settings.</li>
@@ -208,6 +218,8 @@ function PhoneApp() {
         automatically. A banner on the home screen shows what is waiting; open it to retry or discard anything the server refused. Saving a
         seed packet, making the measuring checklist, and reviewing found items do need a connection.
       </p>
+      <h2>Your account</h2>
+      <p><em>Account</em> on the home screen lets you download a copy of your data and delete your account, the same as on the web (see <Link to="/help/getting-started">getting started</Link>).</p>
       <h2>What the app can ask for</h2>
       <p>The camera, your location while the app is open, and the motion sensors. See <Link to="/privacy">privacy</Link> for how they are used.</p>
     </>

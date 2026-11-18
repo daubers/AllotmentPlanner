@@ -232,6 +232,12 @@ The first build takes a while (OpenSfM is compiled; the GPU builds of PyTorch al
 
 *AMD notes.* RX 6600/6700 cards (gfx1031/1032) are not on ROCm's supported list; the add-on sets `HSA_OVERRIDE_GFX_VERSION=10.3.0` so they run as the supported gfx1030. Without it the worker crashes on its first GPU call. Set `RENDER_GID` to your host's `render` group id (`getent group render`). Cards with 8 GB of memory are enough for the recognition models.
 
+### Deleting accounts and data exports
+People delete their own account, and download a copy of their data, from **Your account** in the web app or **Account** in the phone app (`DELETE /api/v1/auth/me`, `POST /api/v1/auth/me/export`). You do not need to do anything by hand.
+- **Deleting** removes the account and any allotment only that person belongs to, with its photos and other files. It is refused while they are the only owner of an allotment other people belong to; they hand it over first. What they added to shared allotments stays, no longer linked to them. A person with no password confirms with their single sign-on provider.
+- **Exports** are built by the Celery worker, so the `worker` service must be running or a request stays "preparing". The zip is stored in the media storage under `exports/<user id>/` and deleted by a daily scheduled job (`allotment.prune_account_exports`, which needs the `beat` service) after `ACCOUNT_EXPORT_TTL_HOURS` (48).
+- There is no admin tool for deleting or exporting someone else's account. The privacy page tells people who cannot sign in to email you (`CONTACT_EMAIL` in `frontend/src/public/site.ts`).
+
 ### Backups
 
 Two things hold your data: the database and the photo volume. Back up both, and `.env`.
@@ -314,6 +320,7 @@ Set in `.env` (development: `.env.example`; production: `deploy/.env.production.
 | `MAX_UPLOAD_MB` | `4096` | largest accepted upload; keep nginx's `client_max_body_size` in step |
 | `LOG_LEVEL` | `INFO` | |
 | `LOG_TO_DB` / `LOG_RETENTION_DAYS` | `1` / `14` | keep warnings, errors and task outcomes in the database for the admin page, and for how many days |
+| `ACCOUNT_EXPORT_TTL_HOURS` | `48` | how long a person's data download stays available before it is deleted |
 | `APP_VERSION` | `dev` | shown on the admin page; the production compose file sets it from `TAG` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | send traces to an OpenTelemetry collector |
 | `MASTODON_PHOTO_BATCH_SECONDS` | `180` | a burst of photos becomes one post |
