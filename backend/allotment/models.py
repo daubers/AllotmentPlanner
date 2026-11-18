@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime
 from geoalchemy2 import Geometry
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     Date,
     DateTime,
@@ -706,3 +707,20 @@ class DayListItem(db.Model):
     added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     day_list: Mapped[DayList] = relationship(back_populates="items")
+
+
+class AccountExport(db.Model):
+    """A zip of everything a user added, built in the background and kept for a short while."""
+
+    __tablename__ = "account_exports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(10), default="pending", server_default="pending")
+    storage_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )

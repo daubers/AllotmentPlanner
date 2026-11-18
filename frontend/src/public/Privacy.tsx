@@ -69,9 +69,13 @@ export default function Privacy() {
         <p>
           Your data is kept until it is deleted; nothing expires on its own. In the app you can delete photos and
           videos, remove members, disconnect Mastodon, and delete an allotment, which removes everything on it.
-          Deleting your whole account, and getting a copy of your data, are not yet buttons in the app: email{" "}
-          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> from the address on your account and it will be
-          done by hand. Self-service deletion and export are planned.
+          You can also delete your whole account, and download a copy of your data, from the Your account page (in the
+          web app, and in the phone app under Account). Deleting your account removes your sign-in details and any
+          allotment that only you belong to, with its photos and files. Things you added to an allotment shared with
+          other people stay there, no longer linked to you; you can ask those people to remove them. A data download is
+          a zip of everything you added, as JSON, with the photos and videos you uploaded, and is deleted after two days.
+          If you cannot sign in, email <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> from the address on your
+          account and it will be done by hand.
         </p>
 
         <h2>Children</h2>

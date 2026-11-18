@@ -127,4 +127,65 @@ describe("AccountPage", () => {
     expect(await screen.findByText(/no longer offered/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Unlink authentik" })).toBeInTheDocument();
   });
+
+  describe("your data and deleting the account", () => {
+    it("asks for an export and offers the download when it is ready", async () => {
+      serve({ has_password: true, identities: [] });
+      post.mockResolvedValue({ data: { id: 5, status: "pending" } });
+      get.mockImplementation(async (path: string) => {
+        if (path === "/api/v1/auth/oidc/identities") return { data: { has_password: true, identities: [] } };
+        if (path === "/api/v1/auth/config") return { data: CONFIG };
+        if (path === "/api/v1/auth/me/export/{export_id}") return { data: { id: 5, status: "ready", url: "/api/v1/auth/me/export/5/file?t=x" } };
+        return { data: [] };
+      });
+      setup();
+      await userEvent.click(await screen.findByRole("button", { name: "Download my data" }));
+      expect(await screen.findByRole("link", { name: "download the zip" })).toHaveAttribute("href", "/api/v1/auth/me/export/5/file?t=x");
+      expect(post).toHaveBeenCalledWith("/api/v1/auth/me/export");
+    });
+
+    it("deletes with the password, then signs out and goes to the login page", async () => {
+      serve({ has_password: true, identities: [] });
+      del.mockResolvedValue({});
+      const go = setup();
+      await userEvent.click(await screen.findByRole("button", { name: "Delete my account…" }));
+      await userEvent.type(screen.getByLabelText("Your password"), "hunter22");
+      await userEvent.click(screen.getByRole("button", { name: "Delete my account for good" }));
+      await waitFor(() => expect(go).toHaveBeenCalledWith("/login"));
+      expect(del).toHaveBeenCalledWith("/api/v1/auth/me", { body: { password: "hunter22" } });
+    });
+
+    it("lists the shared allotments that block deleting", async () => {
+      serve({ has_password: true, identities: [] });
+      del.mockResolvedValue({
+        error: { message: "You are the only owner of allotments shared with others.", errors: { allotments: [{ id: 3, name: "Shared plot" }] } },
+        response: { status: 409 },
+      });
+      const go = setup();
+      await userEvent.click(await screen.findByRole("button", { name: "Delete my account…" }));
+      await userEvent.type(screen.getByLabelText("Your password"), "hunter22");
+      await userEvent.click(screen.getByRole("button", { name: "Delete my account for good" }));
+      expect(await screen.findByText("Shared plot")).toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent("only owner");
+      expect(go).not.toHaveBeenCalled();
+    });
+
+    it("confirms with the provider when there is no password", async () => {
+      serve({ has_password: false, identities: [linkedAuthentik] });
+      post.mockResolvedValue({ data: { url: "/api/v1/auth/oidc/authentik/login?client=web&reauth=abc" } });
+      const go = setup();
+      await userEvent.click(await screen.findByRole("button", { name: "Delete my account…" }));
+      await userEvent.click(screen.getByRole("button", { name: "Confirm with Authentik" }));
+      await waitFor(() => expect(go).toHaveBeenCalledWith("/api/v1/auth/oidc/authentik/login?client=web&reauth=abc"));
+    });
+
+    it("deletes with the code the provider sent the browser back with", async () => {
+      serve({ has_password: false, identities: [linkedAuthentik] });
+      del.mockResolvedValue({});
+      const go = setup("/account?reauth=code123");
+      await userEvent.click(await screen.findByRole("button", { name: "Delete my account for good" }));
+      await waitFor(() => expect(go).toHaveBeenCalledWith("/login"));
+      expect(del).toHaveBeenCalledWith("/api/v1/auth/me", { body: { reauth_code: "code123" } });
+    });
+  });
 });

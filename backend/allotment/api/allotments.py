@@ -4,9 +4,10 @@ from flask_jwt_extended import jwt_required
 from flask_smorest import Blueprint, abort
 
 from .. import events
+from ..allotment_ops import remove_allotment_files, stage_allotment_delete
 from ..extensions import db
 from ..invites import make_invite
-from ..models import Allotment, Media, Membership, Role, User
+from ..models import Allotment, Membership, Role, User
 from ..schemas import (
     AllotmentCreateSchema,
     AllotmentSchema,
@@ -18,7 +19,6 @@ from ..schemas import (
     MemberUpdateSchema,
 )
 from ..security import current_user, require_role
-from ..storage import safe_delete, safe_delete_prefix
 
 blp = Blueprint(
     "allotments", __name__, url_prefix="/api/v1/allotments", description="Allotments and members"
@@ -100,17 +100,9 @@ class AllotmentDetail(MethodView):
     @require_role(Role.OWNER)
     @blp.response(204)
     def delete(self, allotment, membership):
-        allotment_id = allotment.id
-        keys = [
-            key
-            for m in db.session.query(Media).filter_by(allotment_id=allotment_id)
-            for key in (m.storage_key, m.thumb_key)
-        ]
-        db.session.delete(allotment)
+        allotment_id, keys = stage_allotment_delete(allotment)
         db.session.commit()
-        safe_delete(*keys)
-        safe_delete_prefix(f"allotments/{allotment_id}/layers")
-        safe_delete_prefix(f"allotments/{allotment_id}/stills")
+        remove_allotment_files(allotment_id, keys)
         events.emit("allotment.deleted", actor_id=membership.user_id, allotment_id=allotment_id)
 
 

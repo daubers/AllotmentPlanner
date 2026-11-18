@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 import structlog
 
+from allotment import celery_app
 from allotment.api import admin
 from allotment.celery_app import ping
 from allotment.config import TestConfig
@@ -229,8 +230,12 @@ def test_jobs_lists_recent_work_and_counts(client, admin_headers, register):
 def stored_logs(app):
     """Logging that keeps its lines in the database, as in production."""
     configure_logging("INFO", app.config["SQLALCHEMY_DATABASE_URI"])
+    # structlog pins a logger's setup the first time it is used. Whichever earlier test ran a task
+    # first pinned this one without the database sink, so make a fresh one.
+    celery_app._task_log = structlog.get_logger("tasks")
     yield
     configure_logging("INFO")
+    celery_app._task_log = structlog.get_logger("tasks")
 
 
 def stored():

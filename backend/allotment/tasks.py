@@ -17,6 +17,7 @@ from .extensions import db
 from .fediverse import MastodonClient, MastodonError
 from .metrics import MASTODON_POSTS
 from .models import (
+    AccountExport,
     Allotment,
     LogEntry,
     MapJob,
@@ -26,7 +27,7 @@ from .models import (
     PacketScan,
     SeedPacket,
 )
-from .storage import get_storage
+from .storage import get_storage, safe_delete
 
 log = structlog.get_logger(__name__)
 _worker_app = None
@@ -459,3 +460,29 @@ def prune_logs() -> int:
         removed = LogEntry.query.filter(LogEntry.at < cutoff).delete()
         db.session.commit()
         return removed
+
+
+@celery.task(name="allotment.build_account_export")
+def build_account_export(export_id: int) -> str:
+    """Make the zip for a data-export request."""
+    from . import account_export
+
+    with _app().app_context():
+        export = db.session.get(AccountExport, export_id)
+        if export is None:
+            return "gone"
+        account_export.build(export)
+        return export.status
+
+
+@celery.task(name="allotment.prune_account_exports")
+def prune_account_exports() -> int:
+    """Delete exports past their expiry, and the zips they point at."""
+    with _app().app_context():
+        old = AccountExport.query.filter(AccountExport.expires_at < datetime.now(UTC)).all()
+        keys = [e.storage_key for e in old]
+        for e in old:
+            db.session.delete(e)
+        db.session.commit()
+        safe_delete(*keys)
+        return len(old)

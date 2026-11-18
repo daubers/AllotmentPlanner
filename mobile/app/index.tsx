@@ -298,6 +298,7 @@ export default function Home() {
             {session.serverUrl}
           </T>
         </View>
+        <Button label="Account" kind="quiet" small onPress={() => router.push("/account")} />
         <Button label="Sign out" kind="quiet" small onPress={() => session.logout()} />
       </View>
     </Screen>

@@ -101,6 +101,8 @@ class Config:
     # Warnings, errors and task outcomes are also kept in the database for the admin page.
     LOG_TO_DB = os.environ.get("LOG_TO_DB", "1") == "1"
     LOG_RETENTION_DAYS = int(os.environ.get("LOG_RETENTION_DAYS", "14"))
+    # How long a built data export can be downloaded before it is deleted.
+    ACCOUNT_EXPORT_TTL_HOURS = int(os.environ.get("ACCOUNT_EXPORT_TTL_HOURS", "48"))
     APP_VERSION = os.environ.get("APP_VERSION", "dev")
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-only-insecure-secret-change-me-in-prod")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=30)

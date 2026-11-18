@@ -117,6 +117,7 @@ def start(
     invite: str = "",
     back: str = "",
     link_user_id: int | None = None,
+    reauth_user_id: int | None = None,
 ) -> tuple[str, str]:
     """Where to send the person to sign in, and the secret that ties it to their browser."""
     meta = discovery(prov)
@@ -133,6 +134,7 @@ def start(
             "r": back,
             "b": binder,
             "l": link_user_id,
+            "a": reauth_user_id,
         }
     )
     url, _ = _client(prov, redirect_uri(prov, url_root), meta).create_authorization_url(
@@ -290,3 +292,14 @@ def link_identity(prov: dict, claims: dict, user_id: int) -> None:
     db.session.add(OidcIdentity(user_id=user_id, provider=prov["id"], subject=subject, email=email))
     db.session.commit()
     events.emit("user.oidc_linked", actor_id=user_id, payload={"provider": prov["id"]})
+
+
+def confirm_identity(prov: dict, claims: dict, user_id: int) -> None:
+    """Check this provider login is one of the user's own, for confirming a sensitive action."""
+    identity = (
+        db.session.query(OidcIdentity)
+        .filter_by(provider=prov["id"], subject=str(claims["sub"]))
+        .one_or_none()
+    )
+    if identity is None or identity.user_id != user_id:
+        raise OidcError("wrong_account", f"that {prov['id']} login is not this account's")
