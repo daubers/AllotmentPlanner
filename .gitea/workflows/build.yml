@@ -103,20 +103,26 @@ jobs:
           fi
           # Wait up to 30 minutes for the test workflow on this tag.
           for i in $(seq 1 90); do
-            state=$(curl -fsS -H "Authorization: token $TOKEN" "$API/repos/$REPO/actions/runs?head_sha=$SHA&limit=50" |
-              TAG="$TAG" python3 -c '
+            # A dropped connection or 5xx here must not end the job (it once did, v0.14.0): retry the
+            # request, and if it still fails count it as "pending" and poll again.
+            if runs=$(curl -fsS --retry 5 --retry-delay 5 --retry-all-errors \
+                -H "Authorization: token $TOKEN" "$API/repos/$REPO/actions/runs?head_sha=$SHA&limit=50"); then
+              state=$(printf '%s' "$runs" | TAG="$TAG" python3 -c '
           import json, os, sys
           runs = [r for r in json.load(sys.stdin).get("workflow_runs", []) if r.get("path") == "test.yml@refs/tags/" + os.environ["TAG"]]
           if not runs: print("pending")
           elif any(r.get("status") != "completed" and not r.get("conclusion") for r in runs): print("pending")
-          else: print("ok" if all(r.get("conclusion") == "success" for r in runs) else "failed")')
+          else: print("ok" if all(r.get("conclusion") == "success" for r in runs) else "failed")') || state=pending
+            else
+              state=pending
+            fi
             echo "test workflow: $state"
             [ "$state" = ok ] && break
             [ "$state" = failed ] && { echo "test workflow failed; not deploying"; exit 1; }
             sleep 20
           done
           [ "$state" = ok ] || { echo "timed out waiting for the test workflow"; exit 1; }
-          curl -fsS -X POST -H "Authorization: token $TOKEN" -H "Content-Type: application/json" \
+          curl -fsS --retry 3 --retry-delay 5 -X POST -H "Authorization: token $TOKEN" -H "Content-Type: application/json" \
             -d "{\"ref\":\"main\",\"inputs\":{\"tag\":\"$TAG\",\"sha\":\"$SHA\"}}" \
             "$API/repos/matt/Allotment-Deploy/actions/workflows/deploy.yml/dispatches"
           echo "deploy of $TAG dispatched"
