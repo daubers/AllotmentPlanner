@@ -9,6 +9,9 @@
 - `src/api/schema.d.ts` is a copy of the web app's generated types. After the API changes: `npm run gen:api` in `frontend/`, then `npm run gen:api` here (CI checks they match).
 
 
+## Account (AM-77)
+**Account** on the home screen (next to Sign out, `app/account.tsx`) has **Download my data** (asks the server for a zip, checks on it every 2 seconds, then opens the download link in the browser) and **Delete my account** (needs the password, or for an account with no password a confirmation at the single sign-on provider: the app opens the provider's page like a sign-in and the server sends the phone back to `allotment://auth?reauth=<code>`). If the person is the only owner of an allotment shared with others the server refuses and the screen lists them. The App Store and Google Play both require account deletion to be possible inside the app. The calls are in `src/account/client.ts`.
+
 ## Guided capture (AM-28)
 "Photograph the plot" opens the camera. Unlike the phone's own camera app it reads the **phone's GPS, compass heading and tilt itself** at the moment of each shot and sends them as explicit upload fields (`lat`, `lng`, `heading`, `taken_at`, `capture_session`, `client_id`). The server stores them with `position_source = device`, in preference to the file's EXIF, and the mapping pipeline never treats them as "stuck GPS". The real photo sets that failed taught the coaching in `src/capture/coaching.ts`:
 - no fix, or one over 10 s old: the shutter is disabled; a rough fix (over 15 m) only warns;
