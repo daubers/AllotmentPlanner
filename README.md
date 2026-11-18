@@ -297,7 +297,9 @@ npx expo run:android              # or run:ios (macOS with Xcode)
 
 On the sign-in screen enter the address of your server: `http://<computer's LAN IP>:8000` for the development stack, or your deployment's address (`https://plot.example.com`). `localhost` means the phone itself.
 
-To install on other phones without the app stores, build with EAS: `eas.json` has `development`, `preview` (an installable Android APK) and `production` (store) profiles, and the project is linked to the Expo account in `app.json`. For example `eas build --platform android --profile preview`. That needs an Expo account and, for iOS, an Apple developer account. Plain HTTP to a LAN address works in the preview and development builds and the CI APK, not in store builds: see [docs/store-review.md](docs/store-review.md).
+To build the app for phones, see [docs/mobile.md](docs/mobile.md#building-the-app-which-route-to-use). In short, there are two routes and CI uses only the first:
+- **Android APK with Gradle** (`mobile/scripts/build-android.sh`, run by CI on a `v*` tag): no Expo account needed, for installing on your own phones.
+- **EAS Build** (Expo's cloud service, **started by hand**): the only way to build iOS without a Mac, and what goes to the App Store and Google Play. From `mobile/`: `envbao exec -q expo -- npx eas-cli build --platform android --profile preview` (the Expo token comes from OpenBao; profiles are in `mobile/eas.json`). The first build on each platform needs credentials set up interactively; iOS needs an Apple developer account. Plain HTTP to a LAN address works in the `development` and `preview` builds and the CI APK, not in `production`: see [docs/store-review.md](docs/store-review.md).
 
 To look at the screens without a phone: `EXPO_PUBLIC_DEMO=1 npx expo start --web` serves them in a browser with built-in fake data.
 

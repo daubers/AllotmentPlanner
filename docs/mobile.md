@@ -52,15 +52,109 @@ Expo Go can run this shell. Later phases use native sensors and background locat
 ```
 npx expo prebuild                     # generates ios/ and android/ (not committed)
 npx expo run:android                  # or run:ios (macOS + Xcode)
-# or cloud builds: npm i -g eas-cli && eas build --profile development --platform all
+# or a cloud development build with EAS: see "Building with EAS" below
 ```
 On the sign-in screen, enter the address the phone can reach. For the development stack that is your computer's LAN IP with the API port (`192.168.1.20:8000`) or the web dev server port (`192.168.1.20:5173`); for a production deployment it is its address (`https://plot.example.com`, or `192.168.1.20:8080` on a home network). `localhost` means the phone itself. Plain `http` is allowed in these builds (and the CI APK) for self-hosted use on a home network; use `https` for anything reachable from the internet. Store builds allow it only for local-network addresses on iOS and for `localhost` and `.local` names on Android; see [store-review.md](store-review.md). An address typed without `http://` or `https://` gets `http://` only if it is on the local network.
 
-## Building the Android app
-`mobile/scripts/build-android.sh` makes an installable APK with no Expo account (CI runs the same script for release tags: see [ci.md](ci.md)). It is signed with the debug key, so it is for your own phone. `adb install mobile/dist/allotment-<version>-<commit>.apk`, or open the file on the phone.
+## Building the app: which route to use
+
+There are two ways to build, and they are separate. **Nothing in CI calls EAS.**
+
+| | Gradle build (`scripts/build-android.sh`) | EAS Build (Expo's cloud service) |
+|---|---|---|
+| Triggered by | CI on a `v*` tag or "Run workflow" (see [ci.md](ci.md)), or by hand | **You, by hand**, with the commands below |
+| Makes | an Android APK | Android APK or AAB, and **iOS** (needs no Mac) |
+| Signed with | the release key in OpenBao (`env/shell/android-signing`), or the debug key without it | a key EAS manages for the project (see "Signing" below) |
+| Plain HTTP to a LAN address | allowed (`ALLOW_CLEARTEXT=1` is the script's default) | `development` and `preview` profiles only; not `production` |
+| For | installing on your own phones, the CI artifact on ProGet | iOS, TestFlight, and the App Store and Google Play |
+
+## Building the Android app with Gradle
+`mobile/scripts/build-android.sh` makes an installable APK with no Expo account (CI runs the same script for release tags: see [ci.md](ci.md)). It is signed with the debug key unless the OpenBao key is supplied, so without that it is for your own phone. `adb install mobile/dist/allotment-<version>-<commit>.apk`, or open the file on the phone.
+
+## Building with EAS
+The Expo project is `@daubney-dev/allotment-field` (dashboard: <https://expo.dev/accounts/daubney-dev/projects/allotment-field>). Its ID and owner are in `app.json` (`expo.extra.eas.projectId`, `expo.owner`), and the build profiles are in `mobile/eas.json`.
+
+### 1. Log in: the token comes from OpenBao
+Builds run as a robot user with an access token that is kept in OpenBao, in the `expo` group of `envbao`, as `EXPO_TOKEN`. Run every `eas` command inside `envbao exec`, from the `mobile/` directory:
+
+```
+cd mobile
+envbao exec -q expo -- npx eas-cli whoami      # should name the account (daubney-dev) and say "authenticated using EXPO_TOKEN"
+```
+`npx eas-cli` needs no install. (In a normal terminal `eas login` also works, as yourself; a script or an agent has no terminal to type into, so it uses the token.) If `whoami` says "Not logged in", the token is not reaching the command: check that the `expo` group in your `envbao` config maps a secret to a variable named exactly `EXPO_TOKEN`.
+
+### 2. Start a build
+All of these are run from `mobile/`. Add `--non-interactive` when there is no terminal to answer questions, but see "First build on each platform" first.
+
+```
+# An Android APK to install on a phone (like the CI one, but built by Expo):
+envbao exec -q expo -- npx eas-cli build --platform android --profile preview
+
+# A development build (the app with its developer tools, for `expo start`):
+envbao exec -q expo -- npx eas-cli build --platform android --profile development
+envbao exec -q expo -- npx eas-cli build --platform ios --profile development
+
+# What goes to the stores (an Android app bundle, an iOS archive), HTTPS only:
+envbao exec -q expo -- npx eas-cli build --platform android --profile production
+envbao exec -q expo -- npx eas-cli build --platform ios --profile production
+
+# Both platforms at once:
+envbao exec -q expo -- npx eas-cli build --platform all --profile production
+```
+The command uploads the project, queues the build on Expo's servers and prints a link to follow it. By default it then **waits** for the build to finish (it can sit in Expo's queue, then take 10 to 30 minutes); add `--no-wait` to schedule it and return at once. The build runs on Expo's servers either way, so closing the terminal does not stop it. Check on it with:
+
+```
+envbao exec -q expo -- npx eas-cli build:list                 # recent builds and their state
+envbao exec -q expo -- npx eas-cli build:view <build id>      # one build, with the download link
+```
+Download the file from that link (or from the dashboard). An Android APK installs by opening it on the phone; an iOS build goes to TestFlight with `eas submit` (below), or, for the `development` profile, installs on registered test devices.
+
+`eas build --local` builds on your own machine instead (Android needs the SDK, iOS needs a Mac with Xcode); it is useful to debug a build that fails in the cloud.
+
+### The profiles (`mobile/eas.json`)
+| Profile | For | Output | Plain HTTP |
+|---|---|---|---|
+| `development` | `expo start` with developer tools | internal-distribution build with the development client | any address (`ALLOW_CLEARTEXT=1`) |
+| `preview` | trying a build on phones | Android: an installable **APK**. iOS: an internal build | any address on Android (`ALLOW_CLEARTEXT=1`); local network on iOS |
+| `production` | the App Store and Google Play | Android **AAB**, iOS archive; build number goes up by one each build (`autoIncrement`) | **HTTPS only** on Android (plus `localhost` and `.local`); local network on iOS |
+
+`ALLOW_CLEARTEXT` is an environment variable on the profile, read by `mobile/plugins/network-security.js` when the native project is generated. The reasons are in [store-review.md](store-review.md). To see exactly what a profile resolves to: `envbao exec -q expo -- npx eas-cli config --platform android --profile production --non-interactive`.
+
+### First build on each platform
+The first build for each platform needs credentials, and EAS asks questions to set them up, so run it **once in a normal terminal** (not with `--non-interactive`):
+- **Android**: EAS offers to generate a keystore and keeps it. See "Signing" below before you accept.
+- **iOS**: needs a paid **Apple Developer account**. EAS asks you to sign in to Apple and then creates and stores the certificate and provisioning profile for `dev.daubney.allotment`. A development or preview iOS build also needs the test iPhones registered (`eas device:create`).
+
+Later builds, including `--non-interactive` ones, reuse them.
+
+### Version numbers
+- `version` in `app.json` (for example `1.4.1`) is the version people see. **Raise it by hand for a release.** The CI APK file name uses it, and so does the app's check against the server's `MIN_APP_VERSION` ([store-review.md](store-review.md#3-app-and-server-versions)).
+- The iOS **build number** and Android **version code** are kept by EAS (`"appVersionSource": "remote"` in `eas.json`) and go up by one on each `production` build. You do not edit them. To see or set them: `eas build:version:get` / `eas build:version:set`.
+- The Gradle/CI build does not use these numbers: its Android version code is whatever the generated project says. So an APK from CI and a bundle from EAS are not numbered in the same sequence.
+
+### Signing: the CI key and EAS's key are not the same
+The CI build signs with the key in OpenBao (`env/shell/android-signing`). EAS, by default, **generates its own keystore** the first time. An app signed with one key cannot be updated by an APK signed with the other: Android makes the person uninstall first. Decide which you want before the first Play Store upload, because that choice is permanent:
+- Let EAS keep the key and use EAS for everything that is distributed (then the CI APK is for your own phones only), or
+- Give EAS the existing key instead: `eas credentials --platform android` and choose to upload a keystore (decode `ANDROID_KEYSTORE_B64` from OpenBao to a file for this and delete the file after).
+Google Play can also manage the final signing key itself (Play App Signing, the default for new apps); EAS's key then becomes the *upload* key.
+
+### Sending a build to the stores
+```
+envbao exec -q expo -- npx eas-cli submit --platform ios --profile production --latest       # to TestFlight
+envbao exec -q expo -- npx eas-cli submit --platform android --profile production --latest   # to Google Play
+```
+`--latest` takes the most recent build. These have not been tried yet. Each store needs setting up first: iOS needs the app created in App Store Connect; Android needs a Google Play service-account key given to EAS, and the very first upload of an app must be made by hand in the Play Console. What the stores ask for (review notes, privacy, data safety) is in [store-review.md](store-review.md) and AM-63.
+
+### Triggering builds from CI
+Not set up. The Gitea `mobile` workflow builds the Android APK with Gradle and never calls EAS. To add it, a step would run `npx eas-cli build --non-interactive --platform ios --profile production` with `EXPO_TOKEN` supplied from OpenBao (as `BAO_CI_TOKEN` is for the signing key), after the first interactive build has created the iOS credentials.
+
+### If a build fails
+- `eas build:view <id>` links to the build logs on expo.dev; the failing step is usually named there.
+- `npx expo prebuild --platform android --clean --no-install` (or `ios`) in `mobile/` reproduces the native project generation locally, which is where config plugin mistakes show up. The folders it writes (`android/`, `ios/`) are not committed. It also rewrites two scripts in `package.json`; discard that change with `git checkout package.json`.
+- A build that does not appear in `build:list` was probably not started: look for an error from the command, such as "Not logged in".
 
 ## Checks
-`npm run typecheck`, `npm test` (Jest: session, queue, request handlers), and `npx expo export` (bundling) run in CI as the `mobile` job. Sensors, camera, background transfer and the native screens can only be checked on a device or simulator.
+`npm run typecheck`, `npm test` (Jest: session, queue, request handlers, version check, the Android network config plugin), and `npx expo export` (bundling) run in CI as the `mobile` job. Sensors, camera, background transfer and the native screens can only be checked on a device or simulator.
 
 ## Not yet
-Video capture, boundary trace (AM-30), the read-only map and recent activity from AM-31, drawing planting areas and planting out on the phone, app store distribution.
+Video capture, boundary trace (AM-30), the read-only map and recent activity from AM-31, drawing planting areas and planting out on the phone. Store submission is set up (EAS profiles, review notes in [store-review.md](store-review.md)) but no build has been submitted yet (AM-63).

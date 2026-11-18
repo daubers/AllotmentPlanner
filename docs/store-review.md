@@ -1,5 +1,7 @@
 # Store review notes (AM-112, part of AM-63)
 
+How to build and submit with EAS is in [mobile.md](mobile.md#building-with-eas). This page is what the stores ask for.
+
 What an App Store or Google Play reviewer needs, and the answers to what they will ask. The app is a
 client for a server the person runs themselves, so a reviewer cannot use it without one.
 
