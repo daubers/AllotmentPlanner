@@ -189,6 +189,161 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        /**
+         * Delete the signed-in account.
+         * @description Needs the password, or for an account without one a `reauth_code` from a provider login.
+         *     Allotments only this person belongs to are deleted with their files. Refused (409) while
+         *     they are the only owner of an allotment that has other members: hand it over first.
+         *     Anything else they added stays, no longer attributed to them.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DeleteAccount"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask for a zip of your data: your content as JSON plus the files you uploaded.
+         * @description It is built in the background; poll `GET /me/export/{id}` until `status` is `ready`.
+         *     A request already being built is returned instead of starting another.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AccountExport"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me/export/{export_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                export_id: number;
+            };
+            cookie?: never;
+        };
+        /** Where a data export has got to, with a download link once it is ready. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    export_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AccountExport"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me/export/{export_id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                export_id: number;
+            };
+            cookie?: never;
+        };
+        /** Download the zip. The link carries its own signature, so a browser can follow it. */
+        get: {
+            parameters: {
+                query: {
+                    t: string;
+                };
+                header?: never;
+                path: {
+                    export_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The zip */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/zip": unknown;
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3583,6 +3738,7 @@ export interface paths {
                     invite?: string;
                     redirect?: string;
                     link?: string;
+                    reauth?: string;
                 };
                 header?: never;
                 path: {
@@ -3779,6 +3935,51 @@ export interface paths {
         get?: never;
         put?: never;
         /** Begin linking a provider to the signed-in account; go to the returned `url`. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    provider_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OidcLinkStart"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/oidc/{provider_id}/reauth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Begin proving it is you at a provider you signed up with; go to the returned `url`.
+         * @description Ends by redirecting back with a one-time `reauth` code, which confirms a sensitive action
+         *     such as deleting the account. Accounts without a password have no other way to do that.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -4411,6 +4612,20 @@ export interface components {
         };
         AccessToken: {
             access_token?: string;
+        };
+        DeleteAccount: {
+            password?: string;
+            reauth_code?: string;
+        };
+        AccountExport: {
+            readonly id?: number;
+            readonly status?: string;
+            readonly size_bytes?: number | null;
+            /** Format: date-time */
+            readonly created_at?: string;
+            /** Format: date-time */
+            readonly expires_at?: string | null;
+            readonly url?: string | null;
         };
         ActiveTask: {
             id?: string;

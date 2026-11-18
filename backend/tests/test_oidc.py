@@ -663,3 +663,63 @@ class TestParsing:
         assert parse_oidc_providers("{not json") == []
         assert parse_oidc_providers('{"a": 1}') == []
         assert parse_oidc_providers("") == [] and parse_oidc_providers(None) == []
+
+
+# --- proving it is you at the provider, to confirm deleting the account --------------------------
+
+
+def start_reauth(client, headers, query="", provider="idp"):
+    resp = client.post(f"/api/v1/auth/oidc/{provider}/reauth{query}", headers=headers)
+    assert resp.status_code == 200, resp.json
+    go = client.get(resp.json["url"])
+    assert go.status_code == 302
+    query_params = parse_qs(urlparse(go.headers["Location"]).query)
+    return resp.json["url"], {k: v[0] for k, v in query_params.items()}
+
+
+def sso_only_user(client, idp):
+    """Someone who signed up through the provider and has no password."""
+    row = User(email="ann@example.com", display_name="Ann", password_hash=None)
+    db.session.add(row)
+    db.session.flush()
+    db.session.add(OidcIdentity(user_id=row.id, provider="idp", subject="ann-sub", email=row.email))
+    db.session.commit()
+    token = exchange(client, sso.issue_code(row)).json
+    return row, {"Authorization": f"Bearer {token['access_token']}"}
+
+
+def test_reauth_ends_on_the_account_page_with_a_code_that_confirms_deletion(client, idp):
+    row, headers = sso_only_user(client, idp)
+    _, params = start_reauth(client, headers)
+    target, got = finish(client, params, idp, {"sub": "ann-sub"})
+    assert target.startswith("/account?reauth=")
+    resp = client.delete("/api/v1/auth/me", json={"reauth_code": got["reauth"]}, headers=headers)
+    assert resp.status_code == 204
+    assert db.session.get(User, row.id) is None
+
+
+def test_reauth_as_someone_elses_login_confirms_nothing(client, idp):
+    row, headers = sso_only_user(client, idp)
+    _, params = start_reauth(client, headers)
+    target, got = finish(client, params, idp, {"sub": "somebody-else"})
+    assert target == "/account?error=wrong_account"
+    assert db.session.query(OidcLoginCode).filter_by(purpose="reauth").count() == 0
+
+
+def test_reauth_needs_a_linked_provider_and_a_fresh_start(client, idp, register):
+    headers, _ = register("me@example.com", "Me")
+    assert client.post("/api/v1/auth/oidc/idp/reauth", headers=headers).status_code == 409
+    assert client.post("/api/v1/auth/oidc/idp/reauth").status_code == 401
+    row, sso_headers = sso_only_user(client, idp)
+    url, _ = start_reauth(client, sso_headers)
+    # The start code was spent by following the address; it cannot be replayed.
+    again = client.get(url)
+    assert again.headers["Location"] == "/account?error=reauth_expired"
+
+
+def test_reauth_on_the_phone_goes_back_to_the_app(client, idp, app):
+    app.config["OIDC_MOBILE_REDIRECTS"] = ["allotment://auth"]
+    row, headers = sso_only_user(client, idp)
+    _, params = start_reauth(client, headers, "?client=mobile&redirect=allotment://auth")
+    target, got = finish(client, params, idp, {"sub": "ann-sub"})
+    assert target.startswith("allotment://auth?reauth=") and got["reauth"]

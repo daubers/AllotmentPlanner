@@ -31,6 +31,10 @@ celery.conf.update(
             "schedule": crontab(hour=Config.MASTODON_DIGEST_HOUR_UTC, minute=0),
         },
         "mastodon-sweep": {"task": "allotment.mastodon_sweep", "schedule": 300.0},
+        "prune-account-exports": {
+            "task": "allotment.prune_account_exports",
+            "schedule": crontab(hour=4, minute=0),
+        },
         "prune-logs": {"task": "allotment.prune_logs", "schedule": crontab(hour=3, minute=30)},
     },
 )

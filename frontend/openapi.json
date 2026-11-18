@@ -135,7 +135,133 @@
         "tags": [
           "auth"
         ]
+      },
+      "delete": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccount"
+              }
+            }
+          }
+        },
+        "summary": "Delete the signed-in account.",
+        "description": "Needs the password, or for an account without one a `reauth_code` from a provider login.\nAllotments only this person belongs to are deleted with their files. Refused (409) while\nthey are the only owner of an allotment that has other members: hand it over first.\nAnything else they added stays, no longer attributed to them.",
+        "tags": [
+          "auth"
+        ]
       }
+    },
+    "/api/v1/auth/me/export": {
+      "post": {
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountExport"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Ask for a zip of your data: your content as JSON plus the files you uploaded.",
+        "description": "It is built in the background; poll `GET /me/export/{id}` until `status` is `ready`.\nA request already being built is returned instead of starting another.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me/export/{export_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountExport"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Where a data export has got to, with a download link once it is ready.",
+        "tags": [
+          "auth"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "export_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/auth/me/export/{export_id}/file": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "The zip",
+            "content": {
+              "application/zip": {}
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Download the zip. The link carries its own signature, so a browser can follow it.",
+        "tags": [
+          "auth"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "t",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "export_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
     },
     "/api/v1/admin/workers": {
       "get": {
@@ -3931,6 +4057,13 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "reauth",
+            "schema": {
+              "type": "string"
+            }
           }
         ]
       },
@@ -4077,6 +4210,41 @@
           }
         },
         "summary": "Begin linking a provider to the signed-in account; go to the returned `url`.",
+        "tags": [
+          "oidc"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "provider_id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ]
+    },
+    "/api/v1/auth/oidc/{provider_id}/reauth": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OidcLinkStart"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Begin proving it is you at a provider you signed up with; go to the returned `url`.",
+        "description": "Ends by redirecting back with a one-time `reauth` code, which confirms a sensitive action\nsuch as deleting the account. Accounts without a password have no other way to do that.",
         "tags": [
           "oidc"
         ]
@@ -4921,6 +5089,55 @@
         "properties": {
           "access_token": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeleteAccount": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "reauth_code": {
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AccountExport": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "status": {
+            "type": "string",
+            "readOnly": true
+          },
+          "size_bytes": {
+            "type": "integer",
+            "readOnly": true,
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "nullable": true
+          },
+          "url": {
+            "type": "string",
+            "readOnly": true,
+            "nullable": true
           }
         },
         "additionalProperties": false

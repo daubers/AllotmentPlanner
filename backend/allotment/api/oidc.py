@@ -8,7 +8,7 @@ from flask_smorest import Blueprint, abort
 
 from .. import events, sso
 from ..extensions import db
-from ..models import OidcIdentity
+from ..models import OidcIdentity, User
 from ..schemas import AuthMethodsSchema, OidcExchangeSchema, OidcLinkStartSchema, TokenSchema
 from ..security import current_user
 from .auth import _tokens
@@ -58,6 +58,7 @@ class OidcLogin(MethodView):
             {"in": "query", "name": "invite", "schema": {"type": "string"}},
             {"in": "query", "name": "redirect", "schema": {"type": "string"}},
             {"in": "query", "name": "link", "schema": {"type": "string"}},
+            {"in": "query", "name": "reauth", "schema": {"type": "string"}},
         ],
     )
     def get(self, provider_id):
@@ -80,6 +81,13 @@ class OidcLogin(MethodView):
             if linking_user is None:
                 return redirect(_back_to(client, back, linking=True, error="link_expired"))
             link_user_id = linking_user.id
+        reauth_user_id = None
+        if request.args.get("reauth"):
+            # Spend the start code now: it names who must prove themselves at the provider.
+            reauth_user = sso.redeem_code(request.args["reauth"], "rstart")
+            if reauth_user is None:
+                return redirect(_back_to(client, back, linking=True, error="reauth_expired"))
+            reauth_user_id = reauth_user.id
         try:
             url, binder = sso.start(
                 prov,
@@ -88,10 +96,13 @@ class OidcLogin(MethodView):
                 invite=request.args.get("invite", ""),
                 back=back,
                 link_user_id=link_user_id,
+                reauth_user_id=reauth_user_id,
             )
         except sso.OidcError as exc:
             log.warning("oidc_start_failed", provider=provider_id, code=exc.code, detail=str(exc))
-            return redirect(_back_to(client, back, linking=bool(link_user_id), error=exc.code))
+            return redirect(
+                _back_to(client, back, linking=bool(link_user_id or reauth_user_id), error=exc.code)
+            )
         response = make_response(redirect(url))
         response.set_cookie(
             BINDER_COOKIE,
@@ -130,11 +141,14 @@ class OidcCallback(MethodView):
             if state.get("l"):
                 sso.link_identity(prov, claims, state["l"])
                 code = None
+            elif state.get("a"):
+                sso.confirm_identity(prov, claims, state["a"])
+                code = sso.issue_code(db.session.get(User, state["a"]), purpose="reauth")
             else:
                 user = sso.resolve_user(prov, claims, state.get("i", ""))
                 code = sso.issue_code(user)
         except sso.OidcError as exc:
-            linking = bool(state.get("l"))
+            linking = bool(state.get("l") or state.get("a"))
             log.warning("oidc_signin_failed", provider=provider_id, code=exc.code, detail=str(exc))
             if not linking:
                 events.emit(
@@ -147,7 +161,9 @@ class OidcCallback(MethodView):
                 redirect(_back_to(client, back, linking=linking, error=exc.code))
             )
         else:
-            if code is None:
+            if state.get("a"):
+                target = _back_to(state["c"], state["r"], linking=True, reauth=code)
+            elif code is None:
                 target = _back_to("web", "", linking=True, linked=provider_id)
             else:
                 target = _back_to(state["c"], state["r"], code=code)
@@ -243,3 +259,31 @@ class OidcLink(MethodView):
             abort(409, message=f"{prov['name']} is already linked to your account")
         code = sso.issue_code(user, purpose="link")
         return {"url": f"/api/v1/auth/oidc/{provider_id}/login?client=web&link={code}"}
+
+
+@blp.route("/<provider_id>/reauth")
+class OidcReauth(MethodView):
+    @jwt_required()
+    @blp.response(200, OidcLinkStartSchema)
+    def post(self, provider_id):
+        """Begin proving it is you at a provider you signed up with; go to the returned `url`.
+
+        Ends by redirecting back with a one-time `reauth` code, which confirms a sensitive action
+        such as deleting the account. Accounts without a password have no other way to do that.
+        """
+        prov = sso.provider(provider_id)
+        if prov is None:
+            abort(404, message="Unknown sign-in provider")
+        user = current_user()
+        if (
+            not db.session.query(OidcIdentity)
+            .filter_by(user_id=user.id, provider=provider_id)
+            .first()
+        ):
+            abort(409, message=f"{prov['name']} is not linked to your account")
+        code = sso.issue_code(user, purpose="rstart")
+        query = urlencode({"client": request.args.get("client", "web"), "reauth": code})
+        redirect_to = request.args.get("redirect")
+        if redirect_to:
+            query += "&" + urlencode({"redirect": redirect_to})
+        return {"url": f"/api/v1/auth/oidc/{provider_id}/login?{query}"}

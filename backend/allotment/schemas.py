@@ -27,6 +27,22 @@ class LoginSchema(Schema):
     password = fields.String(required=True, load_only=True)
 
 
+class DeleteAccountSchema(Schema):
+    """Proof it is the owner: their password, or the `reauth` code from a provider login."""
+
+    password = fields.String(load_only=True)
+    reauth_code = fields.String(load_only=True)
+
+
+class AccountExportSchema(Schema):
+    id = fields.Integer(dump_only=True)
+    status = fields.String(dump_only=True)  # pending, ready or failed
+    size_bytes = fields.Integer(dump_only=True, allow_none=True)
+    created_at = fields.DateTime(dump_only=True)
+    expires_at = fields.DateTime(dump_only=True, allow_none=True)
+    url = fields.String(dump_only=True, allow_none=True)  # signed download link, when ready
+
+
 class UserSchema(Schema):
     id = fields.Integer(dump_only=True)
     email = fields.Email(dump_only=True)
