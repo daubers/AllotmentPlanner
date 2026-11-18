@@ -20,6 +20,10 @@ out="${OUT_DIR:-dist}"
 version="$(node -p "require('./app.json').expo.version")"
 commit="$(git rev-parse --short HEAD 2>/dev/null || echo local)"
 
+# This APK is installed by hand, often against a server at http://192.168.x.x, so it allows plain HTTP
+# everywhere. The store build (EAS production profile) leaves this off and requires HTTPS.
+export ALLOW_CLEARTEXT="${ALLOW_CLEARTEXT:-1}"
+
 npm ci
 # Regenerate the native project each time: android/ is not committed.
 CI=1 npx expo prebuild --platform android --clean --no-install

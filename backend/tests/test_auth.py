@@ -74,8 +74,18 @@ def _signup(client, email="b@example.com", **extra):
     )
 
 
+def test_auth_config_says_which_versions_the_server_is_and_works_with(client, app):
+    app.config["APP_VERSION"] = "0.16.0"
+    app.config["MIN_APP_VERSION"] = "1.5.0"
+    body = client.get("/api/v1/auth/config").json
+    assert body["server_version"] == "0.16.0"
+    assert body["api_level"] == app.config["API_LEVEL"] >= 1
+    assert body["min_app_version"] == "1.5.0"
+
+
 def test_auth_config_defaults_to_open(client):
-    assert client.get("/api/v1/auth/config").json == {"registration": "open", "oidc": []}
+    body = client.get("/api/v1/auth/config").json
+    assert (body["registration"], body["oidc"]) == ("open", [])
 
 
 @pytest.fixture
@@ -84,7 +94,8 @@ def invite_only(app):
 
 
 def test_invite_only_allows_first_account_then_closes(client, invite_only):
-    assert client.get("/api/v1/auth/config").json == {"registration": "invite", "oidc": []}
+    body = client.get("/api/v1/auth/config").json
+    assert (body["registration"], body["oidc"]) == ("invite", [])
     assert _signup(client, "first@example.com").status_code == 201
     resp = _signup(client, "second@example.com")
     assert resp.status_code == 403

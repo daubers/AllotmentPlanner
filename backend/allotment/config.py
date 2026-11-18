@@ -104,6 +104,12 @@ class Config:
     # How long a built data export can be downloaded before it is deleted.
     ACCOUNT_EXPORT_TTL_HOURS = int(os.environ.get("ACCOUNT_EXPORT_TTL_HOURS", "48"))
     APP_VERSION = os.environ.get("APP_VERSION", "dev")
+    # Bumped when the API changes in a way an older server cannot serve to a newer app. The phone
+    # app says "update the server" when it needs a higher level than this.
+    API_LEVEL = 1
+    # The oldest phone app this server will work with; older ones are told to update. The default
+    # accepts every app.
+    MIN_APP_VERSION = os.environ.get("MIN_APP_VERSION", "0.0.0")
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-only-insecure-secret-change-me-in-prod")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=30)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)

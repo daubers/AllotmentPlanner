@@ -46,12 +46,19 @@ def _tokens(user: User) -> dict:
 class AuthConfig(MethodView):
     @blp.response(200, AuthConfigSchema)
     def get(self):
-        """How accounts can be created here, so the sign-in page can ask for an invite code."""
+        """How accounts can be created here, and which versions this server is and works with.
+
+        Needs no sign-in: the phone app reads it before login to tell the person whether the app
+        or the server needs updating.
+        """
         return {
             "registration": current_app.config["REGISTRATION"],
             "oidc": [
                 {"id": p["id"], "name": p["name"]} for p in current_app.config["OIDC_PROVIDERS"]
             ],
+            "server_version": current_app.config["APP_VERSION"],
+            "api_level": current_app.config["API_LEVEL"],
+            "min_app_version": current_app.config["MIN_APP_VERSION"],
         }
 
 

@@ -11,7 +11,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** How accounts can be created here, so the sign-in page can ask for an invite code. */
+        /**
+         * How accounts can be created here, and which versions this server is and works with.
+         * @description Needs no sign-in: the phone app reads it before login to tell the person whether the app
+         *     or the server needs updating.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -4581,6 +4585,12 @@ export interface components {
             registration?: string;
             /** @description Single sign-on providers */
             oidc?: components["schemas"]["OidcProvider"][];
+            /** @description The release this server is running */
+            server_version?: string;
+            /** @description Raised when the API changes in a way older servers can't serve */
+            api_level?: number;
+            /** @description The oldest phone app version this server works with */
+            min_app_version?: string;
         };
         Register: {
             /** Format: email */
