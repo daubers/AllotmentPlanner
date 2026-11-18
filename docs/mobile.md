@@ -93,6 +93,7 @@ envbao exec -q expo -- npx eas-cli build --platform android --profile preview
 # A development build (the app with its developer tools, for `expo start`):
 envbao exec -q expo -- npx eas-cli build --platform android --profile development
 envbao exec -q expo -- npx eas-cli build --platform ios --profile development
+# (needs the expo-dev-client package, which is in package.json; it needs no store account on Android)
 
 # What goes to the stores (an Android app bundle, an iOS archive), HTTPS only:
 envbao exec -q expo -- npx eas-cli build --platform android --profile production
@@ -109,6 +110,8 @@ envbao exec -q expo -- npx eas-cli build:view <build id>      # one build, with 
 ```
 Download the file from that link (or from the dashboard). An Android APK installs by opening it on the phone; an iOS build goes to TestFlight with `eas submit` (below), or, for the `development` profile, installs on registered test devices.
 
+Builds wait in Expo's queue first: on the free plan expect 10 to 30 minutes in `IN_QUEUE`, then 15 to 20 minutes building. Check with `build:view <id>` or `build:list`.
+
 `eas build --local` builds on your own machine instead (Android needs the SDK, iOS needs a Mac with Xcode); it is useful to debug a build that fails in the cloud.
 
 ### The profiles (`mobile/eas.json`)
@@ -122,7 +125,7 @@ Download the file from that link (or from the dashboard). An Android APK install
 
 ### First build on each platform
 The first build for each platform needs credentials, and EAS asks questions to set them up, so run it **once in a normal terminal** (not with `--non-interactive`):
-- **Android**: EAS offers to generate a keystore and keeps it. See "Signing" below before you accept.
+- **Android**: EAS offers to generate a keystore and keeps it. (With `--non-interactive` it generates one without asking; the first build, a `development` one on 18 November 2026, did exactly that.) See "Signing" below before the first Play upload.
 - **iOS**: needs a paid **Apple Developer account**. EAS asks you to sign in to Apple and then creates and stores the certificate and provisioning profile for `dev.daubney.allotment`. A development or preview iOS build also needs the test iPhones registered (`eas device:create`).
 
 Later builds, including `--non-interactive` ones, reuse them.
