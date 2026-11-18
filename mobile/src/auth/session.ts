@@ -1,5 +1,7 @@
 /** Server address and login tokens, kept in a small key-value store (the phone's secure storage). */
 
+import type { ServerInfo } from "./compat";
+
 export type Tokens = { access_token: string; refresh_token: string };
 
 export interface KeyValueStore {
@@ -21,11 +23,25 @@ export function secondsLeft(jwt: string, now: number = Date.now()): number {
   }
 }
 
-/** "192.168.1.5:8000" or "https://plot.example.com/" become a base URL without a trailing slash. */
+/** Whether an address is on this phone's own network: a private IPv4 range, localhost, a `.local` name, or a bare host name. */
+export function isLocalHost(hostPort: string): boolean {
+  const host = hostPort.replace(/^\[|\]?(:\d+)?$/g, "").toLowerCase();
+  if (host === "localhost" || host.endsWith(".local") || !host.includes(".")) return true;
+  const m = host.match(/^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/);
+  if (!m) return false;
+  const [a, b] = [Number(m[1]), Number(m[2])];
+  return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+}
+
+/**
+ * "192.168.1.5:8000" or "https://plot.example.com/" become a base URL without a trailing slash.
+ * With no scheme, an address on the local network gets http:// (a home server rarely has a certificate)
+ * and anything else gets https://.
+ */
 export function normaliseServerUrl(input: string): string {
   let url = input.trim();
   if (!url) return "";
-  if (!/^https?:\/\//i.test(url)) url = `http://${url}`;
+  if (!/^https?:\/\//i.test(url)) url = `${isLocalHost(url.split("/")[0]) ? "http" : "https"}://${url}`;
   return url.replace(/\/+$/, "");
 }
 
@@ -118,18 +134,28 @@ export class Session {
     await this.adopt(base, (await res.json()) as Tokens);
   }
 
-  /** The single sign-on providers this server offers (none if it can't be reached or has none). */
-  async providers(serverInput: string): Promise<Provider[]> {
+  /** What the server says about itself before anyone signs in, or null if it can't be read. */
+  async serverInfo(serverInput: string): Promise<(ServerInfo & { providers: Provider[] }) | null> {
     const base = normaliseServerUrl(serverInput);
-    if (!base) return [];
+    if (!base) return null;
     try {
       const res = await this.fetchImpl(`${base}/api/v1/auth/config`, { headers: { Accept: "application/json" } });
-      if (!res.ok) return [];
-      const body = (await res.json()) as { oidc?: Provider[] };
-      return (body.oidc ?? []).filter((p) => p.id && p.name);
+      if (!res.ok) return null;
+      const body = (await res.json()) as { oidc?: Provider[]; server_version?: string; api_level?: number; min_app_version?: string };
+      return {
+        providers: (body.oidc ?? []).filter((p) => p.id && p.name),
+        serverVersion: body.server_version,
+        apiLevel: body.api_level,
+        minAppVersion: body.min_app_version,
+      };
     } catch {
-      return [];
+      return null;
     }
+  }
+
+  /** The single sign-on providers this server offers (none if it can't be reached or has none). */
+  async providers(serverInput: string): Promise<Provider[]> {
+    return (await this.serverInfo(serverInput))?.providers ?? [];
   }
 
   /** Finish a single sign-on: swap the one-time code the sign-in ended with for a login. */

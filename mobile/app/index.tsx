@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
+import { APP_VERSION } from "../src/auth/appVersion";
+import { checkCompat } from "../src/auth/compat";
 import { useFound } from "../src/found/hooks";
 import JobSwitch from "../src/tasks/JobSwitch";
 import UploadBanner from "../src/ui/UploadBanner";
@@ -127,6 +129,14 @@ export default function Home() {
   const [switching, setSwitching] = useState(false);
   const [selected, setSelected] = useState<Selection | null>(null);
 
+  // Has the server fallen behind this app, or the app behind the server's minimum?
+  const serverInfo = useQuery({
+    queryKey: ["server-info", session.serverUrl],
+    queryFn: () => session.serverInfo(session.serverUrl),
+    staleTime: 10 * 60 * 1000,
+  });
+  const compat = checkCompat(serverInfo.data ?? null, APP_VERSION);
+
   const allotments = useQuery({
     queryKey: ["allotments", session.serverUrl],
     queryFn: async () => {
@@ -186,6 +196,7 @@ export default function Home() {
       ) : null}
 
       <UploadBanner />
+      {compat ? <Banner tone="warn" text={compat.message} /> : null}
       {allotments.isLoading ? <Loading label="Loading your plot…" /> : null}
       {allotments.isError ? <Banner tone="danger" text={allotments.error.message} action="Try again" onAction={() => allotments.refetch()} /> : null}
       {allotments.data?.length === 0 ? (

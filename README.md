@@ -291,7 +291,7 @@ npx expo run:android              # or run:ios (macOS with Xcode)
 
 On the sign-in screen enter the address of your server: `http://<computer's LAN IP>:8000` for the development stack, or your deployment's address (`https://plot.example.com`). `localhost` means the phone itself.
 
-To install on other phones without the app stores, build with EAS (`npm i -g eas-cli`, `eas build:configure`, then `eas build --platform android --profile preview`); that needs an Expo account and, for iOS, an Apple developer account. There is no `eas.json` in the repository yet and store distribution has not been set up, so treat this as the starting point rather than a tested recipe.
+To install on other phones without the app stores, build with EAS: `eas.json` has `development`, `preview` (an installable Android APK) and `production` (store) profiles, and the project is linked to the Expo account in `app.json`. For example `eas build --platform android --profile preview`. That needs an Expo account and, for iOS, an Apple developer account. Plain HTTP to a LAN address works in the preview and development builds and the CI APK, not in store builds: see [docs/store-review.md](docs/store-review.md).
 
 To look at the screens without a phone: `EXPO_PUBLIC_DEMO=1 npx expo start --web` serves them in a browser with built-in fake data.
 
