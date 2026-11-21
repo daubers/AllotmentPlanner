@@ -75,7 +75,7 @@ jobs:
           cache-to: type=registry,ref=${{ steps.reg.outputs.image }}:buildcache,mode=${{ matrix.cache_mode || 'max' }}
 
   # Release tags only: once the test workflow for the same tag is green too, start the deploy in
-  # matt/playbooks (Gitea cannot trigger one repo's workflow from another's tags). That
+  # matt/Allotment-Deploy (Gitea cannot trigger one repo's workflow from another's tags). That
   # workflow re-checks the commit is on main and both workflows succeeded before touching the host.
   trigger-deploy:
     needs: image
@@ -124,5 +124,5 @@ jobs:
           [ "$state" = ok ] || { echo "timed out waiting for the test workflow"; exit 1; }
           curl -fsS --retry 3 --retry-delay 5 -X POST -H "Authorization: token $TOKEN" -H "Content-Type: application/json" \
             -d "{\"ref\":\"main\",\"inputs\":{\"tag\":\"$TAG\",\"sha\":\"$SHA\"}}" \
-            "$API/repos/matt/playbooks/actions/workflows/deploy-allotment.yml/dispatches"
+            "$API/repos/matt/Allotment-Deploy/actions/workflows/deploy.yml/dispatches"
           echo "deploy of $TAG dispatched"
