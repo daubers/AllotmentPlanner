@@ -11,7 +11,7 @@ An `act_runner` labelled `ubuntu-latest` with access to the Docker socket (neede
 
 ## Secrets
 - `PKGS_API_KEY`: the ProGet API key (login user `api`), used to push images to `pkgs.daubney.dev/allotment/`. The same secret is set on Allotment-Deploy to pull them. It is stored in OpenBao and read with `envbao exec -q pkgs`.
-- `DEPLOY_DISPATCH_TOKEN`: a personal access token that can dispatch workflows on `matt/Allotment-Deploy` (used by the `trigger-deploy` job).
+- `DEPLOY_DISPATCH_TOKEN`: a personal access token that can dispatch workflows on `matt/playbooks` (used by the `trigger-deploy` job).
 
 ## Image tags
 Three images are pushed to `pkgs.daubney.dev/allotment/`: `allotment-api`, `allotment-frontend` and `allotment-worker` (the OpenSfM + GDAL mapping worker). Each gets `sha-<short>`, the branch name, `latest` on `main`, and `X.Y.Z` / `X.Y` for tags like `v0.1.0`.
