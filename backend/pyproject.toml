@@ -17,6 +17,7 @@ dependencies = [
     "requests>=2.31",
     "pyyaml>=6",
     "cryptography>=42",
+    "icalendar>=5.0",
     "pillow>=10.3",
     "celery[redis]>=5.4",
     "flower>=2.0",

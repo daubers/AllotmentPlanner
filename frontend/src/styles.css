@@ -487,3 +487,20 @@ a.button.secondary { background: none; color: var(--accent); border: 1px solid v
 .sso a.button { display: block; padding: .5rem .75rem; border: 1px solid var(--border); border-radius: 6px; text-decoration: none; color: inherit; }
 
 .signins li { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .6rem .75rem; }
+
+/* Visits */
+.page-head { display: flex; justify-content: space-between; align-items: center; gap: .75rem; margin-bottom: 1rem; }
+.page-head h1 { margin: 0; }
+.subscribe-panel { margin-bottom: 1rem; padding: .6rem .9rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.subscribe-panel summary { cursor: pointer; font-weight: 600; }
+.subscribe-panel input[readonly] { margin: .5rem 0; width: 100%; }
+.visits { list-style: none; padding: 0; margin: 0; display: grid; gap: .75rem; }
+.visit { border-top: 1px solid var(--border); padding-top: .6rem; display: grid; gap: .3rem; }
+.visit-head { display: flex; justify-content: space-between; align-items: baseline; gap: .75rem; flex-wrap: wrap; }
+.visit-actions { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+.calendar-menu { position: relative; }
+.calendar-menu-options { position: absolute; z-index: 1; top: 100%; left: 0; display: grid; gap: .3rem; padding: .5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; white-space: nowrap; }
+.visit-form { display: grid; gap: .75rem; }
+.visit-form .inline input { flex: 1 1 8rem; }
+.visit-tasks { border: 1px solid var(--border); border-radius: 8px; padding: .6rem .75rem; }
+.visit-tasks ul { list-style: none; padding: 0; margin: .3rem 0 0; display: grid; gap: .3rem; max-height: 14rem; overflow: auto; }

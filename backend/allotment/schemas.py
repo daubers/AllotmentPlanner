@@ -1166,6 +1166,43 @@ class DayListTasksSchema(Schema):
     )
 
 
+class VisitInSchema(Schema):
+    title = fields.String(required=True, validate=validate.Length(min=1, max=200))
+    notes = fields.String(load_default="", validate=validate.Length(max=5000))
+    starts_at = fields.DateTime(required=True)
+    duration_minutes = fields.Integer(load_default=120, validate=validate.Range(min=1, max=1440))
+    task_ids = fields.List(fields.Integer(), load_default=list)
+
+
+class VisitPatchSchema(Schema):
+    title = fields.String(validate=validate.Length(min=1, max=200))
+    notes = fields.String(validate=validate.Length(max=5000))
+    starts_at = fields.DateTime()
+    duration_minutes = fields.Integer(validate=validate.Range(min=1, max=1440))
+
+
+class VisitSchema(Schema):
+    id = fields.Integer()
+    title = fields.String()
+    notes = fields.String()
+    starts_at = fields.DateTime()
+    duration_minutes = fields.Integer()
+    task_ids = fields.List(fields.Integer(), metadata={"description": "Tasks pegged to the visit"})
+    created_at = fields.DateTime()
+    updated_at = fields.DateTime()
+
+
+class VisitTasksSchema(Schema):
+    task_ids = fields.List(
+        fields.Integer(), required=True, validate=validate.Length(min=1, max=500)
+    )
+
+
+class CalendarTokenSchema(Schema):
+    token = fields.String(allow_none=True)
+    feed_url = fields.String(allow_none=True, metadata={"description": "webcal:// subscribe URL"})
+
+
 class FeatureNoteInSchema(Schema):
     feature_id = fields.Integer(required=True)
     body = fields.String(required=True, validate=validate.Length(min=1, max=5000))

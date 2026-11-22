@@ -90,6 +90,9 @@ class Allotment(db.Model):
     length_unit: Mapped[str] = mapped_column(
         String(8), default="m", server_default="m"
     )  # how lengths are shown: m | cm | ft_in (always stored in metres)
+    # The secret in the public .ics feed URL. Null until first requested; rotating it
+    # invalidates every calendar subscribed to the old one.
+    calendar_token: Mapped[str | None] = mapped_column(String(43), nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     memberships: Mapped[list["Membership"]] = relationship(
@@ -707,6 +710,44 @@ class DayListItem(db.Model):
     added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     day_list: Mapped[DayList] = relationship(back_populates="items")
+
+
+class Visit(db.Model):
+    """A planned trip to the allotment, with a start time/duration and a pegged task list."""
+
+    __tablename__ = "visits"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    notes: Mapped[str] = mapped_column(Text, default="")
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    duration_minutes: Mapped[int] = mapped_column(default=120, server_default="120")
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
+
+    tasks: Mapped[list["VisitTask"]] = relationship(
+        back_populates="visit", cascade="all, delete-orphan", order_by="VisitTask.position"
+    )
+
+
+class VisitTask(db.Model):
+    __tablename__ = "visit_tasks"
+    __table_args__ = (UniqueConstraint("visit_id", "task_id", name="uq_visit_task"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    visit_id: Mapped[int] = mapped_column(ForeignKey("visits.id", ondelete="CASCADE"), index=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(default=0, server_default="0")
+
+    visit: Mapped[Visit] = relationship(back_populates="tasks")
 
 
 class AccountExport(db.Model):

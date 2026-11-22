@@ -281,6 +281,11 @@ export default function Home() {
             body={jobs.length > 0 ? `${jobs.length} to do${late > 0 ? `, ${late} late` : ""}. Tick them off as you go; works without signal.` : "Tick jobs off as you go, or add one while you are on the plot. Works without signal."}
             onPress={() => router.push("/tasks")}
           />
+          <Tile
+            title="Visits"
+            body="Plan a trip to the plot, peg jobs to it, and add it to your calendar."
+            onPress={() => router.push("/visits")}
+          />
         </Section>
       ) : null}
 
