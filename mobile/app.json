@@ -68,7 +68,8 @@
           "backgroundColor": "#F1F4EE"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-sharing"
     ],
     "scheme": "allotment",
     "web": {

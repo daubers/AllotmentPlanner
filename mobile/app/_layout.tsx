@@ -27,6 +27,9 @@ function Gate() {
       <Stack.Screen name="tasks/index" />
       <Stack.Screen name="tasks/new" />
       <Stack.Screen name="tasks/[id]" />
+      <Stack.Screen name="visits/index" />
+      <Stack.Screen name="visits/new" />
+      <Stack.Screen name="visits/[id]" />
       <Stack.Screen name="beds/index" />
       <Stack.Screen name="beds/[id]" />
       <Stack.Screen name="photo" options={{ animation: "slide_from_bottom" }} />

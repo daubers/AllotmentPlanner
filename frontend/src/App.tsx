@@ -21,6 +21,7 @@ import TasksPage from "./pages/TasksPage";
 import TrayPage from "./pages/TrayPage";
 import TraysPage from "./pages/TraysPage";
 import TodayPage from "./pages/TodayPage";
+import VisitsPage from "./pages/VisitsPage";
 import Landing from "./public/Landing";
 import Privacy from "./public/Privacy";
 
@@ -65,6 +66,7 @@ export default function App() {
           <Route index element={<Suspense fallback={<p className="muted centre">Loading map…</p>}><MapView /></Suspense>} />
           <Route path="tasks" element={<TasksPage />} />
           <Route path="today" element={<TodayPage />} />
+          <Route path="visits" element={<VisitsPage />} />
           <Route path="photos" element={<PhotosPage />} />
           <Route path="notes" element={<NotesPage />} />
           <Route path="overview" element={<OverviewPage />} />
