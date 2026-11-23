@@ -1,6 +1,7 @@
 from marshmallow import Schema, ValidationError, fields, validate, validates_schema
 
 from .models import FeatureKind
+from .plan import MAX_SUCCESSION, PLAN_STATUSES
 from .plantings import METHODS
 from .plantings import STATUSES as PLANTING_STATUSES
 from .seeds import ACTIVITIES, CELL_STATUSES, MAX_TRAY_SIDE, STOCK_LEVELS, SUN_LEVELS
@@ -1017,6 +1018,101 @@ class PlantingSchema(Schema):
     photos = fields.List(fields.Nested(MediaSchema))
     created_at = fields.DateTime()
     updated_at = fields.DateTime()
+
+
+class PlanItemInSchema(Schema):
+    """One crop in one bed for a stretch of time. ``name`` defaults to the packet or crop name."""
+
+    feature_id = fields.Integer(required=True, metadata={"description": "The bed"})
+    crop_key = fields.String(load_default=None, allow_none=True, validate=validate.Length(max=40))
+    packet_id = fields.Integer(load_default=None, allow_none=True)
+    name = fields.String(load_default="", validate=validate.Length(max=120))
+    method = fields.String(load_default="direct_sow", validate=validate.OneOf(METHODS))
+    area_m2 = fields.Float(
+        required=True,
+        validate=validate.Range(min=0.01, max=100000),
+        metadata={"description": "Space used in square metres"},
+    )
+    plant_count = fields.Integer(
+        load_default=None, allow_none=True, validate=validate.Range(min=1, max=100000)
+    )
+    sow_on = fields.Date(required=True)
+    plant_out_on = fields.Date(
+        load_default=None, allow_none=True, metadata={"description": "Transplants only"}
+    )
+    end_on = fields.Date(required=True, metadata={"description": "The day the bed is free again"})
+    notes = fields.String(load_default="", validate=validate.Length(max=5000))
+
+
+class PlanItemPatchSchema(Schema):
+    crop_key = fields.String(allow_none=True, validate=validate.Length(max=40))
+    packet_id = fields.Integer(allow_none=True)
+    name = fields.String(validate=validate.Length(min=1, max=120))
+    method = fields.String(validate=validate.OneOf(METHODS))
+    area_m2 = fields.Float(validate=validate.Range(min=0.01, max=100000))
+    plant_count = fields.Integer(allow_none=True, validate=validate.Range(min=1, max=100000))
+    sow_on = fields.Date()
+    plant_out_on = fields.Date(allow_none=True)
+    end_on = fields.Date()
+    notes = fields.String(validate=validate.Length(max=5000))
+    status = fields.String(validate=validate.OneOf(PLAN_STATUSES))
+
+
+class PlanSuccessionSchema(Schema):
+    item = fields.Nested(PlanItemInSchema, required=True)
+    interval_days = fields.Integer(required=True, validate=validate.Range(min=1, max=365))
+    count = fields.Integer(
+        required=True,
+        validate=validate.Range(min=1, max=MAX_SUCCESSION),
+        metadata={"description": "How many sowings in all, the first being the item itself"},
+    )
+
+
+class PlanQuerySchema(Schema):
+    start = fields.Date(data_key="from", load_default=None)
+    to = fields.Date(load_default=None)
+    feature_id = fields.Integer(load_default=None)
+
+
+class PlanItemSchema(Schema):
+    id = fields.Integer()
+    feature_id = fields.Integer()
+    crop_key = fields.String(allow_none=True)
+    packet_id = fields.Integer(allow_none=True)
+    name = fields.String()
+    method = fields.String(validate=validate.OneOf(METHODS))
+    area_m2 = fields.Float()
+    plant_count = fields.Integer(allow_none=True)
+    sow_on = fields.Date()
+    plant_out_on = fields.Date(allow_none=True)
+    end_on = fields.Date()
+    series_key = fields.String(allow_none=True)
+    notes = fields.String()
+    status = fields.String(validate=validate.OneOf(PLAN_STATUSES))
+    planting_id = fields.Integer(allow_none=True)
+    created_at = fields.DateTime()
+
+
+class PlanConflictSchema(Schema):
+    start = fields.Date(data_key="from")
+    to = fields.Date(metadata={"description": "The first day it is no longer overbooked"})
+    used_m2 = fields.Float()
+    over_m2 = fields.Float()
+    item_ids = fields.List(fields.Integer())
+
+
+class PlanBedSchema(Schema):
+    feature_id = fields.Integer()
+    name = fields.String()
+    area_m2 = fields.Float(allow_none=True, metadata={"description": "Null if the bed has no area"})
+    items = fields.List(fields.Nested(PlanItemSchema))
+    conflicts = fields.List(fields.Nested(PlanConflictSchema))
+
+
+class PlanSchema(Schema):
+    start = fields.Date(data_key="from")
+    to = fields.Date()
+    beds = fields.List(fields.Nested(PlanBedSchema))
 
 
 class PlantOutSchema(Schema):

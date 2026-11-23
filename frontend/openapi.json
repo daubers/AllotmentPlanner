@@ -3064,6 +3064,262 @@
         }
       ]
     },
+    "/api/v1/allotments/{allotment_id}/plan": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "default": null,
+              "nullable": true
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "default": null,
+              "nullable": true
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "feature_id",
+            "schema": {
+              "type": "integer",
+              "default": null,
+              "nullable": true
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plan"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Every bed with its plan items in the window, and when each is overbooked.",
+        "tags": [
+          "plan"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/plan-items": {
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanItem"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanItemIn"
+              }
+            }
+          }
+        },
+        "summary": "Plan a crop in a bed. Overbooking is shown on the plan, not refused.",
+        "tags": [
+          "plan"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/plan-items/successions": {
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlanItem"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanSuccession"
+              }
+            }
+          }
+        },
+        "summary": "Plan the same crop several times, each sowing a set number of days after the last.",
+        "tags": [
+          "plan"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/plan-items/{item_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanItem"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "plan"
+        ]
+      },
+      "patch": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanItem"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanItemPatch"
+              }
+            }
+          }
+        },
+        "tags": [
+          "plan"
+        ]
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "plan"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "item_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
     "/api/v1/allotments/{allotment_id}/packet-scans": {
       "get": {
         "responses": {
@@ -5309,6 +5565,10 @@
     {
       "name": "plantings",
       "description": "What is growing where in the beds"
+    },
+    {
+      "name": "plan",
+      "description": "Crop plan: what to grow in each bed, and when"
     },
     {
       "name": "packet_scans",
@@ -7653,6 +7913,317 @@
           "added": {
             "type": "boolean",
             "description": "A task for this suggestion already exists"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "feature_id": {
+            "type": "integer"
+          },
+          "crop_key": {
+            "type": "string",
+            "nullable": true
+          },
+          "packet_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "direct_sow",
+              "transplant"
+            ]
+          },
+          "area_m2": {
+            "type": "number"
+          },
+          "plant_count": {
+            "type": "integer",
+            "nullable": true
+          },
+          "sow_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "plant_out_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "end_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "series_key": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "done",
+              "skipped"
+            ]
+          },
+          "planting_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanConflict": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date",
+            "description": "The first day it is no longer overbooked"
+          },
+          "used_m2": {
+            "type": "number"
+          },
+          "over_m2": {
+            "type": "number"
+          },
+          "item_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanBed": {
+        "type": "object",
+        "properties": {
+          "feature_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "area_m2": {
+            "type": "number",
+            "description": "Null if the bed has no area",
+            "nullable": true
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanItem"
+            }
+          },
+          "conflicts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanConflict"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "Plan": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "beds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanBed"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanItemIn": {
+        "type": "object",
+        "properties": {
+          "feature_id": {
+            "type": "integer",
+            "description": "The bed"
+          },
+          "crop_key": {
+            "type": "string",
+            "default": null,
+            "maxLength": 40,
+            "nullable": true
+          },
+          "packet_id": {
+            "type": "integer",
+            "default": null,
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "default": "",
+            "maxLength": 120
+          },
+          "method": {
+            "type": "string",
+            "default": "direct_sow",
+            "enum": [
+              "direct_sow",
+              "transplant"
+            ]
+          },
+          "area_m2": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 100000.0,
+            "description": "Space used in square metres"
+          },
+          "plant_count": {
+            "type": "integer",
+            "default": null,
+            "minimum": 1,
+            "maximum": 100000,
+            "nullable": true
+          },
+          "sow_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "plant_out_on": {
+            "type": "string",
+            "format": "date",
+            "default": null,
+            "description": "Transplants only",
+            "nullable": true
+          },
+          "end_on": {
+            "type": "string",
+            "format": "date",
+            "description": "The day the bed is free again"
+          },
+          "notes": {
+            "type": "string",
+            "default": "",
+            "maxLength": 5000
+          }
+        },
+        "required": [
+          "area_m2",
+          "end_on",
+          "feature_id",
+          "sow_on"
+        ],
+        "additionalProperties": false
+      },
+      "PlanSuccession": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/PlanItemIn"
+          },
+          "interval_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30,
+            "description": "How many sowings in all, the first being the item itself"
+          }
+        },
+        "required": [
+          "count",
+          "interval_days",
+          "item"
+        ],
+        "additionalProperties": false
+      },
+      "PlanItemPatch": {
+        "type": "object",
+        "properties": {
+          "crop_key": {
+            "type": "string",
+            "maxLength": 40,
+            "nullable": true
+          },
+          "packet_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "direct_sow",
+              "transplant"
+            ]
+          },
+          "area_m2": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 100000.0
+          },
+          "plant_count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000,
+            "nullable": true
+          },
+          "sow_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "plant_out_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "end_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "done",
+              "skipped"
+            ]
           }
         },
         "additionalProperties": false

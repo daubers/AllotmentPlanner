@@ -52,6 +52,12 @@ def area_m2(poly: Polygon) -> float:
     return _in_metres(poly, _origin(poly)).area
 
 
+def bed_area_m2(geometry: dict) -> float | None:
+    """The area of a bed drawn as an area; None for a point, line or an empty shape."""
+    poly = to_polygon(geometry)
+    return None if poly is None else round(area_m2(poly), 2)
+
+
 def region_problem(region: dict, bed: dict) -> str | None:
     """Why ``region`` cannot be planted in ``bed`` (both GeoJSON); None if it can."""
     poly, bed_poly = to_polygon(region), to_polygon(bed)

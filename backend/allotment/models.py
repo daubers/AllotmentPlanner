@@ -6,6 +6,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Float,
@@ -492,6 +493,56 @@ class Planting(db.Model):
     planted_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     harvested_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     notes: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
+
+
+class PlanItem(db.Model):
+    """Something you mean to grow in part of a bed, and when: one step of a crop plan.
+
+    A succession is several items sharing a ``series_key``. The space is an amount (``area_m2``),
+    not a drawn region: the bed is occupied from ``plant_out_on`` (or ``sow_on`` for a direct sow)
+    up to, but not including, ``end_on``. Tray time before a transplant does not use the bed.
+    """
+
+    __tablename__ = "plan_items"
+    __table_args__ = (
+        CheckConstraint("area_m2 > 0", name="ck_plan_items_area"),
+        CheckConstraint(
+            "plant_out_on IS NULL OR plant_out_on >= sow_on", name="ck_plan_items_plant_out"
+        ),
+        CheckConstraint("end_on >= COALESCE(plant_out_on, sow_on)", name="ck_plan_items_end"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    feature_id: Mapped[int] = mapped_column(
+        ForeignKey("map_features.id", ondelete="CASCADE"), index=True
+    )  # the bed
+    crop_key: Mapped[str | None] = mapped_column(String(40), nullable=True)  # allotment.crops
+    packet_id: Mapped[int | None] = mapped_column(
+        ForeignKey("seed_packets.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    name: Mapped[str] = mapped_column(String(120))  # what to call it on the plan
+    method: Mapped[str] = mapped_column(String(12), default="direct_sow")
+    area_m2: Mapped[float] = mapped_column(Float)
+    plant_count: Mapped[int | None] = mapped_column(nullable=True)
+    sow_on: Mapped[date] = mapped_column(Date)
+    plant_out_on: Mapped[date | None] = mapped_column(Date, nullable=True)  # transplants only
+    end_on: Mapped[date] = mapped_column(Date)  # the day the bed is free again
+    series_key: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(10), default="planned")  # planned | done | skipped
+    planting_id: Mapped[int | None] = mapped_column(
+        ForeignKey("plantings.id", ondelete="SET NULL"), nullable=True
+    )  # the real planting this became
     created_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

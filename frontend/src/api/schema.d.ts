@@ -2835,6 +2835,235 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/allotments/{allotment_id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        /** Every bed with its plan items in the window, and when each is overbooked. */
+        get: {
+            parameters: {
+                query?: {
+                    from?: string | null;
+                    to?: string | null;
+                    feature_id?: number | null;
+                };
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Plan"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/plan-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Plan a crop in a bed. Overbooking is shown on the plan, not refused. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PlanItemIn"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlanItem"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/plan-items/successions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Plan the same crop several times, each sowing a set number of days after the last. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PlanSuccession"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlanItem"][];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/plan-items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                item_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    item_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlanItem"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    item_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    item_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PlanItemPatch"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlanItem"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/allotments/{allotment_id}/packet-scans": {
         parameters: {
             query?: never;
@@ -5754,6 +5983,115 @@ export interface components {
             due_date?: string;
             /** @description A task for this suggestion already exists */
             added?: boolean;
+        };
+        PlanItem: {
+            id?: number;
+            feature_id?: number;
+            crop_key?: string | null;
+            packet_id?: number | null;
+            name?: string;
+            /** @enum {string} */
+            method?: "direct_sow" | "transplant";
+            area_m2?: number;
+            plant_count?: number | null;
+            /** Format: date */
+            sow_on?: string;
+            /** Format: date */
+            plant_out_on?: string | null;
+            /** Format: date */
+            end_on?: string;
+            series_key?: string | null;
+            notes?: string;
+            /** @enum {string} */
+            status?: "planned" | "done" | "skipped";
+            planting_id?: number | null;
+            /** Format: date-time */
+            created_at?: string;
+        };
+        PlanConflict: {
+            /** Format: date */
+            from?: string;
+            /**
+             * Format: date
+             * @description The first day it is no longer overbooked
+             */
+            to?: string;
+            used_m2?: number;
+            over_m2?: number;
+            item_ids?: number[];
+        };
+        PlanBed: {
+            feature_id?: number;
+            name?: string;
+            /** @description Null if the bed has no area */
+            area_m2?: number | null;
+            items?: components["schemas"]["PlanItem"][];
+            conflicts?: components["schemas"]["PlanConflict"][];
+        };
+        Plan: {
+            /** Format: date */
+            from?: string;
+            /** Format: date */
+            to?: string;
+            beds?: components["schemas"]["PlanBed"][];
+        };
+        PlanItemIn: {
+            /** @description The bed */
+            feature_id: number;
+            /** @default null */
+            crop_key?: string | null;
+            /** @default null */
+            packet_id?: number | null;
+            /** @default  */
+            name?: string;
+            /**
+             * @default direct_sow
+             * @enum {string}
+             */
+            method?: "direct_sow" | "transplant";
+            /** @description Space used in square metres */
+            area_m2: number;
+            /** @default null */
+            plant_count?: number | null;
+            /** Format: date */
+            sow_on: string;
+            /**
+             * Format: date
+             * @description Transplants only
+             * @default null
+             */
+            plant_out_on?: string | null;
+            /**
+             * Format: date
+             * @description The day the bed is free again
+             */
+            end_on: string;
+            /** @default  */
+            notes?: string;
+        };
+        PlanSuccession: {
+            item: components["schemas"]["PlanItemIn"];
+            interval_days: number;
+            /** @description How many sowings in all, the first being the item itself */
+            count: number;
+        };
+        PlanItemPatch: {
+            crop_key?: string | null;
+            packet_id?: number | null;
+            name?: string;
+            /** @enum {string} */
+            method?: "direct_sow" | "transplant";
+            area_m2?: number;
+            plant_count?: number | null;
+            /** Format: date */
+            sow_on?: string;
+            /** Format: date */
+            plant_out_on?: string | null;
+            /** Format: date */
+            end_on?: string;
+            notes?: string;
+            /** @enum {string} */
+            status?: "planned" | "done" | "skipped";
         };
         PacketScan: {
             id?: number;
