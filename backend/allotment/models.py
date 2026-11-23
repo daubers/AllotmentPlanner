@@ -302,6 +302,9 @@ class Task(db.Model):
     series_id: Mapped[int | None] = mapped_column(
         ForeignKey("task_series.id", ondelete="SET NULL"), nullable=True, index=True
     )  # the schedule this occurrence came from
+    plan_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("plan_items.id", ondelete="SET NULL"), nullable=True, index=True
+    )  # the crop plan item this job is about
     # Set on tasks made from a suggestion ("tray:12:germination"), so adding them twice is a no-op.
     suggestion_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
     location = mapped_column(Geometry("POINT", srid=4326), nullable=True)

@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAllotment } from "../pages/AllotmentLayout";
+import MaintenanceDialog from "./MaintenanceDialog";
 import PlanItemDialog from "./PlanItemDialog";
+import PlanTasks from "./PlanTasks";
 import PlanTimeline from "./PlanTimeline";
 import { mergeConflicts } from "./conflicts";
 import { usePlan, type PlanBed, type PlanItem } from "./hooks";
@@ -18,6 +20,7 @@ export default function PlanPage() {
   const bedFilter = Number(params.get("bed")) || null;
   const plan = usePlan(id, win.from, win.to);
   const [editing, setEditing] = useState<Editing | null>(null);
+  const [maintenance, setMaintenance] = useState(false);
 
   const go = (next: string) => {
     const p = new URLSearchParams(params);
@@ -108,6 +111,14 @@ export default function PlanPage() {
             </section>
           );
         })
+      )}
+
+      {allBeds.length > 0 && (
+        <PlanTasks allotmentId={id} beds={allBeds} featureId={bedFilter} canEdit={canEdit} onMaintenance={() => setMaintenance(true)} />
+      )}
+
+      {maintenance && (
+        <MaintenanceDialog allotmentId={id} beds={allBeds} bedId={bedFilter} until={win.to} onClose={() => setMaintenance(false)} />
       )}
 
       {editing && (

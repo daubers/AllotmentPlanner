@@ -52,6 +52,7 @@ def task_to_dict(task: Task, spawned: Task | None = None) -> dict:
         "tray_id": task.tray_id,
         "planting_id": task.planting_id,
         "series_id": task.series_id,
+        "plan_item_id": task.plan_item_id,
         "location": mapping(to_shape(task.location)) if task.location is not None else None,
         "completed_at": task.completed_at,
         "completed_by": task.completed_by,

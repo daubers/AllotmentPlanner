@@ -8,6 +8,7 @@ export type PlanItem = components["schemas"]["PlanItem"];
 export type PlanItemInput = components["schemas"]["PlanItemIn"];
 export type PlanItemPatch = components["schemas"]["PlanItemPatch"];
 export type Crop = components["schemas"]["Crop"];
+export type PlanTaskSuggestion = components["schemas"]["PlanTaskSuggestion"];
 
 const path = (allotmentId: number) => ({ path: { allotment_id: allotmentId } });
 const itemPath = (allotmentId: number, itemId: number) => ({ path: { allotment_id: allotmentId, item_id: itemId } });
@@ -34,7 +35,10 @@ export function useCrops() {
 
 export function usePlanActions(allotmentId: number) {
   const qc = useQueryClient();
-  const refresh = () => void qc.invalidateQueries({ queryKey: ["plan", allotmentId] });
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ["plan", allotmentId] });
+    void qc.invalidateQueries({ queryKey: ["plan-tasks", allotmentId] }); // edits can make made tasks stale
+  };
   return {
     create: useMutation({
       mutationFn: async (body: PlanItemInput): Promise<PlanItem> => {
@@ -72,6 +76,52 @@ export function usePlanActions(allotmentId: number) {
           params: itemPath(allotmentId, id),
         });
         if (error) throw new Error(failure(error, "Could not remove it"));
+      },
+      onSuccess: refresh,
+    }),
+  };
+}
+
+/** The jobs the plan implies (sow, plant out, clear the bed), and how many tasks made earlier are out of date. */
+export function usePlanTasks(allotmentId: number, featureId: number | null) {
+  return useQuery({
+    queryKey: ["plan-tasks", allotmentId, featureId],
+    queryFn: async () =>
+      (
+        await api.GET("/api/v1/allotments/{allotment_id}/plan/task-suggestions", {
+          params: { ...path(allotmentId), query: featureId ? { feature_id: featureId } : {} },
+        })
+      ).data,
+  });
+}
+
+export function usePlanTaskActions(allotmentId: number) {
+  const qc = useQueryClient();
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ["plan-tasks", allotmentId] });
+    void qc.invalidateQueries({ queryKey: ["tasks", allotmentId] });
+    void qc.invalidateQueries({ queryKey: ["todo", allotmentId] });
+  };
+  return {
+    add: useMutation({
+      mutationFn: async ({ keys, featureId }: { keys?: string[]; featureId?: number | null }) => {
+        const { data, error } = await api.POST("/api/v1/allotments/{allotment_id}/plan/tasks", {
+          params: path(allotmentId),
+          body: { keys: keys ?? null, feature_id: featureId ?? null },
+        });
+        if (!data) throw new Error(failure(error, "Could not add those tasks"));
+        return data;
+      },
+      onSuccess: refresh,
+    }),
+    sync: useMutation({
+      mutationFn: async (featureId?: number | null) => {
+        const { data, error } = await api.POST("/api/v1/allotments/{allotment_id}/plan/tasks/sync", {
+          params: path(allotmentId),
+          body: { feature_id: featureId ?? null },
+        });
+        if (!data) throw new Error(failure(error, "Could not update the tasks"));
+        return data;
       },
       onSuccess: refresh,
     }),

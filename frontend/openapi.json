@@ -3320,6 +3320,154 @@
         }
       ]
     },
+    "/api/v1/allotments/{allotment_id}/plan/task-suggestions": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "feature_id",
+            "description": "Only this bed",
+            "schema": {
+              "type": "integer",
+              "default": null,
+              "nullable": true
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanTasks"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Jobs the plan implies (sow, plant out, clear), and how many made earlier are stale.",
+        "tags": [
+          "plan"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/plan/tasks": {
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Task"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanTasksAdd"
+              }
+            }
+          }
+        },
+        "summary": "Make tasks from the plan: the ones named, or every one not yet made and still to come.",
+        "tags": [
+          "plan"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/plan/tasks/sync": {
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanTasksSyncResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanTasksQuery"
+              }
+            }
+          }
+        },
+        "summary": "Bring tasks still to do in line with the plan; started and finished ones are left alone.",
+        "description": "A task whose crop was removed, finished or skipped is deleted; the rest get the plan's\ncurrent title and date. New jobs are not made here: they appear as suggestions.",
+        "tags": [
+          "plan"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
     "/api/v1/allotments/{allotment_id}/packet-scans": {
       "get": {
         "responses": {
@@ -6662,6 +6810,11 @@
             "description": "The schedule it is part of",
             "nullable": true
           },
+          "plan_item_id": {
+            "type": "integer",
+            "description": "The crop plan item it is about",
+            "nullable": true
+          },
           "location": {
             "type": "object",
             "additionalProperties": {},
@@ -8393,6 +8546,97 @@
               "done",
               "skipped"
             ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanTaskSuggestion": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Stable id, so a task is made only once"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "due_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "feature_id": {
+            "type": "integer",
+            "description": "The bed"
+          },
+          "plan_item_id": {
+            "type": "integer"
+          },
+          "added": {
+            "type": "boolean",
+            "description": "A task for this already exists"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanTasks": {
+        "type": "object",
+        "properties": {
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanTaskSuggestion"
+            }
+          },
+          "stale": {
+            "type": "integer",
+            "description": "Tasks made from the plan that no longer match it"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanTasksAdd": {
+        "type": "object",
+        "properties": {
+          "feature_id": {
+            "type": "integer",
+            "default": null,
+            "nullable": true
+          },
+          "keys": {
+            "type": "array",
+            "default": null,
+            "description": "Only these suggestions; leave out for every one not yet added",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanTasksQuery": {
+        "type": "object",
+        "properties": {
+          "feature_id": {
+            "type": "integer",
+            "default": null,
+            "description": "Only this bed",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanTasksSyncResult": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "integer"
+          },
+          "removed": {
+            "type": "integer"
           }
         },
         "additionalProperties": false

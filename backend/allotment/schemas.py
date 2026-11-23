@@ -269,6 +269,9 @@ class TaskSchema(Schema):
     series_id = fields.Integer(
         allow_none=True, metadata={"description": "The schedule it is part of"}
     )
+    plan_item_id = fields.Integer(
+        allow_none=True, metadata={"description": "The crop plan item it is about"}
+    )
     location = fields.Dict(allow_none=True)
     completed_at = fields.DateTime(allow_none=True)
     completed_by = fields.Integer(allow_none=True)
@@ -1165,6 +1168,42 @@ class PlanSchema(Schema):
     start = fields.Date(data_key="from")
     to = fields.Date()
     beds = fields.List(fields.Nested(PlanBedSchema))
+
+
+class PlanTaskSuggestionSchema(Schema):
+    key = fields.String(metadata={"description": "Stable id, so a task is made only once"})
+    title = fields.String()
+    description = fields.String()
+    due_date = fields.Date()
+    feature_id = fields.Integer(metadata={"description": "The bed"})
+    plan_item_id = fields.Integer()
+    added = fields.Boolean(metadata={"description": "A task for this already exists"})
+
+
+class PlanTasksSchema(Schema):
+    suggestions = fields.List(fields.Nested(PlanTaskSuggestionSchema))
+    stale = fields.Integer(
+        metadata={"description": "Tasks made from the plan that no longer match it"}
+    )
+
+
+class PlanTasksQuerySchema(Schema):
+    feature_id = fields.Integer(load_default=None, metadata={"description": "Only this bed"})
+
+
+class PlanTasksAddSchema(Schema):
+    feature_id = fields.Integer(load_default=None, allow_none=True)
+    keys = fields.List(
+        fields.String(),
+        load_default=None,
+        allow_none=True,
+        metadata={"description": "Only these suggestions; leave out for every one not yet added"},
+    )
+
+
+class PlanTasksSyncResultSchema(Schema):
+    updated = fields.Integer()
+    removed = fields.Integer()
 
 
 class PlantOutSchema(Schema):

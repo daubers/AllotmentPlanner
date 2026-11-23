@@ -545,3 +545,14 @@ a.button.secondary { background: none; color: var(--accent); border: 1px solid v
 .task-schedule { border: 1px solid var(--border); border-radius: 8px; padding: .5rem .75rem; display: grid; gap: .5rem; }
 .task-schedule legend { font-size: .85rem; color: var(--muted); padding: 0 .3rem; }
 .task-schedule .hint { margin: 0; }
+.plan-tasks { border: 1px solid var(--border); border-radius: 10px; padding: .75rem .9rem; margin: 1rem 0; background: var(--surface); display: grid; gap: .6rem; }
+.plan-tasks header { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
+.plan-tasks header h2 { margin: 0; font-size: 1.1rem; }
+.plan-tasks header button { margin-left: auto; }
+.plan-tasks h3 { margin: .2rem 0; font-size: .95rem; color: var(--muted); }
+.plan-tasks .suggested-tasks { list-style: none; padding: 0; margin: 0; display: grid; gap: .3rem; }
+.plan-tasks label.check { display: flex; gap: .5rem; align-items: baseline; color: var(--text); font-size: .95rem; }
+.plan-tasks label.check input { width: 1.1rem; height: 1.1rem; flex: none; padding: 0; }
+.plan-stale { margin: 0; padding: .45rem .6rem; border-radius: 8px; background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.plan-stale button { margin-left: .3rem; }
+.plan-tasks > button:last-child { justify-self: start; }

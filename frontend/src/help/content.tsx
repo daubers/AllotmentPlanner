@@ -147,6 +147,14 @@ function Planning() {
         If you give the number of plants, the form suggests the space they need from the plant and row spacing; the figure is
         approximate. Tick <em>Repeat as a succession</em> to plan several sowings a set number of days apart.
       </p>
+      <h2>Tasks from the plan</h2>
+      <p>
+        Under the beds, <em>Tasks from the plan</em> lists the jobs your plan implies: sowing each crop, planting out a transplant, and
+        clearing the bed when a crop ends (naming the crop that follows it). Untick any you do not want and press <em>Add</em>; they
+        appear on the Tasks and Today pages. If you later change the plan, tasks you have not started are marked out of date and
+        <em>Update</em> brings them in line (tasks you have started or finished are never changed). For watering, weeding or feeding,
+        press <em>Add a repeating job</em> to make a task every few days, weeks or months until a date you choose.
+      </p>
       <h2>Is the bed full?</h2>
       <p>
         The <em>Space used</em> row shows how much of the bed is taken each month. A month turns red, and the bed shows a warning, when

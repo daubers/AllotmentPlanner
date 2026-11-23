@@ -3064,6 +3064,147 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/allotments/{allotment_id}/plan/task-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        /** Jobs the plan implies (sow, plant out, clear), and how many made earlier are stale. */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Only this bed */
+                    feature_id?: number | null;
+                };
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlanTasks"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/plan/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Make tasks from the plan: the ones named, or every one not yet made and still to come. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PlanTasksAdd"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Task"][];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/plan/tasks/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bring tasks still to do in line with the plan; started and finished ones are left alone.
+         * @description A task whose crop was removed, finished or skipped is deleted; the rest get the plan's
+         *     current title and date. New jobs are not made here: they appear as suggestions.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PlanTasksQuery"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlanTasksSyncResult"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/allotments/{allotment_id}/packet-scans": {
         parameters: {
             query?: never;
@@ -5681,6 +5822,8 @@ export interface components {
             planting_id?: number | null;
             /** @description The schedule it is part of */
             series_id?: number | null;
+            /** @description The crop plan item it is about */
+            plan_item_id?: number | null;
             location?: {
                 [key: string]: unknown;
             } | null;
@@ -6255,6 +6398,44 @@ export interface components {
             notes?: string;
             /** @enum {string} */
             status?: "planned" | "done" | "skipped";
+        };
+        PlanTaskSuggestion: {
+            /** @description Stable id, so a task is made only once */
+            key?: string;
+            title?: string;
+            description?: string;
+            /** Format: date */
+            due_date?: string;
+            /** @description The bed */
+            feature_id?: number;
+            plan_item_id?: number;
+            /** @description A task for this already exists */
+            added?: boolean;
+        };
+        PlanTasks: {
+            suggestions?: components["schemas"]["PlanTaskSuggestion"][];
+            /** @description Tasks made from the plan that no longer match it */
+            stale?: number;
+        };
+        PlanTasksAdd: {
+            /** @default null */
+            feature_id?: number | null;
+            /**
+             * @description Only these suggestions; leave out for every one not yet added
+             * @default null
+             */
+            keys?: string[] | null;
+        };
+        PlanTasksQuery: {
+            /**
+             * @description Only this bed
+             * @default null
+             */
+            feature_id?: number | null;
+        };
+        PlanTasksSyncResult: {
+            updated?: number;
+            removed?: number;
         };
         PacketScan: {
             id?: number;

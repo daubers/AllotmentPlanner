@@ -8,8 +8,9 @@ from shapely.geometry import mapping
 
 from .. import crops, events
 from ..extensions import db
-from ..models import FeatureKind, MapFeature, PlanItem, Role, SeedPacket
+from ..models import FeatureKind, MapFeature, PlanItem, Role, SeedPacket, Task, TaskStatus
 from ..plan import conflicts, date_problem, overlaps_window, shifted
+from ..plan_tasks import PREFIX, PlanTask, plan_tasks
 from ..plantings import bed_area_m2
 from ..schemas import (
     PlanItemInSchema,
@@ -18,9 +19,15 @@ from ..schemas import (
     PlanQuerySchema,
     PlanSchema,
     PlanSuccessionSchema,
+    PlanTasksAddSchema,
+    PlanTasksQuerySchema,
+    PlanTasksSchema,
+    PlanTasksSyncResultSchema,
+    TaskSchema,
 )
 from ..security import require_role
 from .plantings import check_packet, get_bed
+from .tasks import task_to_dict
 
 blp = Blueprint(
     "plan",
@@ -258,6 +265,164 @@ class PlanItemDetail(MethodView):
     @blp.response(204)
     def delete(self, allotment, membership, item_id):
         item = _get(allotment, item_id)
+        # Its jobs that nobody has started go with it; started and finished ones stay (unlinked).
+        db.session.query(Task).filter(
+            Task.plan_item_id == item.id,
+            Task.status == TaskStatus.TODO,
+            Task.suggestion_key.like(f"{PREFIX}%"),
+        ).delete(synchronize_session=False)
         db.session.delete(item)
         db.session.commit()
         _emit("deleted", allotment, membership, item)
+
+
+# --- tasks that follow from the plan -------------------------------------------------------------
+
+
+def _current(allotment, feature_id: int | None) -> list[PlanTask]:
+    """Every task the plan implies right now, past dates included."""
+    items = db.session.query(PlanItem).filter_by(allotment_id=allotment.id)
+    if feature_id:
+        items = items.filter(PlanItem.feature_id == feature_id)
+    names = {
+        f.id: f.name or f"Bed {f.id}"
+        for f in db.session.query(MapFeature).filter_by(allotment_id=allotment.id)
+    }
+    return plan_tasks(items.all(), names)
+
+
+def _existing(allotment, feature_id: int | None):
+    rows = db.session.query(Task).filter(
+        Task.allotment_id == allotment.id, Task.suggestion_key.like(f"{PREFIX}%")
+    )
+    return rows.filter(Task.feature_id == feature_id) if feature_id else rows
+
+
+def _differs(task: Task, want: PlanTask) -> bool:
+    return (task.title, task.description, task.due_date, task.feature_id, task.plan_item_id) != (
+        want.title,
+        want.description,
+        want.due_date,
+        want.feature_id,
+        want.plan_item_id,
+    )
+
+
+@blp.route("/plan/task-suggestions")
+class PlanTaskSuggestions(MethodView):
+    @require_role(Role.VIEWER)
+    @blp.arguments(PlanTasksQuerySchema, location="query")
+    @blp.response(200, PlanTasksSchema)
+    def get(self, args, allotment, membership):
+        """Jobs the plan implies (sow, plant out, clear), and how many made earlier are stale."""
+        current = _current(allotment, args["feature_id"])
+        by_key = {t.key: t for t in current}
+        existing = list(_existing(allotment, args["feature_id"]))
+        have = {t.suggestion_key for t in existing}
+        today = date.today()
+        stale = sum(
+            1
+            for t in existing
+            if t.status == TaskStatus.TODO
+            and (t.suggestion_key not in by_key or _differs(t, by_key[t.suggestion_key]))
+        )
+        return {
+            "stale": stale,
+            "suggestions": [
+                {
+                    "key": t.key,
+                    "title": t.title,
+                    "description": t.description,
+                    "due_date": t.due_date,
+                    "feature_id": t.feature_id,
+                    "plan_item_id": t.plan_item_id,
+                    "added": t.key in have,
+                }
+                for t in current
+                if t.due_date >= today or t.key in have
+            ],
+        }
+
+
+@blp.route("/plan/tasks")
+class PlanTasksAdd(MethodView):
+    @require_role(Role.EDITOR)
+    @blp.arguments(PlanTasksAddSchema)
+    @blp.response(201, TaskSchema(many=True))
+    def post(self, data, allotment, membership):
+        """Make tasks from the plan: the ones named, or every one not yet made and still to come."""
+        current = _current(allotment, data["feature_id"])
+        wanted = data["keys"]
+        if wanted is not None:
+            unknown = set(wanted) - {t.key for t in current}
+            if unknown:
+                abort(422, message=f"Not part of the plan: {', '.join(sorted(unknown))}")
+        have = {t.suggestion_key for t in _existing(allotment, None)}
+        today = date.today()
+        fresh = [
+            t
+            for t in current
+            if t.key not in have
+            and (t.key in wanted if wanted is not None else t.due_date >= today)
+        ]
+        tasks = [
+            Task(
+                allotment_id=allotment.id,
+                created_by=membership.user_id,
+                title=t.title,
+                description=t.description,
+                due_date=t.due_date,
+                suggestion_key=t.key,
+                feature_id=t.feature_id,
+                plan_item_id=t.plan_item_id,
+            )
+            for t in fresh
+        ]
+        db.session.add_all(tasks)
+        db.session.commit()
+        for task in tasks:
+            events.emit(
+                "task.created",
+                actor_id=membership.user_id,
+                allotment_id=allotment.id,
+                subject={"task_id": task.id, "feature_id": task.feature_id},
+                payload={"title": task.title, "suggested": True},
+            )
+        return [task_to_dict(t) for t in tasks]
+
+
+@blp.route("/plan/tasks/sync")
+class PlanTasksSync(MethodView):
+    @require_role(Role.EDITOR)
+    @blp.arguments(PlanTasksQuerySchema)
+    @blp.response(200, PlanTasksSyncResultSchema)
+    def post(self, data, allotment, membership):
+        """Bring tasks still to do in line with the plan; started and finished ones are left alone.
+
+        A task whose crop was removed, finished or skipped is deleted; the rest get the plan's
+        current title and date. New jobs are not made here: they appear as suggestions.
+        """
+        by_key = {t.key: t for t in _current(allotment, data["feature_id"])}
+        updated = removed = 0
+        for task in _existing(allotment, data["feature_id"]).filter(Task.status == TaskStatus.TODO):
+            want = by_key.get(task.suggestion_key)
+            if want is None:
+                db.session.delete(task)
+                removed += 1
+            elif _differs(task, want):
+                task.title, task.description, task.due_date = (
+                    want.title,
+                    want.description,
+                    want.due_date,
+                )
+                task.feature_id, task.plan_item_id = want.feature_id, want.plan_item_id
+                updated += 1
+        db.session.commit()
+        events.emit(
+            "plan_tasks.synced",
+            actor_id=membership.user_id,
+            allotment_id=allotment.id,
+            subject={"feature_id": data["feature_id"]},
+            payload={"updated": updated, "removed": removed},
+        )
+        return {"updated": updated, "removed": removed}
