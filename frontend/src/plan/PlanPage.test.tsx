@@ -194,4 +194,42 @@ describe("Plan page", () => {
     await userEvent.click(within(bed).getByRole("button", { name: /Edit Lettuce/ }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+
+  it("offers to plant a sown crop in its bed, and explains a transplant", async () => {
+    setup();
+    const bed = await screen.findByRole("region", { name: "Bed 1" });
+    await userEvent.click(within(bed).getByRole("button", { name: /Edit Lettuce/ }));
+    const link = within(await screen.findByRole("dialog")).getByRole("link", { name: "Plant this in Bed 1" });
+    expect(link).toHaveAttribute("href", "/allotments/1/beds/5?planItem=1");
+  });
+
+  it("points a transplant at the trays instead", async () => {
+    get.mockImplementation(async (p: string) => {
+      if (p.endsWith("/plan")) {
+        return { data: { ...planned, beds: [{ ...planned.beds[0], items: [item(3, "Tomato", 40, "2026-04-01", "2026-09-01", { method: "transplant", plant_out_on: "2026-05-20" })], conflicts: [] }] } };
+      }
+      return { data: p.endsWith("/crops") ? [lettuce] : [] };
+    });
+    setup();
+    const bed = await screen.findByRole("region", { name: "Bed 1" });
+    await userEvent.click(within(bed).getByRole("button", { name: /Edit Tomato/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByRole("link", { name: /Plant this/ })).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/sown in a tray first/)).toBeInTheDocument();
+  });
+
+  it("links an item that has been planted to the planting", async () => {
+    get.mockImplementation(async (p: string) => {
+      if (p.endsWith("/plan")) {
+        return { data: { ...planned, beds: [{ ...planned.beds[0], items: [item(4, "Garlic", 8, "2026-04-01", "2026-09-01", { status: "done", planting_id: 12 })], conflicts: [] }] } };
+      }
+      return { data: [] };
+    });
+    setup();
+    const bed = await screen.findByRole("region", { name: "Bed 1" });
+    await userEvent.click(within(bed).getByRole("button", { name: /Edit Garlic/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("link", { name: "See it in Bed 1" })).toHaveAttribute("href", "/allotments/1/beds/5");
+    expect(within(dialog).queryByRole("link", { name: /Plant this/ })).not.toBeInTheDocument();
+  });
 });

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import Modal from "../components/Modal";
 import { usePackets } from "../seeds/hooks";
 import { areaFromPercent, hint, percentOfBed, suggestArea, suggestCount } from "./area";
@@ -282,6 +283,27 @@ export default function PlanItemDialog({
             {error}
           </p>
         )}
+        {item && item.status === "planned" && (
+          <p className="hint plan-plant">
+            {item.method === "direct_sow" ? (
+              <>
+                Sown now?{" "}
+                <Link to={`/allotments/${allotmentId}/beds/${bed.id}?planItem=${item.id}`}>Plant this in {bed.name}</Link> to draw its area and
+                record the planting.
+              </>
+            ) : (
+              <>
+                This one is sown in a tray first. Sow it on the Trays page, then plant it out into {bed.name}; mark it done here
+                when it is in.
+              </>
+            )}
+          </p>
+        )}
+        {item?.planting_id ? (
+          <p className="hint plan-plant">
+            Planted. <Link to={`/allotments/${allotmentId}/beds/${bed.id}`}>See it in {bed.name}</Link>
+          </p>
+        ) : null}
         <div className="actions">
           <button type="submit" disabled={pending}>
             {editing ? "Save" : repeat ? "Add succession" : "Add to plan"}

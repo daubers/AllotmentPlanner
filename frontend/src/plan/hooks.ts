@@ -24,6 +24,16 @@ export function usePlan(allotmentId: number, from: string, to: string) {
   });
 }
 
+/** One plan item, e.g. the crop being planted from the Plan page. Pass null to ask for nothing. */
+export function usePlanItem(allotmentId: number, itemId: number | null) {
+  return useQuery({
+    queryKey: ["plan-item", allotmentId, itemId],
+    enabled: itemId !== null,
+    queryFn: async (): Promise<PlanItem | undefined> =>
+      (await api.GET("/api/v1/allotments/{allotment_id}/plan-items/{item_id}", { params: itemPath(allotmentId, itemId!) })).data,
+  });
+}
+
 /** The built-in crops. They never change while the app is open. */
 export function useCrops() {
   return useQuery({
@@ -38,6 +48,7 @@ export function usePlanActions(allotmentId: number) {
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["plan", allotmentId] });
     void qc.invalidateQueries({ queryKey: ["plan-tasks", allotmentId] }); // edits can make made tasks stale
+    void qc.invalidateQueries({ queryKey: ["plan-item", allotmentId] });
   };
   return {
     create: useMutation({

@@ -1029,6 +1029,11 @@ class PlantingInSchema(Schema):
     )
     sown_on = fields.Date(load_default=None, allow_none=True)
     notes = fields.String(load_default="", validate=validate.Length(max=5000))
+    plan_item_id = fields.Integer(
+        load_default=None,
+        allow_none=True,
+        metadata={"description": "The planned crop this carries out; it is marked done"},
+    )
 
 
 class PlantingPatchSchema(Schema):

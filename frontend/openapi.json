@@ -8158,6 +8158,12 @@
             "type": "string",
             "default": "",
             "maxLength": 5000
+          },
+          "plan_item_id": {
+            "type": "integer",
+            "default": null,
+            "description": "The planned crop this carries out; it is marked done",
+            "nullable": true
           }
         },
         "required": [

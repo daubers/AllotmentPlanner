@@ -54,6 +54,10 @@ export function usePlantingActions(allotmentId: number) {
     void qc.invalidateQueries({ queryKey: ["plantings", allotmentId] });
     void qc.invalidateQueries({ queryKey: ["trays", allotmentId] });
     void qc.invalidateQueries({ queryKey: ["tray", allotmentId] });
+    // a planting made from the plan marks its plan item done
+    void qc.invalidateQueries({ queryKey: ["plan", allotmentId] });
+    void qc.invalidateQueries({ queryKey: ["plan-item", allotmentId] });
+    void qc.invalidateQueries({ queryKey: ["plan-tasks", allotmentId] });
   };
   const one = (id: number) => ({ path: { allotment_id: allotmentId, planting_id: id } });
   return {

@@ -137,4 +137,54 @@ describe("Bed page", () => {
     setup("/a/beds/99");
     expect(await screen.findByText(/Bed not found/)).toBeInTheDocument();
   });
+
+describe("Planting from the plan", () => {
+  const item = (extra = {}) => ({
+    id: 7, feature_id: 5, crop_key: "lettuce", packet_id: 7, name: "Carrot", method: "direct_sow", area_m2: 12, plant_count: 120,
+    sow_on: "2026-04-01", plant_out_on: null, end_on: "2026-07-01", series_key: null, notes: "from the plan", status: "planned", planting_id: null, ...extra,
+  });
+  const withItem = (it: object) =>
+    get.mockImplementation(async (p: string) => {
+      if (p.endsWith("/plan-items/{item_id}")) return { data: it };
+      if (p.endsWith("/features")) return { data: { features: [bed, path] } };
+      if (p.endsWith("/plantings")) return { data: [carrots] };
+      if (p.endsWith("/packets")) return { data: [packet] };
+      return { data: [] };
+    });
+
+  it("prefills the form from the planned crop and says it will be marked done", async () => {
+    withItem(item());
+    post.mockResolvedValue({ data: { ...carrots, id: 9, warnings: [] } });
+    setup("/a/beds/5?planItem=7");
+    expect(await screen.findByText(/Planting from your plan:/)).toHaveTextContent("Planting from your plan: Carrot, about 12 m² for 120 plants");
+    expect(screen.getByLabelText("Seed")).toHaveValue("7");
+    expect(screen.getByLabelText("Seeds or plants")).toHaveValue(120);
+    expect(screen.getByLabelText("Notes")).toHaveValue("from the plan");
+    await userEvent.click(screen.getByRole("button", { name: "Whole bed" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add planting" }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(post.mock.calls[0][1].body).toMatchObject({ feature_id: 5, packet_id: 7, count: 120, plan_item_id: 7 });
+    await waitFor(() => expect(screen.queryByText(/Planting from your plan/)).not.toBeInTheDocument());
+  });
+
+  it("does not link a planting to a plan item for another bed", async () => {
+    withItem(item({ feature_id: 6 }));
+    post.mockResolvedValue({ data: { ...carrots, id: 9, warnings: [] } });
+    setup("/a/beds/5?planItem=7");
+    await screen.findByRole("button", { name: "Whole bed" });
+    expect(screen.queryByText(/Planting from your plan/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Whole bed" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add planting" }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(post.mock.calls[0][1].body.plan_item_id).toBeNull();
+  });
+
+  it("ignores a plan item that has already been planted", async () => {
+    withItem(item({ status: "done", planting_id: 3 }));
+    setup("/a/beds/5?planItem=7");
+    await screen.findByRole("button", { name: "Whole bed" });
+    expect(screen.queryByText(/Planting from your plan/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Seeds or plants")).toHaveValue(null);
+  });
+});
 });

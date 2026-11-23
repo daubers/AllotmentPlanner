@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { uploadMedia, useMedia, useMediaActions } from "../media/hooks";
 import { areaLabel, colourOf, polygonOf, ringOf, type LonLat } from "../plantings/geometry";
 import { STATUSES, STATUS_LABEL, useBeds, usePlantingActions, usePlantings, type Planting } from "../plantings/hooks";
 import RegionEditor, { type Shown } from "../plantings/RegionEditor";
+import { usePlanItem } from "../plan/hooks";
 import { usePackets } from "../seeds/hooks";
 import SuggestTasks from "../tasks/SuggestTasks";
 import { useAllotment } from "./AllotmentLayout";
@@ -14,6 +15,10 @@ const nameOf = (p: Planting) => (p.packet_name ? (p.packet_variety ? `${p.packet
 export default function BedPage() {
   const { id, canEdit } = useAllotment();
   const featureId = Number(useParams().featureId);
+  const [params, setParams] = useSearchParams();
+  const planItem = usePlanItem(id, Number(params.get("planItem")) || null).data;
+  // Only a crop still waiting to be planted, in this bed, is carried out by the planting being added.
+  const fromPlan = planItem && planItem.status === "planned" && planItem.feature_id === featureId ? planItem : null;
   const beds = useBeds(id);
   const plantings = usePlantings(id, { featureId });
   const packets = usePackets(id, { status: "active" });
@@ -45,7 +50,9 @@ export default function BedPage() {
         count: text("count") ? Number(text("count")) : null,
         sown_on: text("sown_on") || null,
         notes: text("notes"),
+        plan_item_id: fromPlan?.id ?? null,
       });
+      if (fromPlan) setParams({}, { replace: true }); // the plan item is done now
       setPoints([]);
       setError(null);
       setWarnings(made.warnings ?? []);
@@ -67,17 +74,24 @@ export default function BedPage() {
         <section aria-label="Add a planting">
           <h2>Add a planting</h2>
           <p className="muted">Click the corners of the area on the sketch, then say what went in.</p>
-          <form className="planting-form" onSubmit={(e) => void add(e)}>
+          {fromPlan && (
+            <p role="status" className="plan-banner">
+              Planting from your plan: <strong>{fromPlan.name}</strong>, about {fromPlan.area_m2} m²
+              {fromPlan.plant_count ? ` for ${fromPlan.plant_count} plants` : ""}. Draw its area, then add the planting and the plan item is
+              marked done. <Link to={`/allotments/${id}/plan`}>Back to the plan</Link>
+            </p>
+          )}
+          <form className="planting-form" key={fromPlan?.id ?? "new"} onSubmit={(e) => void add(e)}>
             <label>
               Seed
-              <select name="packet_id" defaultValue="">
+              <select name="packet_id" defaultValue={fromPlan?.packet_id ?? ""}>
                 <option value="">Not in the library</option>
                 {(packets.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.variety ? `${p.name} (${p.variety})` : p.name}</option>)}
               </select>
             </label>
-            <label>Seeds or plants<input name="count" type="number" min={1} placeholder="optional" /></label>
+            <label>Seeds or plants<input name="count" type="number" min={1} placeholder="optional" defaultValue={fromPlan?.plant_count ?? ""} /></label>
             <label>Sown on<input name="sown_on" type="date" defaultValue={today()} /></label>
-            <label className="wide">Notes<input name="notes" maxLength={5000} placeholder="optional" /></label>
+            <label className="wide">Notes<input name="notes" maxLength={5000} placeholder="optional" defaultValue={fromPlan?.notes ?? ""} /></label>
             <button type="submit" disabled={points.length < 3 || actions.create.isPending}>Add planting</button>
           </form>
           {error && <p role="alert" className="error">{error}</p>}

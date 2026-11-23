@@ -556,3 +556,4 @@ a.button.secondary { background: none; color: var(--accent); border: 1px solid v
 .plan-stale { margin: 0; padding: .45rem .6rem; border-radius: 8px; background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .plan-stale button { margin-left: .3rem; }
 .plan-tasks > button:last-child { justify-self: start; }
+.plan-banner { margin: 0 0 .6rem; padding: .5rem .7rem; border-radius: 8px; background: color-mix(in srgb, var(--accent) 16%, transparent); }

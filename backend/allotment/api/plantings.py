@@ -8,7 +8,7 @@ from shapely.geometry import mapping
 from .. import events
 from ..extensions import db
 from ..geojson import parse_geometry
-from ..models import MapFeature, Media, Planting, Role, SeedPacket
+from ..models import MapFeature, Media, PlanItem, Planting, Role, SeedPacket
 from ..plantings import GROWING, area_m2, overlap_warning, overlaps, region_problem, to_polygon
 from ..schemas import (
     PlantingInSchema,
@@ -102,6 +102,24 @@ def check_packet(allotment, packet_id: int | None) -> None:
             abort(422, message="packet_id does not belong to this allotment")
 
 
+def check_plan_item(allotment, bed: MapFeature, plan_item_id: int | None) -> PlanItem | None:
+    """The planned crop a planting carries out, if it may: right bed, planned, direct sown."""
+    if plan_item_id is None:
+        return None
+    item = db.session.get(PlanItem, plan_item_id)
+    if item is None or item.allotment_id != allotment.id:
+        abort(422, message="plan_item_id does not belong to this allotment")
+    if item.feature_id != bed.id:
+        abort(422, message="That plan item is for a different bed")
+    if item.status != "planned":
+        abort(409, message="That plan item has already been planted or skipped")
+    if item.method == "transplant":
+        abort(
+            422, message="A transplant is planted out of a tray: sow it in a tray, then plant out"
+        )
+    return item
+
+
 def overlap_warnings(feature_id: int, region: dict, ignore_id: int | None = None) -> list[str]:
     """Other plantings still in the ground that this region overlaps."""
     others = db.session.query(Planting).filter(
@@ -153,6 +171,7 @@ class PlantingList(MethodView):
         bed = get_bed(allotment, data["feature_id"])
         check_packet(allotment, data["packet_id"])
         check_region(bed, data["region"])
+        plan_item = check_plan_item(allotment, bed, data["plan_item_id"])
         planting = Planting(
             allotment_id=allotment.id,
             feature_id=bed.id,
@@ -167,6 +186,10 @@ class PlantingList(MethodView):
         )
         warnings = overlap_warnings(bed.id, data["region"])
         db.session.add(planting)
+        if plan_item is not None:
+            db.session.flush()  # for the planting's id; the item and the planting save together
+            plan_item.status = "done"
+            plan_item.planting_id = planting.id
         db.session.commit()
         events.emit(
             "planting.created",

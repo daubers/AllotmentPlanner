@@ -6263,6 +6263,11 @@ export interface components {
             sown_on?: string | null;
             /** @default  */
             notes?: string;
+            /**
+             * @description The planned crop this carries out; it is marked done
+             * @default null
+             */
+            plan_item_id?: number | null;
         };
         PlantingPatch: {
             packet_id?: number | null;
