@@ -15,7 +15,7 @@ function GettingStarted() {
       <p>
         After signing in, the first page lists your allotments. Type a name under <em>New allotment name</em> and
         choose <em>Create</em>, then open it. The menu along the top is grouped by what you are doing:
-        <strong> Plot</strong> (Map, Map from photos), <strong>Grow</strong> (Seeds, Trays, Beds),
+        <strong> Plot</strong> (Map, Map from photos), <strong>Grow</strong> (Seeds, Trays, Beds, Plan),
         <strong>Work</strong> (Today, Tasks) and <strong>Record</strong> (Photos, Overview). Choose a group to see its pages;
         Settings is at the top right.
       </p>
@@ -126,6 +126,32 @@ function SeedsAndTrays() {
         <em>Beds</em> lists the shapes you drew as beds. Open one to see what is growing in it, mark each planting's
         stage, and draw a planting area inside the bed. Seedlings from a tray can be planted out into a bed. On the phone, the
         same screens work without signal and send their changes when you are back in range.
+      </p>
+    </>
+  );
+}
+
+function Planning() {
+  return (
+    <>
+      <h2>The plan</h2>
+      <p>
+        <em>Plan</em> (in <em>Grow</em>) shows what you mean to grow in each bed over twelve months. Use the arrows to move the window a
+        month at a time, and the <em>Bed</em> list to look at one bed. Each crop is a bar: it starts when the crop goes into the bed and
+        ends when the bed is free again. A pale lead-in before a bar is time in a seed tray.
+      </p>
+      <h2>Adding a crop</h2>
+      <p>
+        Press <em>Add crop</em> on a bed. Choose one of your seed packets or one of the built-in crops, and the dates fill in from its
+        sowing months and days to harvest (change them freely). Say how much space it takes, in square metres or as a share of the bed.
+        If you give the number of plants, the form suggests the space they need from the plant and row spacing; the figure is
+        approximate. Tick <em>Repeat as a succession</em> to plan several sowings a set number of days apart.
+      </p>
+      <h2>Is the bed full?</h2>
+      <p>
+        The <em>Space used</em> row shows how much of the bed is taken each month. A month turns red, and the bed shows a warning, when
+        the crops planned together need more than the bed has. That is only a warning: you can keep the plan as it is. One crop ending
+        on the day the next one starts is not a clash. A bed drawn without an area (a point or a line) cannot be checked.
       </p>
     </>
   );
@@ -271,6 +297,7 @@ export const TOPICS: Topic[] = [
   { slug: "getting-started", title: "Getting started", summary: "Sign in, create an allotment, roles and invitations.", Body: GettingStarted },
   { slug: "map", title: "The map", summary: "Drawing, locking, undo, and shapes on top of shapes.", Body: TheMap },
   { slug: "seeds-and-trays", title: "Seeds, trays and beds", summary: "Packets, the sowing calendar, seed trays and what is growing.", Body: SeedsAndTrays },
+  { slug: "planning", title: "Planning a year", summary: "Plan crops per bed, with space and successions.", Body: Planning },
   { slug: "photo-maps", title: "Photo maps and found items", summary: "Build a map from photos and video, then review what was found.", Body: PhotoMaps },
   { slug: "measuring", title: "Measuring the plot", summary: "Correct the map to real sizes with a tape measure.", Body: Measuring },
   { slug: "phone-app", title: "The phone app", summary: "Install it, photograph the plot, and work without signal.", Body: PhoneApp },

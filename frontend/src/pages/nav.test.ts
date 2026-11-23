@@ -5,7 +5,7 @@ describe("allotment menu", () => {
   it("lists every page once, under one group", () => {
     const pages = NAV.flatMap((g) => g.pages.map((p) => p.to));
     expect(new Set(pages).size).toBe(pages.length);
-    expect(pages.sort()).toEqual(["", "beds", "layers", "notes", "overview", "photos", "seeds", "tasks", "today", "trays", "visits"]);
+    expect(pages.sort()).toEqual(["", "beds", "layers", "notes", "overview", "photos", "plan", "seeds", "tasks", "today", "trays", "visits"]);
   });
 
   it("has unique labels", () => {
@@ -18,7 +18,7 @@ describe("allotment menu", () => {
     expect(by("")).toBe("plot");
     expect(by("/")).toBe("plot");
     expect(by("/layers")).toBe("plot");
-    expect(["/seeds", "/trays", "/beds"].map(by)).toEqual(["grow", "grow", "grow"]);
+    expect(["/seeds", "/trays", "/beds", "/plan"].map(by)).toEqual(["grow", "grow", "grow", "grow"]);
     expect(["/today", "/tasks", "/visits"].map(by)).toEqual(["work", "work", "work"]);
     expect(["/photos", "/notes", "/overview"].map(by)).toEqual(["record", "record", "record"]);
   });

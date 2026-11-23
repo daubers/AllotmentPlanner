@@ -4,7 +4,7 @@ export type NavGroup = { key: string; label: string; pages: NavPage[] };
 
 export const NAV: NavGroup[] = [
   { key: "plot", label: "Plot", pages: [{ to: "", label: "Map", end: true }, { to: "layers", label: "Map from photos" }] },
-  { key: "grow", label: "Grow", pages: [{ to: "seeds", label: "Seeds" }, { to: "trays", label: "Trays" }, { to: "beds", label: "Beds" }] },
+  { key: "grow", label: "Grow", pages: [{ to: "seeds", label: "Seeds" }, { to: "trays", label: "Trays" }, { to: "beds", label: "Beds" }, { to: "plan", label: "Plan" }] },
   { key: "work", label: "Work", pages: [{ to: "today", label: "Today" }, { to: "tasks", label: "Tasks" }, { to: "visits", label: "Visits" }] },
   { key: "record", label: "Record", pages: [{ to: "photos", label: "Photos" }, { to: "notes", label: "Notes" }, { to: "overview", label: "Overview" }] },
 ];

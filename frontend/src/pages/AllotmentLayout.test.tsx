@@ -43,7 +43,7 @@ describe("allotment menu", () => {
     await screen.findByText("Plot 12");
     expect(groups().getByRole("link", { name: "Grow" })).toHaveClass("active");
     expect(groups().getByRole("link", { name: "Plot" })).not.toHaveClass("active");
-    expect(labels(screen.getByRole("navigation", { name: "Grow pages" }))).toEqual(["Seeds", "Trays", "Beds"]);
+    expect(labels(screen.getByRole("navigation", { name: "Grow pages" }))).toEqual(["Seeds", "Trays", "Beds", "Plan"]);
     expect(within(screen.getByRole("navigation", { name: "Grow pages" })).getByRole("link", { name: "Beds" })).toHaveClass("active");
   });
 
