@@ -5,7 +5,7 @@ describe("allotment menu", () => {
   it("lists every page once, under one group", () => {
     const pages = NAV.flatMap((g) => g.pages.map((p) => p.to));
     expect(new Set(pages).size).toBe(pages.length);
-    expect(pages.sort()).toEqual(["", "beds", "layers", "notes", "overview", "photos", "plan", "seeds", "tasks", "today", "trays", "visits"]);
+    expect(pages.sort()).toEqual(["", "beds", "equipment", "layers", "notes", "overview", "photos", "plan", "seeds", "tasks", "today", "trays", "visits"]);
   });
 
   it("has unique labels", () => {
@@ -18,7 +18,7 @@ describe("allotment menu", () => {
     expect(by("")).toBe("plot");
     expect(by("/")).toBe("plot");
     expect(by("/layers")).toBe("plot");
-    expect(["/seeds", "/trays", "/beds", "/plan"].map(by)).toEqual(["grow", "grow", "grow", "grow"]);
+    expect(["/seeds", "/trays", "/beds", "/plan", "/equipment"].map(by)).toEqual(["grow", "grow", "grow", "grow", "grow"]);
     expect(["/today", "/tasks", "/visits"].map(by)).toEqual(["work", "work", "work"]);
     expect(["/photos", "/notes", "/overview"].map(by)).toEqual(["record", "record", "record"]);
   });
@@ -27,6 +27,7 @@ describe("allotment menu", () => {
     expect(groupFor("/allotments/3/seeds/12")).toBe("grow");
     expect(groupFor("/allotments/3/beds/5")).toBe("grow");
     expect(groupFor("/allotments/3/trays/1")).toBe("grow");
+    expect(groupFor("/allotments/3/equipment/4")).toBe("grow");
   });
 
   it("gives Settings no group, and an unknown page the first", () => {

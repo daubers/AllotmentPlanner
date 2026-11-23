@@ -3984,6 +3984,207 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/allotments/{allotment_id}/equipment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Search the name, notes and used-for words */
+                    q?: string;
+                    kind?: "spade" | "fork" | "hand_fork" | "trowel" | "dibber" | "rake" | "hoe" | "watering_can" | "hose" | "sprayer" | "secateurs" | "shears" | "loppers" | "wheelbarrow" | "bucket" | "string_line" | "tape_measure" | "cloche" | "fleece" | "netting" | "canes" | "twine" | "seed_tray" | "plant_labels" | "gloves" | "kneeler" | "sieve" | "mower" | "strimmer";
+                    status?: "in_service" | "out_of_action";
+                };
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Equipment"][];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EquipmentIn"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Equipment"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/equipment/{equipment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                equipment_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    equipment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Equipment"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    equipment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    equipment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EquipmentPatch"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Equipment"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/equipment-kinds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The kinds an item can be, for choosing one. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EquipmentKind"][];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/allotments/{allotment_id}/suggestions": {
         parameters: {
             query?: never;
@@ -6670,6 +6871,66 @@ export interface components {
             harvest_months?: number[];
             succession_days?: number | null;
             notes?: string;
+        };
+        Equipment: {
+            id?: number;
+            name?: string;
+            kind?: string | null;
+            /** @description "Spade"; "Other" when it has no kind */
+            kind_label?: string;
+            quantity?: number;
+            notes?: string;
+            used_for?: string;
+            /** @description used_for, tidied */
+            keywords?: string[];
+            /** @enum {string} */
+            status?: "in_service" | "out_of_action";
+            location_feature_id?: number | null;
+            location_name?: string | null;
+            /** Format: date */
+            last_serviced_on?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        EquipmentIn: {
+            name: string;
+            /**
+             * @default null
+             * @enum {string|null}
+             */
+            kind?: "spade" | "fork" | "hand_fork" | "trowel" | "dibber" | "rake" | "hoe" | "watering_can" | "hose" | "sprayer" | "secateurs" | "shears" | "loppers" | "wheelbarrow" | "bucket" | "string_line" | "tape_measure" | "cloche" | "fleece" | "netting" | "canes" | "twine" | "seed_tray" | "plant_labels" | "gloves" | "kneeler" | "sieve" | "mower" | "strimmer" | null;
+            /** @default 1 */
+            quantity?: number;
+            /** @default  */
+            notes?: string;
+            /** @default  */
+            used_for?: string;
+            /**
+             * @default in_service
+             * @enum {string}
+             */
+            status?: "in_service" | "out_of_action";
+            /** @default null */
+            location_feature_id?: number | null;
+        };
+        EquipmentPatch: {
+            name?: string;
+            /** @enum {string|null} */
+            kind?: "spade" | "fork" | "hand_fork" | "trowel" | "dibber" | "rake" | "hoe" | "watering_can" | "hose" | "sprayer" | "secateurs" | "shears" | "loppers" | "wheelbarrow" | "bucket" | "string_line" | "tape_measure" | "cloche" | "fleece" | "netting" | "canes" | "twine" | "seed_tray" | "plant_labels" | "gloves" | "kneeler" | "sieve" | "mower" | "strimmer" | null;
+            quantity?: number;
+            notes?: string;
+            /** @description Words or phrases that make it suggested for a task, comma separated */
+            used_for?: string;
+            /** @enum {string} */
+            status?: "in_service" | "out_of_action";
+            /** @description Where it lives */
+            location_feature_id?: number | null;
+        };
+        EquipmentKind: {
+            key?: string;
+            label?: string;
         };
         Sighting: {
             media_id?: number;

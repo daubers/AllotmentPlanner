@@ -4279,6 +4279,254 @@
         ]
       }
     },
+    "/api/v1/allotments/{allotment_id}/equipment": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "description": "Search the name, notes and used-for words",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "spade",
+                "fork",
+                "hand_fork",
+                "trowel",
+                "dibber",
+                "rake",
+                "hoe",
+                "watering_can",
+                "hose",
+                "sprayer",
+                "secateurs",
+                "shears",
+                "loppers",
+                "wheelbarrow",
+                "bucket",
+                "string_line",
+                "tape_measure",
+                "cloche",
+                "fleece",
+                "netting",
+                "canes",
+                "twine",
+                "seed_tray",
+                "plant_labels",
+                "gloves",
+                "kneeler",
+                "sieve",
+                "mower",
+                "strimmer"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "in_service",
+                "out_of_action"
+              ]
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Equipment"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "equipment"
+        ]
+      },
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Equipment"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EquipmentIn"
+              }
+            }
+          }
+        },
+        "tags": [
+          "equipment"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/equipment/{equipment_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Equipment"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "equipment"
+        ]
+      },
+      "patch": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Equipment"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EquipmentPatch"
+              }
+            }
+          }
+        },
+        "tags": [
+          "equipment"
+        ]
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "equipment"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "equipment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/equipment-kinds": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EquipmentKind"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "The kinds an item can be, for choosing one.",
+        "tags": [
+          "equipment_kinds"
+        ]
+      }
+    },
     "/api/v1/allotments/{allotment_id}/suggestions": {
       "get": {
         "parameters": [
@@ -5897,6 +6145,14 @@
     {
       "name": "crops",
       "description": "Built-in crop reference: typical spacing and timings, for planning"
+    },
+    {
+      "name": "equipment",
+      "description": "Tools and equipment you own"
+    },
+    {
+      "name": "equipment_kinds",
+      "description": "The kinds of equipment the app knows about"
     },
     {
       "name": "suggestions",
@@ -9368,6 +9624,235 @@
             "nullable": true
           },
           "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Equipment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind_label": {
+            "type": "string",
+            "description": "\"Spade\"; \"Other\" when it has no kind"
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "used_for": {
+            "type": "string"
+          },
+          "keywords": {
+            "type": "array",
+            "description": "used_for, tidied",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_service",
+              "out_of_action"
+            ]
+          },
+          "location_feature_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "location_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "last_serviced_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EquipmentIn": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "kind": {
+            "type": "string",
+            "default": null,
+            "enum": [
+              "spade",
+              "fork",
+              "hand_fork",
+              "trowel",
+              "dibber",
+              "rake",
+              "hoe",
+              "watering_can",
+              "hose",
+              "sprayer",
+              "secateurs",
+              "shears",
+              "loppers",
+              "wheelbarrow",
+              "bucket",
+              "string_line",
+              "tape_measure",
+              "cloche",
+              "fleece",
+              "netting",
+              "canes",
+              "twine",
+              "seed_tray",
+              "plant_labels",
+              "gloves",
+              "kneeler",
+              "sieve",
+              "mower",
+              "strimmer",
+              null
+            ],
+            "nullable": true
+          },
+          "quantity": {
+            "type": "integer",
+            "default": 1,
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "notes": {
+            "type": "string",
+            "default": "",
+            "maxLength": 5000
+          },
+          "used_for": {
+            "type": "string",
+            "default": "",
+            "maxLength": 1000
+          },
+          "status": {
+            "type": "string",
+            "default": "in_service",
+            "enum": [
+              "in_service",
+              "out_of_action"
+            ]
+          },
+          "location_feature_id": {
+            "type": "integer",
+            "default": null,
+            "nullable": true
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "EquipmentPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "spade",
+              "fork",
+              "hand_fork",
+              "trowel",
+              "dibber",
+              "rake",
+              "hoe",
+              "watering_can",
+              "hose",
+              "sprayer",
+              "secateurs",
+              "shears",
+              "loppers",
+              "wheelbarrow",
+              "bucket",
+              "string_line",
+              "tape_measure",
+              "cloche",
+              "fleece",
+              "netting",
+              "canes",
+              "twine",
+              "seed_tray",
+              "plant_labels",
+              "gloves",
+              "kneeler",
+              "sieve",
+              "mower",
+              "strimmer",
+              null
+            ],
+            "nullable": true
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "used_for": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Words or phrases that make it suggested for a task, comma separated"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_service",
+              "out_of_action"
+            ]
+          },
+          "location_feature_id": {
+            "type": "integer",
+            "description": "Where it lives",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EquipmentKind": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
             "type": "string"
           }
         },

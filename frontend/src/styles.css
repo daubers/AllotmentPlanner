@@ -557,3 +557,12 @@ a.button.secondary { background: none; color: var(--accent); border: 1px solid v
 .plan-stale button { margin-left: .3rem; }
 .plan-tasks > button:last-child { justify-self: start; }
 .plan-banner { margin: 0 0 .6rem; padding: .5rem .7rem; border-radius: 8px; background: color-mix(in srgb, var(--accent) 16%, transparent); }
+
+/* Equipment */
+.equipment-add { grid-template-columns: 2fr 1.4fr 6rem auto; }
+.equipment-add .error { grid-column: 1 / -1; }
+.equipment-form fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: .75rem; }
+.equipment-form .pair { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.badge.out-of-action { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+.equipment-form textarea { padding: .5rem .6rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; width: 100%; box-sizing: border-box; }
+.equipment-form .hint { font-size: .8rem; }

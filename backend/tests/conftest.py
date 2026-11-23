@@ -82,6 +82,9 @@ def app(media_root, _schema):
         db.session.commit()
         yield app
         db.session.remove()
+        # Each test builds its own app, and so its own connection pool. Closing it now stops idle
+        # connections piling up until garbage collection (a long run could hit "too many clients").
+        db.engine.dispose()
 
 
 @pytest.fixture

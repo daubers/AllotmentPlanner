@@ -1,5 +1,7 @@
 from marshmallow import Schema, ValidationError, fields, validate, validates_schema
 
+from .equipment_kinds import KINDS
+from .equipment_kinds import STATUSES as EQUIPMENT_STATUSES
 from .models import FeatureKind
 from .plan import MAX_SUCCESSION, PLAN_STATUSES
 from .plantings import METHODS
@@ -327,6 +329,61 @@ class TaskSeriesSchema(Schema):
     done_tasks = fields.Integer()
     next_due = fields.Date(allow_none=True, metadata={"description": "The next open occurrence"})
     created_at = fields.DateTime()
+
+
+class EquipmentPatchSchema(Schema):
+    name = fields.String(validate=validate.Length(min=1, max=120))
+    kind = fields.String(allow_none=True, validate=validate.OneOf(list(KINDS)))
+    quantity = fields.Integer(validate=validate.Range(min=1, max=100000))
+    notes = fields.String(validate=validate.Length(max=5000))
+    used_for = fields.String(
+        validate=validate.Length(max=1000),
+        metadata={
+            "description": "Words or phrases that make it suggested for a task, comma separated"
+        },
+    )
+    status = fields.String(validate=validate.OneOf(EQUIPMENT_STATUSES))
+    location_feature_id = fields.Integer(
+        allow_none=True, metadata={"description": "Where it lives"}
+    )
+
+
+class EquipmentInSchema(EquipmentPatchSchema):
+    name = fields.String(required=True, validate=validate.Length(min=1, max=120))
+    kind = fields.String(load_default=None, allow_none=True, validate=validate.OneOf(list(KINDS)))
+    quantity = fields.Integer(load_default=1, validate=validate.Range(min=1, max=100000))
+    notes = fields.String(load_default="", validate=validate.Length(max=5000))
+    used_for = fields.String(load_default="", validate=validate.Length(max=1000))
+    status = fields.String(load_default="in_service", validate=validate.OneOf(EQUIPMENT_STATUSES))
+    location_feature_id = fields.Integer(load_default=None, allow_none=True)
+
+
+class EquipmentQuerySchema(Schema):
+    q = fields.String(metadata={"description": "Search the name, notes and used-for words"})
+    kind = fields.String(validate=validate.OneOf(list(KINDS)))
+    status = fields.String(validate=validate.OneOf(EQUIPMENT_STATUSES))
+
+
+class EquipmentSchema(Schema):
+    id = fields.Integer()
+    name = fields.String()
+    kind = fields.String(allow_none=True)
+    kind_label = fields.String(metadata={"description": '"Spade"; "Other" when it has no kind'})
+    quantity = fields.Integer()
+    notes = fields.String()
+    used_for = fields.String()
+    keywords = fields.List(fields.String(), metadata={"description": "used_for, tidied"})
+    status = fields.String(validate=validate.OneOf(EQUIPMENT_STATUSES))
+    location_feature_id = fields.Integer(allow_none=True)
+    location_name = fields.String(allow_none=True)
+    last_serviced_on = fields.Date(allow_none=True)
+    created_at = fields.DateTime()
+    updated_at = fields.DateTime()
+
+
+class EquipmentKindSchema(Schema):
+    key = fields.String()
+    label = fields.String()
 
 
 class TodoQuerySchema(Schema):

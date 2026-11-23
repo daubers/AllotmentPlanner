@@ -15,7 +15,7 @@ function GettingStarted() {
       <p>
         After signing in, the first page lists your allotments. Type a name under <em>New allotment name</em> and
         choose <em>Create</em>, then open it. The menu along the top is grouped by what you are doing:
-        <strong> Plot</strong> (Map, Map from photos), <strong>Grow</strong> (Seeds, Trays, Beds, Plan),
+        <strong> Plot</strong> (Map, Map from photos), <strong>Grow</strong> (Seeds, Trays, Beds, Plan, Equipment),
         <strong>Work</strong> (Today, Tasks) and <strong>Record</strong> (Photos, Overview). Choose a group to see its pages;
         Settings is at the top right.
       </p>
@@ -165,6 +165,24 @@ function Planning() {
   );
 }
 
+function Equipment() {
+  return (
+    <>
+      <h2>Your equipment</h2>
+      <p>
+        <em>Equipment</em> (in <em>Grow</em>) lists the tools and kit you have. Add an item with a name, the kind of thing it is (spade,
+        dibber, cloche) and how many you own. Open it to say where it is kept, to mark it <em>Out of action</em> when it is broken or lent
+        out, and to add notes.
+      </p>
+      <h2>Used for</h2>
+      <p>
+        Under <em>Used for</em>, list the words that should make an item suggested for a job (for example <em>dig, trench</em> on a border
+        spade). The kind already covers the common cases, so leave it blank unless you want your own rules.
+      </p>
+    </>
+  );
+}
+
 function PhotoMaps() {
   return (
     <>
@@ -306,6 +324,7 @@ export const TOPICS: Topic[] = [
   { slug: "map", title: "The map", summary: "Drawing, locking, undo, and shapes on top of shapes.", Body: TheMap },
   { slug: "seeds-and-trays", title: "Seeds, trays and beds", summary: "Packets, the sowing calendar, seed trays and what is growing.", Body: SeedsAndTrays },
   { slug: "planning", title: "Planning a year", summary: "Plan crops per bed, with space and successions.", Body: Planning },
+  { slug: "equipment", title: "Equipment", summary: "The tools and kit you own, and where they are kept.", Body: Equipment },
   { slug: "photo-maps", title: "Photo maps and found items", summary: "Build a map from photos and video, then review what was found.", Body: PhotoMaps },
   { slug: "measuring", title: "Measuring the plot", summary: "Correct the map to real sizes with a tape measure.", Body: Measuring },
   { slug: "phone-app", title: "The phone app", summary: "Install it, photograph the plot, and work without signal.", Body: PhoneApp },

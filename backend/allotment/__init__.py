@@ -9,6 +9,7 @@ from .api import (
     allotments,
     auth,
     day_lists,
+    equipment,
     features,
     limits,
     mapping,
@@ -74,6 +75,8 @@ def create_app(config: type = Config) -> Flask:
     api.register_blueprint(mastodon.blp)
     api.register_blueprint(limits.blp)
     api.register_blueprint(crops_api.blp)
+    api.register_blueprint(equipment.blp)
+    api.register_blueprint(equipment.kinds_blp)
     api.register_blueprint(suggestions.blp)
     api.register_blueprint(measurements.blp)
     api.register_blueprint(notes.blp)

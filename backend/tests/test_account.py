@@ -189,6 +189,8 @@ def test_an_export_holds_their_data_and_their_uploads_but_not_other_peoples(
     theirs = upload(client, owner, plot_id)
     client.post(f"/api/v1/allotments/{plot_id}/tasks", json={"title": "Dig"}, headers=editor)
     client.post(f"/api/v1/allotments/{plot_id}/tasks", json={"title": "Not mine"}, headers=owner)
+    client.post(f"/api/v1/allotments/{plot_id}/equipment", json={"name": "Spade"}, headers=editor)
+    client.post(f"/api/v1/allotments/{plot_id}/equipment", json={"name": "Not mine"}, headers=owner)
 
     export = request_export(client, editor)
     assert export["status"] == "ready" and export["url"] and export["size_bytes"] > 0
@@ -201,6 +203,7 @@ def test_an_export_holds_their_data_and_their_uploads_but_not_other_peoples(
         {"allotment_id": plot_id, "allotment": "Shared plot", "role": "editor"}
     ]
     assert [t["title"] for t in data["content"]["tasks"]] == ["Dig"]
+    assert [e["name"] for e in data["content"]["equipment"]] == ["Spade"]
     [media_row] = data["content"]["media"]
     assert media_row["id"] == mine["id"] and theirs["id"] != mine["id"]
     assert zf.read(media_row["file"]) == stored_original(media_root, mine["id"])

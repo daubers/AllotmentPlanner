@@ -14,6 +14,8 @@ import OverviewPage from "./pages/OverviewPage";
 import PhotosPage from "./pages/PhotosPage";
 import BedPage from "./pages/BedPage";
 import BedsPage from "./pages/BedsPage";
+import EquipmentItemPage from "./pages/EquipmentItemPage";
+import EquipmentPage from "./pages/EquipmentPage";
 import PlanPage from "./plan/PlanPage";
 import PacketPage from "./pages/PacketPage";
 import SeedsPage from "./pages/SeedsPage";
@@ -75,6 +77,8 @@ export default function App() {
           <Route path="seeds" element={<SeedsPage />} />
           <Route path="seeds/:packetId" element={<PacketPage />} />
           <Route path="plan" element={<PlanPage />} />
+          <Route path="equipment" element={<EquipmentPage />} />
+          <Route path="equipment/:equipmentId" element={<EquipmentItemPage />} />
           <Route path="beds" element={<BedsPage />} />
           <Route path="beds/:featureId" element={<BedPage />} />
           <Route path="trays" element={<TraysPage />} />

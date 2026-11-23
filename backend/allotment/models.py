@@ -593,6 +593,41 @@ class PlanItem(db.Model):
     )
 
 
+class Equipment(db.Model):
+    """Something you own to do the work: a spade, a set of cloches, a wheelbarrow."""
+
+    __tablename__ = "equipment"
+    __table_args__ = (
+        CheckConstraint("quantity >= 1", name="ck_equipment_quantity"),
+        CheckConstraint("status IN ('in_service', 'out_of_action')", name="ck_equipment_status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(120))
+    kind: Mapped[str | None] = mapped_column(String(30), nullable=True)  # allotment.equipment_kinds
+    quantity: Mapped[int] = mapped_column(default=1, server_default="1")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    # Words or phrases ("dig, double digging") that make this item suggested for a task.
+    used_for: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(
+        String(20), default="in_service", server_default="in_service"
+    )  # in_service | out_of_action
+    location_feature_id: Mapped[int | None] = mapped_column(
+        ForeignKey("map_features.id", ondelete="SET NULL"), nullable=True
+    )  # where it lives, usually a shed
+    last_serviced_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
+
+
 class ActivityLog(db.Model):
     """A domain event worth remembering; feeds the progress overview and later Mastodon."""
 
