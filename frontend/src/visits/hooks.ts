@@ -31,6 +31,8 @@ export function useVisitActions(allotmentId: number) {
         duration_minutes?: number;
         notes?: string;
         task_ids?: number[];
+        equipment_adds?: number[];
+        equipment_removes?: number[];
       }): Promise<Visit> => {
         const { data, error } = await api.POST("/api/v1/allotments/{allotment_id}/visits", {
           params: path(allotmentId),
@@ -47,7 +49,7 @@ export function useVisitActions(allotmentId: number) {
         body,
       }: {
         id: number;
-        body: { title?: string; starts_at?: string; duration_minutes?: number; notes?: string };
+        body: { title?: string; starts_at?: string; duration_minutes?: number; notes?: string; equipment_adds?: number[]; equipment_removes?: number[] };
       }) => {
         const { data, error } = await api.PATCH("/api/v1/allotments/{allotment_id}/visits/{visit_id}", {
           params: visitPath(allotmentId, id),
@@ -132,7 +134,7 @@ export function googleCalendarUrl(visit: Visit): string {
     action: "TEMPLATE",
     text: visit.title ?? "",
     dates: `${stamp(start)}/${stamp(end)}`,
-    details: visit.notes ?? "",
+    details: [visit.notes ?? "", visit.bring?.length ? `Bring: ${visit.bring.map((b) => b.name).join(", ")}` : ""].filter(Boolean).join("\n\n"),
   });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }

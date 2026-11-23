@@ -6275,6 +6275,27 @@ export interface components {
         DayListTasks: {
             task_ids: number[];
         };
+        BringItem: {
+            id?: number;
+            name?: string;
+            kind?: string | null;
+            kind_label?: string;
+            quantity?: number;
+            /** @enum {string} */
+            status?: "in_service" | "out_of_action";
+            /**
+             * @description Why it is on the list
+             * @enum {string}
+             */
+            source?: "task" | "suggested" | "extra";
+            /** @description The pegged tasks that need it */
+            task_ids?: number[];
+        };
+        VisitEquipment: {
+            equipment_id?: number;
+            /** @enum {string} */
+            mode?: "add" | "remove";
+        };
         Visit: {
             id?: number;
             title?: string;
@@ -6284,6 +6305,10 @@ export interface components {
             duration_minutes?: number;
             /** @description Tasks pegged to the visit */
             task_ids?: number[];
+            /** @description Equipment to bring */
+            bring?: components["schemas"]["BringItem"][];
+            /** @description Hand-made changes to the bring list */
+            equipment_extras?: components["schemas"]["VisitEquipment"][];
             /** Format: date-time */
             created_at?: string;
             /** Format: date-time */
@@ -6298,6 +6323,10 @@ export interface components {
             /** @default 120 */
             duration_minutes?: number;
             task_ids?: number[];
+            /** @description Extra equipment to bring, beyond what the tasks need */
+            equipment_adds?: number[];
+            /** @description Equipment to leave off the bring list */
+            equipment_removes?: number[];
         };
         VisitPatch: {
             title?: string;
@@ -6305,6 +6334,8 @@ export interface components {
             /** Format: date-time */
             starts_at?: string;
             duration_minutes?: number;
+            equipment_adds?: number[];
+            equipment_removes?: number[];
         };
         VisitTasks: {
             task_ids: number[];

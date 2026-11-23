@@ -83,3 +83,19 @@ export function longDate(iso: string): string {
       .find((p) => p.type === type)!.value;
   return `${part("weekday")} ${part("day")} ${part("month")} ${part("year")}`;
 }
+
+export type Tool = { id: number; name: string; jobs: number; outOfAction: boolean };
+
+/** The equipment the jobs on a sheet need, each once with how many jobs use it, by name. Finished jobs need nothing. */
+export function toolsFor(tasks: Task[]): Tool[] {
+  const found = new Map<number, Tool>();
+  for (const t of tasks) {
+    if (t.status === "done") continue;
+    for (const e of t.equipment ?? []) {
+      const have = found.get(e.id!);
+      if (have) have.jobs += 1;
+      else found.set(e.id!, { id: e.id!, name: e.name!, jobs: 1, outOfAction: e.status === "out_of_action" });
+    }
+  }
+  return [...found.values()].sort((a, b) => a.name.localeCompare(b.name) || a.id - b.id);
+}

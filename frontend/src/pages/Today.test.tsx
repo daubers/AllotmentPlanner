@@ -86,4 +86,20 @@ describe("Today page", () => {
     expect(document.querySelectorAll(".sheet-tasks .box")).toHaveLength(2);
     expect(screen.queryByLabelText("Complete Water the beans")).not.toBeInTheDocument();
   });
+
+  it("lists the equipment the jobs need, once, and on each job", async () => {
+    const spade = { id: 1, name: "Border spade", kind: "spade", kind_label: "Spade", quantity: 1, status: "in_service" };
+    const fork = { id: 2, name: "Fork", kind: "fork", kind_label: "Fork", quantity: 1, status: "in_service" };
+    open = [task(1, { title: "Dig the bed", feature_id: 5, equipment: [spade, fork] }), task(2, { title: "Turn the compost", tray_id: 7, equipment: [fork] })];
+    setup();
+    expect((await screen.findByText(/Take with you:/)).closest("p")).toHaveTextContent("Take with you: Border spade, Fork");
+    expect(screen.getByText("🔧 Border spade, Fork")).toBeInTheDocument();
+    expect(screen.getByText("🔧 Fork")).toBeInTheDocument();
+  });
+
+  it("says nothing about equipment when no job needs any", async () => {
+    setup();
+    await screen.findByText("Water the beans");
+    expect(screen.queryByText(/Take with you/)).not.toBeInTheDocument();
+  });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildSketch } from "../map/sketch";
 import type { Task } from "./group";
-import { daysBetween, flatten, groupByLocation, longDate } from "./today";
+import { daysBetween, flatten, groupByLocation, longDate, toolsFor } from "./today";
 
 const task = (id: number, extra: Partial<Task> = {}): Task => ({ id, title: `t${id}`, status: "todo", ...extra }) as Task;
 const features = [
@@ -109,5 +109,29 @@ describe("buildSketch", () => {
     expect(s.shapes[0]).toMatchObject({ type: "point" });
     expect((s.shapes[0] as { r: number }).r).toBeGreaterThan(3);
     expect(buildSketch([], [])).toEqual({ width: 640, height: 420, shapes: [], pins: [] });
+  });
+});
+
+
+describe("toolsFor", () => {
+  const eq = (id: number, name: string, status: "in_service" | "out_of_action" = "in_service") => ({ id, name, kind: null, kind_label: "Other", quantity: 1, status });
+
+  it("lists each tool once with how many jobs use it, by name", () => {
+    const tools = toolsFor([
+      task(1, { equipment: [eq(2, "Fork"), eq(1, "Border spade")] }),
+      task(2, { equipment: [eq(2, "Fork")] }),
+      task(3, {}),
+    ]);
+    expect(tools.map((t) => [t.name, t.jobs])).toEqual([["Border spade", 1], ["Fork", 2]]);
+  });
+
+  it("skips finished jobs and marks what is out of action", () => {
+    const tools = toolsFor([task(1, { status: "done", equipment: [eq(1, "Spade")] }), task(2, { equipment: [eq(2, "Old hoe", "out_of_action")] })]);
+    expect(tools).toEqual([{ id: 2, name: "Old hoe", jobs: 1, outOfAction: true }]);
+  });
+
+  it("is empty when no job needs anything", () => {
+    expect(toolsFor([])).toEqual([]);
+    expect(toolsFor([task(1, {})])).toEqual([]);
   });
 });

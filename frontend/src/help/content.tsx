@@ -174,6 +174,19 @@ function Equipment() {
         dibber, cloche) and how many you own. Open it to say where it is kept, to mark it <em>Out of action</em> when it is broken or lent
         out, and to add notes.
       </p>
+      <h2>Equipment on a job</h2>
+      <p>
+        When you add or edit a job, the <em>Equipment</em> row suggests what you own that it probably needs (digging suggests a spade, sowing
+        a dibber), as dashed chips: press one to add it, or press <em>✕</em> on any chip to take it off. Suggestions come from the words in
+        the title and notes and, for jobs made from a tray, a planting or the plan, from what kind of job it is. Nothing is added unless you
+        choose it. Jobs show the tools they need on the Tasks and Today pages.
+      </p>
+      <h2>What to bring on a visit</h2>
+      <p>
+        A planned visit lists the equipment its jobs need under <em>Equipment to bring</em>. A job with no tools of its own borrows the
+        first couple of suggestions once the visit is saved. Add anything extra, or take off what you already have there. The list appears in
+        the calendar entry (<em>Bring: …</em>), the Today sheet (<em>Take with you</em>) and on the phone.
+      </p>
       <h2>Used for</h2>
       <p>
         Under <em>Used for</em>, list the words that should make an item suggested for a job (for example <em>dig, trench</em> on a border

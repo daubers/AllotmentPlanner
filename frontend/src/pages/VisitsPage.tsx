@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAllotment } from "./AllotmentLayout";
 import { downloadVisitIcs, googleCalendarUrl, useCalendarToken, useVisitActions, useVisits, type Visit } from "../visits/hooks";
+import { bringSummary } from "../visits/bring";
 import VisitDialog from "../visits/VisitDialog";
 
 function CalendarMenu({ allotmentId, visit }: { allotmentId: number; visit: Visit }) {
@@ -125,6 +126,7 @@ export default function VisitsPage() {
                 {v.task_ids.length} task{v.task_ids.length === 1 ? "" : "s"} pegged
               </p>
             )}
+            {!!v.bring?.length && <p className="visit-bring-line">🔧 Bring: {bringSummary(v.bring)}</p>}
             <div className="visit-actions">
               <CalendarMenu allotmentId={id} visit={v} />
               {canEdit && (

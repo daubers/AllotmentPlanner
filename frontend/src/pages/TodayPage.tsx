@@ -7,7 +7,7 @@ import DayListsDialog from "../tasks/DayListsDialog";
 import { useDayListActions, useDayListSheet, useDayLists, useSelectedList } from "../tasks/dayLists";
 import { useTaskActions, useTodo } from "../tasks/hooks";
 import PlanList from "../tasks/PlanList";
-import { daysBetween, flatten, groupByLocation, longDate, type Places, type SheetFeature } from "../tasks/today";
+import { daysBetween, flatten, groupByLocation, longDate, toolsFor, type Places, type SheetFeature } from "../tasks/today";
 import { useTrays } from "../trays/hooks";
 import { useAllotment } from "./AllotmentLayout";
 
@@ -120,6 +120,7 @@ function Sheet({ allotmentId, date, data, listId = null }: { allotmentId: number
 
   // A list keeps finished jobs on it, so those start out ticked.
   const isTicked = (t: Task) => touched.get(t.id!)?.done ?? t.status === "done";
+  const tools = toolsFor(ordered.filter((t) => !isTicked(t))); // what is still to do needs these
   const tick = (t: Task) => {
     const done = !isTicked(t);
     (done ? actions.complete : actions.reopen).mutate(t.id!);
@@ -159,6 +160,12 @@ function Sheet({ allotmentId, date, data, listId = null }: { allotmentId: number
         </svg>
       )}
 
+      {tools.length > 0 && (
+        <p className="take-with-you">
+          <strong>Take with you:</strong> {tools.map((t) => `${t.name}${t.outOfAction ? " (out of action)" : ""}`).join(", ")}
+        </p>
+      )}
+
       {ordered.length === 0 ? (
         <p className="all-clear">{listId != null ? "Nothing on this list yet. Add jobs above, or from the Tasks page." : "Nothing due. Enjoy the plot! 🌱"}</p>
       ) : (
@@ -189,6 +196,7 @@ function Sheet({ allotmentId, date, data, listId = null }: { allotmentId: number
                       {t.recurrence && <em> · repeats {t.recurrence}</em>}
                       {t.assignee_id != null && who.get(t.assignee_id) && <em> · {who.get(t.assignee_id)}</em>}
                       {t.description && <span className="notes">{t.description}</span>}
+                      {!!t.equipment?.length && <span className="notes">🔧 {t.equipment.map((e) => e.name).join(", ")}</span>}
                     </span>
                     {canEdit && listId != null && (
                       <button type="button" className="link no-print remove-from-list" aria-label={`Take ${t.title} off the list`} onClick={() => listActions.removeTask.mutate({ id: listId, taskId: t.id! })}>✕</button>

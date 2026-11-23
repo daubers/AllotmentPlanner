@@ -1510,6 +1510,18 @@ class VisitInSchema(Schema):
     starts_at = fields.DateTime(required=True)
     duration_minutes = fields.Integer(load_default=120, validate=validate.Range(min=1, max=1440))
     task_ids = fields.List(fields.Integer(), load_default=list)
+    equipment_adds = fields.List(
+        fields.Integer(),
+        load_default=list,
+        validate=validate.Length(max=100),
+        metadata={"description": "Extra equipment to bring, beyond what the tasks need"},
+    )
+    equipment_removes = fields.List(
+        fields.Integer(),
+        load_default=list,
+        validate=validate.Length(max=100),
+        metadata={"description": "Equipment to leave off the bring list"},
+    )
 
 
 class VisitPatchSchema(Schema):
@@ -1517,6 +1529,23 @@ class VisitPatchSchema(Schema):
     notes = fields.String(validate=validate.Length(max=5000))
     starts_at = fields.DateTime()
     duration_minutes = fields.Integer(validate=validate.Range(min=1, max=1440))
+    equipment_adds = fields.List(fields.Integer(), validate=validate.Length(max=100))
+    equipment_removes = fields.List(fields.Integer(), validate=validate.Length(max=100))
+
+
+class BringItemSchema(TaskEquipmentSchema):
+    source = fields.String(
+        validate=validate.OneOf(["task", "suggested", "extra"]),
+        metadata={"description": "Why it is on the list"},
+    )
+    task_ids = fields.List(
+        fields.Integer(), metadata={"description": "The pegged tasks that need it"}
+    )
+
+
+class VisitEquipmentSchema(Schema):
+    equipment_id = fields.Integer()
+    mode = fields.String(validate=validate.OneOf(["add", "remove"]))
 
 
 class VisitSchema(Schema):
@@ -1526,6 +1555,13 @@ class VisitSchema(Schema):
     starts_at = fields.DateTime()
     duration_minutes = fields.Integer()
     task_ids = fields.List(fields.Integer(), metadata={"description": "Tasks pegged to the visit"})
+    bring = fields.List(
+        fields.Nested(BringItemSchema), metadata={"description": "Equipment to bring"}
+    )
+    equipment_extras = fields.List(
+        fields.Nested(VisitEquipmentSchema),
+        metadata={"description": "Hand-made changes to the bring list"},
+    )
     created_at = fields.DateTime()
     updated_at = fields.DateTime()
 

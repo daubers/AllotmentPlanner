@@ -60,6 +60,7 @@ def set_task_equipment(
     have = {
         row.equipment_id: row for row in db.session.query(TaskEquipment).filter_by(task_id=task.id)
     }
+    changed = {i for i in have if i not in wanted} | {i for i in wanted if i not in have}
     for equipment_id, row in have.items():
         if equipment_id not in wanted:
             db.session.delete(row)
@@ -73,6 +74,10 @@ def set_task_equipment(
                     created_by=user_id,
                 )
             )
+    if changed:
+        from .visit_bring import touch_visits_for_tasks  # here: visit_bring imports this module
+
+        touch_visits_for_tasks([task.id])
 
 
 def load_equipment(allotment_id: int) -> tuple[list[Item], dict[int, Equipment]]:

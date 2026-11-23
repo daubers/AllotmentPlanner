@@ -648,6 +648,30 @@ class TaskEquipment(db.Model):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class VisitEquipment(db.Model):
+    """A hand-made change to a visit's bring list: an extra tool, or one hidden from the list."""
+
+    __tablename__ = "visit_equipment"
+    __table_args__ = (
+        UniqueConstraint("visit_id", "equipment_id", name="uq_visit_equipment"),
+        CheckConstraint("mode IN ('add', 'remove')", name="ck_visit_equipment_mode"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    visit_id: Mapped[int] = mapped_column(ForeignKey("visits.id", ondelete="CASCADE"), index=True)
+    equipment_id: Mapped[int] = mapped_column(
+        ForeignKey("equipment.id", ondelete="CASCADE"), index=True
+    )
+    mode: Mapped[str] = mapped_column(String(10))  # add | remove
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class ActivityLog(db.Model):
     """A domain event worth remembering; feeds the progress overview and later Mastodon."""
 

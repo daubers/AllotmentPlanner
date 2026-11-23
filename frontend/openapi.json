@@ -7644,6 +7644,67 @@
         ],
         "additionalProperties": false
       },
+      "BringItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind_label": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_service",
+              "out_of_action"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "task",
+              "suggested",
+              "extra"
+            ],
+            "description": "Why it is on the list"
+          },
+          "task_ids": {
+            "type": "array",
+            "description": "The pegged tasks that need it",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "VisitEquipment": {
+        "type": "object",
+        "properties": {
+          "equipment_id": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "add",
+              "remove"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "Visit": {
         "type": "object",
         "properties": {
@@ -7668,6 +7729,20 @@
             "description": "Tasks pegged to the visit",
             "items": {
               "type": "integer"
+            }
+          },
+          "bring": {
+            "type": "array",
+            "description": "Equipment to bring",
+            "items": {
+              "$ref": "#/components/schemas/BringItem"
+            }
+          },
+          "equipment_extras": {
+            "type": "array",
+            "description": "Hand-made changes to the bring list",
+            "items": {
+              "$ref": "#/components/schemas/VisitEquipment"
             }
           },
           "created_at": {
@@ -7709,6 +7784,22 @@
             "items": {
               "type": "integer"
             }
+          },
+          "equipment_adds": {
+            "type": "array",
+            "maxItems": 100,
+            "description": "Extra equipment to bring, beyond what the tasks need",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "equipment_removes": {
+            "type": "array",
+            "maxItems": 100,
+            "description": "Equipment to leave off the bring list",
+            "items": {
+              "type": "integer"
+            }
           }
         },
         "required": [
@@ -7737,6 +7828,20 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 1440
+          },
+          "equipment_adds": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "integer"
+            }
+          },
+          "equipment_removes": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "integer"
+            }
           }
         },
         "additionalProperties": false

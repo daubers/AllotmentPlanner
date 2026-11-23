@@ -19,7 +19,7 @@ def _uid(visit: Visit) -> str:
     return f"visit-{visit.id}@{_host()}"
 
 
-def _vevent(visit: Visit, tasks: list[Task]) -> Event:
+def _vevent(visit: Visit, tasks: list[Task], bring: list[str] | None = None) -> Event:
     event = Event()
     event.add("uid", _uid(visit))
     event.add("dtstamp", visit.updated_at)
@@ -33,6 +33,9 @@ def _vevent(visit: Visit, tasks: list[Task]) -> Event:
     if tasks:
         checklist = "\n".join(f"- {t.title}" for t in tasks)
         description = f"{description}\n\n{checklist}" if description else checklist
+    if bring:
+        tools = f"Bring: {', '.join(bring)}"
+        description = f"{description}\n\n{tools}" if description else tools
     if description:
         event.add("description", description)
 
@@ -49,20 +52,23 @@ def _vevent(visit: Visit, tasks: list[Task]) -> Event:
     return event
 
 
-def visit_to_ics(visit: Visit, tasks: list[Task]) -> bytes:
-    """A single-event calendar, for downloading one visit."""
+def visit_to_ics(visit: Visit, tasks: list[Task], bring: list[str] | None = None) -> bytes:
+    """A single-event calendar, for downloading one visit. ``bring`` names the equipment to take."""
     cal = Calendar()
     cal.add("prodid", "-//Allotment Planner//visits//EN")
     cal.add("version", "2.0")
-    cal.add_component(_vevent(visit, tasks))
+    cal.add_component(_vevent(visit, tasks, bring))
     return cal.to_ical()
 
 
-def feed_to_ics(visits_and_tasks: list[tuple[Visit, list[Task]]]) -> bytes:
-    """A VCALENDAR of every visit, for a webcal subscription."""
+def feed_to_ics(entries: list[tuple]) -> bytes:
+    """A VCALENDAR of every visit, for a webcal subscription.
+
+    Each entry is (visit, tasks) or (visit, tasks, bring names).
+    """
     cal = Calendar()
     cal.add("prodid", "-//Allotment Planner//visits//EN")
     cal.add("version", "2.0")
-    for visit, tasks in visits_and_tasks:
-        cal.add_component(_vevent(visit, tasks))
+    for visit, tasks, *rest in entries:
+        cal.add_component(_vevent(visit, tasks, rest[0] if rest else None))
     return cal.to_ical()

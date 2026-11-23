@@ -1,6 +1,9 @@
 import { useState } from "react";
 import Modal from "../components/Modal";
+import EquipmentChips from "../equipment/EquipmentChips";
+import { useEquipmentList } from "../equipment/hooks";
 import { useTasks } from "../tasks/hooks";
+import { addTool, extrasOf, previewBring, removeTool, type Extras } from "./bring";
 import { useVisitActions, type Visit } from "./hooks";
 
 /** YYYY-MM-DD and HH:MM in the browser's local timezone, for the date/time inputs. */
@@ -34,8 +37,27 @@ export default function VisitDialog({
   const initial = editing ? toLocalInputs(editing.starts_at!) : toLocalInputs(new Date().toISOString());
   const [picked, setPicked] = useState<Set<number>>(new Set(editing?.task_ids ?? []));
   const [error, setError] = useState<string | null>(null);
+  const [extras, setExtras] = useState<Extras>(extrasOf(editing ?? undefined));
+  const equipment = useEquipmentList(allotmentId);
 
   const open = (tasks.data ?? []).filter((t) => t.status !== "done");
+  const known = (id: number) => {
+    const e = equipment.data?.find((x) => x.id === id);
+    return e ? { name: e.name!, outOfAction: e.status === "out_of_action" } : undefined;
+  };
+  const pickedTasks = (tasks.data ?? []).filter((t) => picked.has(t.id!));
+  const bring = previewBring(pickedTasks, editing?.bring, extras, known);
+  const listed = bring.map((b) => b.id);
+  // Equipment a picked job already needs: putting it back on the list just stops hiding it.
+  const needed = new Set(pickedTasks.filter((t) => t.status !== "done").flatMap((t) => (t.equipment ?? []).map((e) => e.id!)));
+
+  /** The chips control reports the whole new list; turn the difference into add/remove. */
+  function changeBring(next: number[]) {
+    let out = extras;
+    for (const id of listed.filter((x) => !next.includes(x))) out = removeTool(out, id);
+    for (const id of next.filter((x) => !listed.includes(x))) out = addTool(out, id, needed.has(id));
+    setExtras(out);
+  }
 
   function toggle(id: number) {
     setPicked((prev) => {
@@ -60,7 +82,7 @@ export default function VisitDialog({
       if (editing) {
         await actions.update.mutateAsync({
           id: editing.id!,
-          body: { title, starts_at, duration_minutes, notes },
+          body: { title, starts_at, duration_minutes, notes, equipment_adds: extras.adds, equipment_removes: extras.removes },
         });
         const before = new Set(editing.task_ids ?? []);
         const toAdd = [...picked].filter((id) => !before.has(id));
@@ -76,6 +98,8 @@ export default function VisitDialog({
           duration_minutes,
           notes,
           task_ids: [...picked],
+          equipment_adds: extras.adds,
+          equipment_removes: extras.removes,
         });
       }
       onClose();
@@ -125,6 +149,11 @@ export default function VisitDialog({
               </li>
             ))}
           </ul>
+        </fieldset>
+        <fieldset className="visit-bring">
+          <legend>Equipment to bring</legend>
+          <EquipmentChips allotmentId={allotmentId} value={listed} onChange={changeBring} known={bring.map((b) => ({ id: b.id, name: b.name, status: b.outOfAction ? "out_of_action" : "in_service" }))} />
+          <p className="hint">What the jobs above need. Tools suggested for a job appear once the visit is saved; add or remove any here.</p>
         </fieldset>
         {error && <p role="alert" className="error">{error}</p>}
         <button type="submit" disabled={pending}>{editing ? "Save" : "Plan visit"}</button>

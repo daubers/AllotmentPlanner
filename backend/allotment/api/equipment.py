@@ -18,6 +18,7 @@ from ..schemas import (
 )
 from ..security import require_role
 from ..task_equipment import feature_kinds, load_equipment, suggest_equipment
+from ..visit_bring import touch_visits_for_equipment
 
 blp = Blueprint(
     "equipment",
@@ -181,6 +182,7 @@ class EquipmentDetail(MethodView):
         for key in FIELDS:
             if key in data:
                 setattr(item, key, data[key])
+        touch_visits_for_equipment(item.id)  # its name or status shows on visits' bring lists
         db.session.commit()
         _emit("updated", allotment, membership, item, fields=sorted(data))
         return equipment_to_dict(item)
@@ -190,6 +192,7 @@ class EquipmentDetail(MethodView):
     def delete(self, allotment, membership, equipment_id):
         item = _get(allotment, equipment_id)
         name = item.name
+        touch_visits_for_equipment(item.id)  # before the links go with it
         db.session.delete(item)
         db.session.commit()
         events.emit(

@@ -52,6 +52,7 @@ export default function Job() {
         <Row title="Where" value={place} />
         <Row title="Priority" value={task.priority === "high" ? "High" : task.priority === "low" ? "Low" : "Normal"} />
         {task.recurrence ? <Row title="Repeats" value={task.recurrence} /> : null}
+        {(task.equipment ?? []).length > 0 ? <Row title="Equipment" value={(task.equipment ?? []).map((e) => e.name).join(", ")} /> : null}
       </Card>
       {task.description ? (
         <Card>

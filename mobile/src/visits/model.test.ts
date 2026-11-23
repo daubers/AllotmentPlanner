@@ -1,4 +1,4 @@
-import { combineLocalDateTime } from "./model";
+import { combineLocalDateTime, bringLabel } from "./model";
 
 describe("combineLocalDateTime", () => {
   it("combines a date and time into an ISO instant", () => {
@@ -19,5 +19,22 @@ describe("combineLocalDateTime", () => {
 
   it("returns null for an unparseable date", () => {
     expect(combineLocalDateTime("not-a-date", "09:00")).toBeNull();
+  });
+});
+
+describe("bringLabel", () => {
+  it("is just the name for something a job needs", () => {
+    expect(bringLabel({ name: "Border spade", source: "task" })).toBe("Border spade");
+    expect(bringLabel({ name: "Wheelbarrow", source: "extra" })).toBe("Wheelbarrow");
+  });
+
+  it("says when it was only suggested, or is out of action", () => {
+    expect(bringLabel({ name: "Dibber", source: "suggested" })).toBe("Dibber (suggested)");
+    expect(bringLabel({ name: "Old hoe", source: "task", status: "out_of_action" })).toBe("Old hoe (out of action)");
+    expect(bringLabel({ name: "Rake", source: "suggested", status: "out_of_action" })).toBe("Rake (suggested, out of action)");
+  });
+
+  it("copes with a missing name", () => {
+    expect(bringLabel({})).toBe("Equipment");
   });
 });

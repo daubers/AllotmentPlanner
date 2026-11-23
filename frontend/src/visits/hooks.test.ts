@@ -28,4 +28,16 @@ describe("googleCalendarUrl", () => {
     const url = new URL(googleCalendarUrl(visit({ duration_minutes: undefined })));
     expect(url.searchParams.get("dates")).toBe("20261107T090000Z/20261107T110000Z");
   });
+
+  it("adds what to bring after the notes", () => {
+    const bring = [{ id: 1, name: "Border spade" }, { id: 2, name: "Dibber" }];
+    const url = new URL(googleCalendarUrl(visit({ bring: bring as Visit["bring"] })));
+    expect(url.searchParams.get("details")).toBe("bring gloves\n\nBring: Border spade, Dibber");
+  });
+
+  it("has only the bring line when there are no notes, and none when there is nothing to bring", () => {
+    const only = new URL(googleCalendarUrl(visit({ notes: "", bring: [{ id: 1, name: "Spade" }] as Visit["bring"] })));
+    expect(only.searchParams.get("details")).toBe("Bring: Spade");
+    expect(new URL(googleCalendarUrl(visit({ bring: [] }))).searchParams.get("details")).toBe("bring gloves");
+  });
 });

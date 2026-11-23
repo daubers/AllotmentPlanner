@@ -6,6 +6,7 @@ import { useApp } from "../../src/state/AppProvider";
 import { useCanEdit, useTasks } from "../../src/tasks/hooks";
 import { Banner, Button, Card, Loading, Row, Screen, Section, T } from "../../src/ui/kit";
 import { shareVisitIcs, useCalendarFeed, useVisit, useVisitActions } from "../../src/visits/hooks";
+import { bringLabel } from "../../src/visits/model";
 
 export default function VisitDetail() {
   const router = useRouter();
@@ -75,6 +76,16 @@ export default function VisitDetail() {
           </Card>
         ) : (
           <T muted>No jobs pegged to this visit.</T>
+        )}
+      </Section>
+
+      <Section title="Equipment to bring" right={<T kind="caption" muted>{visit.data.bring?.length ?? 0}</T>}>
+        {(visit.data.bring?.length ?? 0) > 0 ? (
+          <Card>
+            {(visit.data.bring ?? []).map((b, i) => <Row key={b.id} first={i === 0} title={bringLabel(b)} />)}
+          </Card>
+        ) : (
+          <T muted>Nothing to bring.</T>
         )}
       </Section>
 

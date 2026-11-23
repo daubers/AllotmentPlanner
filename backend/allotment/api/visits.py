@@ -4,11 +4,12 @@ from datetime import UTC, datetime, timedelta
 from flask import Response, current_app
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
+from sqlalchemy.orm import selectinload
 
 from .. import events
 from ..extensions import db
 from ..ics import feed_to_ics, visit_to_ics
-from ..models import Allotment, Role, Task, Visit, VisitTask
+from ..models import Allotment, Role, Task, Visit, VisitEquipment, VisitTask
 from ..schemas import (
     CalendarTokenSchema,
     VisitInSchema,
@@ -17,6 +18,7 @@ from ..schemas import (
     VisitTasksSchema,
 )
 from ..security import require_role
+from ..visit_bring import bring_names, set_visit_extras, visit_brings
 
 blp = Blueprint(
     "visits",
@@ -67,7 +69,10 @@ def _visit_tasks(visit: Visit) -> list[Task]:
     return [db.session.get(Task, i.task_id) for i in visit.tasks]
 
 
-def visit_to_dict(visit: Visit) -> dict:
+def visit_to_dict(visit: Visit, bring: dict | None = None) -> dict:
+    """A visit for the API. Pass ``bring`` (see visit_brings) to avoid queries per visit."""
+    if bring is None:
+        bring = visit_brings(visit.allotment_id, [visit])[visit.id]
     return {
         "id": visit.id,
         "title": visit.title,
@@ -75,6 +80,8 @@ def visit_to_dict(visit: Visit) -> dict:
         "starts_at": visit.starts_at,
         "duration_minutes": visit.duration_minutes,
         "task_ids": [t.task_id for t in visit.tasks],
+        "bring": bring["bring"],
+        "equipment_extras": bring["equipment_extras"],
         "created_at": visit.created_at,
         "updated_at": visit.updated_at,
     }
@@ -88,11 +95,13 @@ class Visits(MethodView):
         """The allotment's visits, soonest first."""
         visits = (
             db.session.query(Visit)
+            .options(selectinload(Visit.tasks))  # one query for every visit's tasks
             .filter_by(allotment_id=allotment.id)
             .order_by(Visit.starts_at)
             .all()
         )
-        return [visit_to_dict(v) for v in visits]
+        brings = visit_brings(allotment.id, visits)
+        return [visit_to_dict(v, brings[v.id]) for v in visits]
 
     @require_role(Role.EDITOR)
     @blp.arguments(VisitInSchema)
@@ -110,6 +119,10 @@ class Visits(MethodView):
         )
         db.session.add(visit)
         _add(visit, tasks)
+        db.session.flush()  # for the visit's id
+        set_visit_extras(
+            visit, data["equipment_adds"], data["equipment_removes"], allotment, membership.user_id
+        )
         db.session.commit()
         events.emit(
             "visit.created",
@@ -142,6 +155,14 @@ class VisitDetail(MethodView):
             visit.starts_at = data["starts_at"]
         if "duration_minutes" in data:
             visit.duration_minutes = data["duration_minutes"]
+        if "equipment_adds" in data or "equipment_removes" in data:
+            now = {
+                r.equipment_id: r.mode
+                for r in db.session.query(VisitEquipment).filter_by(visit_id=visit.id)
+            }
+            adds = data.get("equipment_adds", [i for i, m in now.items() if m == "add"])
+            removes = data.get("equipment_removes", [i for i, m in now.items() if m == "remove"])
+            set_visit_extras(visit, adds, removes, allotment, membership.user_id)
         db.session.commit()
         return visit_to_dict(visit)
 
@@ -162,6 +183,7 @@ class VisitTasksView(MethodView):
         """Peg tasks to the visit; ones already there are left alone. All or nothing."""
         visit = _get(allotment, visit_id)
         added = _add(visit, _tasks(allotment, data["task_ids"]))
+        visit.updated_at = datetime.now(UTC)  # the task list, and the bring list, changed
         db.session.commit()
         events.emit(
             "visit.tasks_added",
@@ -184,6 +206,7 @@ class VisitTaskView(MethodView):
         if item is None:
             abort(404, message="That task is not pegged to this visit")
         visit.tasks.remove(item)
+        visit.updated_at = datetime.now(UTC)
         db.session.commit()
         return visit_to_dict(visit)
 
@@ -194,7 +217,8 @@ class VisitCalendar(MethodView):
     def get(self, allotment, membership, visit_id):
         """Download a single-event .ics for this visit."""
         visit = _get(allotment, visit_id)
-        body = visit_to_ics(visit, _visit_tasks(visit))
+        bring = visit_brings(allotment.id, [visit])[visit.id]["bring"]
+        body = visit_to_ics(visit, _visit_tasks(visit), bring_names(bring))
         return Response(
             body,
             mimetype="text/calendar",
@@ -253,6 +277,7 @@ class CalendarFeed(MethodView):
         now = datetime.now(UTC)
         visits = (
             db.session.query(Visit)
+            .options(selectinload(Visit.tasks))
             .filter(
                 Visit.allotment_id == allotment.id,
                 Visit.starts_at >= now - timedelta(days=FEED_PAST_DAYS),
@@ -261,5 +286,8 @@ class CalendarFeed(MethodView):
             .order_by(Visit.starts_at)
             .all()
         )
-        body = feed_to_ics([(v, _visit_tasks(v)) for v in visits])
+        brings = visit_brings(allotment.id, visits)
+        body = feed_to_ics(
+            [(v, _visit_tasks(v), bring_names(brings[v.id]["bring"])) for v in visits]
+        )
         return Response(body, mimetype="text/calendar")
