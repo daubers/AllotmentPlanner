@@ -589,6 +589,31 @@ class LimitsSchema(Schema):
     max_upload_bytes = fields.Integer(metadata={"description": "Largest accepted upload"})
 
 
+class CropQuerySchema(Schema):
+    q = fields.String(metadata={"description": "Search the crop's name, key or family"})
+
+
+class CropSchema(Schema):
+    """A built-in crop: typical spacing, timings and sowing windows (months 1 to 12)."""
+
+    key = fields.String()
+    name = fields.String()
+    family = fields.String()
+    category = fields.String()
+    method_default = fields.String(validate=validate.OneOf(["direct_sow", "transplant"]))
+    spacing_plant_cm = fields.Integer()
+    spacing_row_cm = fields.Integer()
+    germinate_days = fields.Integer()
+    maturity_days_min = fields.Integer()
+    maturity_days_max = fields.Integer()
+    sow_depth_mm = fields.Integer()
+    sow_months = fields.List(fields.Integer())
+    plant_out_months = fields.List(fields.Integer())
+    harvest_months = fields.List(fields.Integer())
+    succession_days = fields.Integer(allow_none=True)
+    notes = fields.String()
+
+
 class SightingSchema(Schema):
     media_id = fields.Integer()
     outline = fields.List(

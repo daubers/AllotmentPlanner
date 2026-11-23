@@ -3835,6 +3835,46 @@
         ]
       }
     },
+    "/api/v1/crops": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "description": "Search the crop's name, key or family",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Crop"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Crops you can plan without a seed packet, searched by name, key or family.",
+        "tags": [
+          "crops"
+        ]
+      }
+    },
     "/api/v1/allotments/{allotment_id}/suggestions": {
       "get": {
         "parameters": [
@@ -5285,6 +5325,10 @@
     {
       "name": "limits",
       "description": "Server limits"
+    },
+    {
+      "name": "crops",
+      "description": "Built-in crop reference: typical spacing and timings, for planning"
     },
     {
       "name": "suggestions",
@@ -8267,6 +8311,74 @@
           "max_upload_bytes": {
             "type": "integer",
             "description": "Largest accepted upload"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Crop": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "method_default": {
+            "type": "string",
+            "enum": [
+              "direct_sow",
+              "transplant"
+            ]
+          },
+          "spacing_plant_cm": {
+            "type": "integer"
+          },
+          "spacing_row_cm": {
+            "type": "integer"
+          },
+          "germinate_days": {
+            "type": "integer"
+          },
+          "maturity_days_min": {
+            "type": "integer"
+          },
+          "maturity_days_max": {
+            "type": "integer"
+          },
+          "sow_depth_mm": {
+            "type": "integer"
+          },
+          "sow_months": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "plant_out_months": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "harvest_months": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "succession_days": {
+            "type": "integer",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string"
           }
         },
         "additionalProperties": false

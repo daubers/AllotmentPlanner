@@ -3573,6 +3573,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/crops": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Crops you can plan without a seed packet, searched by name, key or family. */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Search the crop's name, key or family */
+                    q?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Crop"][];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/allotments/{allotment_id}/suggestions": {
         parameters: {
             query?: never;
@@ -5923,6 +5964,25 @@ export interface components {
         Limits: {
             /** @description Largest accepted upload */
             max_upload_bytes?: number;
+        };
+        Crop: {
+            key?: string;
+            name?: string;
+            family?: string;
+            category?: string;
+            /** @enum {string} */
+            method_default?: "direct_sow" | "transplant";
+            spacing_plant_cm?: number;
+            spacing_row_cm?: number;
+            germinate_days?: number;
+            maturity_days_min?: number;
+            maturity_days_max?: number;
+            sow_depth_mm?: number;
+            sow_months?: number[];
+            plant_out_months?: number[];
+            harvest_months?: number[];
+            succession_days?: number | null;
+            notes?: string;
         };
         Sighting: {
             media_id?: number;
