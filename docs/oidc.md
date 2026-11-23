@@ -48,6 +48,12 @@ sign in through the provider (there is no password reset for them).
    An incomplete entry is skipped with a warning in the log; it does not stop the server.
 3. Restart the `api` service. The login page now shows the buttons.
 
+**Authelia**: use `"id":"authelia"`, `"issuer":"https://auth.example.com"` (no path), and register the redirect URI
+`<PUBLIC_URL>/api/v1/auth/oidc/authelia/callback` with PKCE `S256` required. Authelia 4.39 keeps `email` and
+`email_verified` out of the ID token unless the client has a `claims_policy` that lists them in `id_token`, and
+this app reads the ID token only, so without that policy every sign-in fails with "the provider did not share an
+email address". Scopes `openid profile email` are enough.
+
 `PUBLIC_URL` matters behind a reverse proxy: the redirect URI sent to the provider is built from it, and it
 must match what you registered exactly.
 
