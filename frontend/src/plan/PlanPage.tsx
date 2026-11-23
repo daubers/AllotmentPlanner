@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useAllotment } from "../pages/AllotmentLayout";
 import PlanItemDialog from "./PlanItemDialog";
 import PlanTimeline from "./PlanTimeline";
+import { mergeConflicts } from "./conflicts";
 import { usePlan, type PlanBed, type PlanItem } from "./hooks";
 import { currentKey, makeWindow, parseKey, shiftMonth } from "./window";
 
@@ -76,7 +77,8 @@ export default function PlanPage() {
         </p>
       ) : (
         beds.map((bed) => {
-          const clashes = bed.conflicts?.length ?? 0;
+          const runs = mergeConflicts(bed.conflicts);
+          const clashes = runs.length;
           return (
             <section key={bed.feature_id} className="plan-bed" aria-label={bed.name}>
               <header>
@@ -95,9 +97,9 @@ export default function PlanPage() {
               </header>
               {clashes > 0 && (
                 <ul className="plan-clashes">
-                  {bed.conflicts!.map((c) => (
+                  {runs.map((c) => (
                     <li key={`${c.from}-${c.to}`}>
-                      {c.from} to {c.to}: {c.used_m2} m² planned in {Math.round((bed.area_m2 ?? 0) * 10) / 10} m² (over by {c.over_m2} m²)
+                      {c.from} to {c.to}: up to {c.peak_m2} m² planned in {Math.round((bed.area_m2 ?? 0) * 10) / 10} m² (over by {c.over_m2} m² at worst)
                     </li>
                   ))}
                 </ul>

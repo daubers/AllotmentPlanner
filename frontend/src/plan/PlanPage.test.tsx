@@ -71,7 +71,7 @@ describe("Plan page", () => {
     const bed = await screen.findByRole("region", { name: "Bed 1" });
     expect(within(bed).getByText("about 100 m²")).toBeInTheDocument();
     expect(within(bed).getByRole("status")).toHaveTextContent("Overbooked once");
-    expect(within(bed).getByText(/2026-05-01 to 2026-06-01: 120 m² planned in 100 m² \(over by 20 m²\)/)).toBeInTheDocument();
+    expect(within(bed).getByText(/2026-05-01 to 2026-06-01: up to 120 m² planned in 100 m² \(over by 20 m² at worst\)/)).toBeInTheDocument();
     expect(within(bed).getByRole("button", { name: /Edit Lettuce, 60 m², 1 Apr to 1 Jul/ })).toBeInTheDocument();
     expect(within(bed).getByRole("button", { name: /Edit Radish/ })).toBeInTheDocument();
     expect(within(bed).getByText("Space used")).toBeInTheDocument();
