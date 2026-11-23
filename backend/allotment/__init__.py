@@ -24,6 +24,7 @@ from .api import (
     plantings,
     suggestions,
     task_comments,
+    task_series,
     tasks,
     todo,
     trays,
@@ -78,6 +79,7 @@ def create_app(config: type = Config) -> Flask:
     api.register_blueprint(notes.blp)
     api.register_blueprint(oidc.blp)
     api.register_blueprint(task_comments.blp)
+    api.register_blueprint(task_series.blp)
     api.register_blueprint(mapping.blp)
     api.register_blueprint(mapping.tiles_blp)
 

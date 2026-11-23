@@ -542,3 +542,6 @@ a.button.secondary { background: none; color: var(--accent); border: 1px solid v
 .plan-repeat { border: 1px solid var(--border); border-radius: 8px; padding: .5rem .75rem; display: grid; gap: .5rem; }
 .plan-repeat label.check { display: flex; gap: .5rem; align-items: center; color: var(--text); }
 .plan-repeat label.check input { width: auto; flex: none; }
+.task-schedule { border: 1px solid var(--border); border-radius: 8px; padding: .5rem .75rem; display: grid; gap: .5rem; }
+.task-schedule legend { font-size: .85rem; color: var(--muted); padding: 0 .3rem; }
+.task-schedule .hint { margin: 0; }

@@ -117,3 +117,87 @@ describe("TaskDialog", () => {
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });
 });
+
+describe("repeating on a schedule", () => {
+  const series = { id: 4, rule: "every 2 weeks", every_n: 2, unit: "week", until_on: "2026-12-31", open_tasks: 3, done_tasks: 1 };
+  const inSeries: Task = { ...task, recurrence: null, series_id: 4 };
+  const withSeries = () =>
+    get.mockImplementation(async (p: string) => {
+      if (p.endsWith("/task-series")) return { data: [series] };
+      if (p.endsWith("/features")) return { data: { features: [] } };
+      if (p.endsWith("/members")) return { data: [] };
+      return { data: [] };
+    });
+
+  it("makes a schedule, not a single task", async () => {
+    post.mockResolvedValue({ data: { id: 4 } });
+    const onClose = setup({ place: { feature_id: 5 } });
+    await screen.findByRole("option", { name: "Bob" });
+    await userEvent.type(screen.getByLabelText("Title"), "Water the beans");
+    await userEvent.type(screen.getByLabelText("Due date"), "2026-11-30");
+    await userEvent.selectOptions(screen.getByLabelText("Repeats"), "On a schedule…");
+    const every = screen.getByLabelText("Every");
+    await userEvent.clear(every);
+    await userEvent.type(every, "2");
+    await userEvent.type(screen.getByLabelText("Until"), "2026-12-31");
+    await userEvent.click(screen.getByRole("button", { name: "Add task" }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0][0]).toMatch(/\/task-series$/);
+    expect(post.mock.calls[0][1].body).toMatchObject({
+      title: "Water the beans", every_n: 2, unit: "week", starts_on: "2026-11-30", until_on: "2026-12-31", feature_id: 5,
+    });
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("only offers a schedule when making a new task", async () => {
+    setup({ task });
+    await screen.findByRole("option", { name: "Bob" });
+    expect(screen.queryByRole("option", { name: "On a schedule…" })).not.toBeInTheDocument();
+  });
+
+  it("shows the schedule a task belongs to and changes it", async () => {
+    withSeries();
+    const onClose = setup({ task: inSeries });
+    expect(await screen.findByText(/Repeats every 2 weeks, until 2026-12-31\. 3 still to do, 1 done\./)).toBeInTheDocument();
+    expect(screen.getByLabelText("Repeats")).toBeDisabled();
+    const every = screen.getByLabelText("Every");
+    await userEvent.clear(every);
+    await userEvent.type(every, "3");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(2));
+    expect(patch.mock.calls[0][0]).toMatch(/\/task-series\/\{series_id\}$/);
+    expect(patch.mock.calls[0][1]).toMatchObject({ params: { path: { allotment_id: 1, series_id: 4 } }, body: { every_n: 3, unit: "week", until_on: "2026-12-31" } });
+    expect(patch.mock.calls[1][0]).toMatch(/\/tasks\/\{task_id\}$/); // the task itself is saved too
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("leaves the schedule alone when only the task changed", async () => {
+    withSeries();
+    setup({ task: inSeries });
+    await screen.findByText(/Repeats every 2 weeks/);
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    expect(patch.mock.calls[0][0]).toMatch(/\/tasks\/\{task_id\}$/);
+  });
+
+  it("asks before stopping a schedule", async () => {
+    withSeries();
+    const onClose = setup({ task: inSeries });
+    await userEvent.click(await screen.findByRole("button", { name: "Stop repeating" }));
+    expect(del).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "No" }));
+    await userEvent.click(screen.getByRole("button", { name: "Stop repeating" }));
+    await userEvent.click(screen.getByRole("button", { name: "Yes, stop" }));
+    await waitFor(() => expect(del).toHaveBeenCalledTimes(1));
+    expect(del.mock.calls[0][1]).toMatchObject({ params: { path: { allotment_id: 1, series_id: 4 } } });
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("does not let a viewer change or stop it", async () => {
+    withSeries();
+    setup({ task: inSeries, canEdit: false });
+    await screen.findByText(/Repeats every 2 weeks/);
+    expect(screen.queryByRole("button", { name: "Stop repeating" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Every")).not.toBeInTheDocument();
+  });
+});

@@ -5118,6 +5118,166 @@
         }
       ]
     },
+    "/api/v1/allotments/{allotment_id}/task-series": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskSeries"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "task_series"
+        ]
+      },
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskSeries"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskSeriesIn"
+              }
+            }
+          }
+        },
+        "summary": "Repeat a job. Occurrences from today to the end date become tasks straight away.",
+        "tags": [
+          "task_series"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/task-series/{series_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskSeries"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "task_series"
+        ]
+      },
+      "patch": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskSeries"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskSeriesPatch"
+              }
+            }
+          }
+        },
+        "summary": "Change the rule or details. Occurrences still to come are remade; done ones are kept.",
+        "tags": [
+          "task_series"
+        ]
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Stop the series. Occurrences still to do are removed; finished and started ones stay.",
+        "tags": [
+          "task_series"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "series_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
     "/api/v1/allotments/{allotment_id}/map-jobs": {
       "get": {
         "responses": {
@@ -5609,6 +5769,10 @@
     {
       "name": "task_comments",
       "description": "Timestamped comments on a task, each able to report a status"
+    },
+    {
+      "name": "task_series",
+      "description": "Jobs that repeat on a schedule, created ahead as ordinary tasks"
     },
     {
       "name": "mapping",
@@ -6491,6 +6655,11 @@
           },
           "planting_id": {
             "type": "integer",
+            "nullable": true
+          },
+          "series_id": {
+            "type": "integer",
+            "description": "The schedule it is part of",
             "nullable": true
           },
           "location": {
@@ -9552,6 +9721,186 @@
             "type": "string",
             "maxLength": 80,
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TaskSeries": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "assignee_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "feature_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "every_n": {
+            "type": "integer"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ]
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "until_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "rule": {
+            "type": "string",
+            "description": "e.g. \"every 2 weeks\""
+          },
+          "open_tasks": {
+            "type": "integer",
+            "description": "Occurrences not yet done"
+          },
+          "done_tasks": {
+            "type": "integer"
+          },
+          "next_due": {
+            "type": "string",
+            "format": "date",
+            "description": "The next open occurrence",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TaskSeriesIn": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "default": ""
+          },
+          "priority": {
+            "type": "string",
+            "default": "normal",
+            "enum": [
+              "low",
+              "normal",
+              "high"
+            ]
+          },
+          "assignee_id": {
+            "type": "integer",
+            "default": null,
+            "nullable": true
+          },
+          "feature_id": {
+            "type": "integer",
+            "default": null,
+            "nullable": true
+          },
+          "every_n": {
+            "type": "integer",
+            "default": 1,
+            "minimum": 1,
+            "maximum": 365,
+            "description": "Every N units"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ]
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "until_on": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "starts_on",
+          "title",
+          "unit",
+          "until_on"
+        ],
+        "additionalProperties": false
+      },
+      "TaskSeriesPatch": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high"
+            ]
+          },
+          "assignee_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "feature_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "every_n": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ]
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "until_on": {
+            "type": "string",
+            "format": "date"
           }
         },
         "additionalProperties": false

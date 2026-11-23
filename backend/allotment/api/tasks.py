@@ -1,5 +1,4 @@
-import calendar
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
@@ -20,6 +19,7 @@ from ..schemas import (
     TaskSchema,
 )
 from ..security import require_role
+from ..task_series import step
 
 blp = Blueprint(
     "tasks",
@@ -31,14 +31,11 @@ blp = Blueprint(
 PRIORITY_ORDER = {"high": 0, "normal": 1, "low": 2}
 
 
+RECURRENCE_UNITS = {"daily": "day", "weekly": "week", "monthly": "month"}
+
+
 def next_due(current: date, recurrence: str) -> date:
-    if recurrence == "daily":
-        return current + timedelta(days=1)
-    if recurrence == "weekly":
-        return current + timedelta(days=7)
-    month = current.month % 12 + 1
-    year = current.year + (current.month == 12)
-    return date(year, month, min(current.day, calendar.monthrange(year, month)[1]))
+    return step(current, 1, RECURRENCE_UNITS[recurrence])
 
 
 def task_to_dict(task: Task, spawned: Task | None = None) -> dict:
@@ -54,6 +51,7 @@ def task_to_dict(task: Task, spawned: Task | None = None) -> dict:
         "feature_id": task.feature_id,
         "tray_id": task.tray_id,
         "planting_id": task.planting_id,
+        "series_id": task.series_id,
         "location": mapping(to_shape(task.location)) if task.location is not None else None,
         "completed_at": task.completed_at,
         "completed_by": task.completed_by,

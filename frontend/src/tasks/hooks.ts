@@ -175,3 +175,55 @@ export function useSuggestedTasks(allotmentId: number, target: SuggestFor, enabl
   });
   return { suggestions, add };
 }
+
+export type TaskSeries = components["schemas"]["TaskSeries"];
+export type NewSeries = components["schemas"]["TaskSeriesIn"];
+export type SeriesPatch = components["schemas"]["TaskSeriesPatch"];
+
+const seriesPath = (allotmentId: number, seriesId: number) => ({ path: { allotment_id: allotmentId, series_id: seriesId } });
+
+/** The repeating schedules (each makes its tasks ahead of time). */
+export function useTaskSeries(allotmentId: number) {
+  return useQuery({
+    queryKey: ["task-series", allotmentId],
+    queryFn: async (): Promise<TaskSeries[]> =>
+      (await api.GET("/api/v1/allotments/{allotment_id}/task-series", { params: path(allotmentId) })).data ?? [],
+  });
+}
+
+export function useSeriesActions(allotmentId: number) {
+  const qc = useQueryClient();
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ["task-series", allotmentId] });
+    void qc.invalidateQueries({ queryKey: ["tasks", allotmentId] });
+    void qc.invalidateQueries({ queryKey: ["todo", allotmentId] });
+  };
+  return {
+    create: useMutation({
+      mutationFn: async (body: NewSeries): Promise<TaskSeries> => {
+        const { data, error } = await api.POST("/api/v1/allotments/{allotment_id}/task-series", { params: path(allotmentId), body });
+        if (!data) throw new Error(failure(error, "Could not set up the schedule"));
+        return data;
+      },
+      onSuccess: refresh,
+    }),
+    update: useMutation({
+      mutationFn: async ({ id, body }: { id: number; body: SeriesPatch }): Promise<TaskSeries> => {
+        const { data, error } = await api.PATCH("/api/v1/allotments/{allotment_id}/task-series/{series_id}", {
+          params: seriesPath(allotmentId, id),
+          body,
+        });
+        if (!data) throw new Error(failure(error, "Could not change the schedule"));
+        return data;
+      },
+      onSuccess: refresh,
+    }),
+    remove: useMutation({
+      mutationFn: async (id: number) => {
+        const { error } = await api.DELETE("/api/v1/allotments/{allotment_id}/task-series/{series_id}", { params: seriesPath(allotmentId, id) });
+        if (error) throw new Error(failure(error, "Could not stop the schedule"));
+      },
+      onSuccess: refresh,
+    }),
+  };
+}

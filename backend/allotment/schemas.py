@@ -5,6 +5,7 @@ from .plan import MAX_SUCCESSION, PLAN_STATUSES
 from .plantings import METHODS
 from .plantings import STATUSES as PLANTING_STATUSES
 from .seeds import ACTIVITIES, CELL_STATUSES, MAX_TRAY_SIDE, STOCK_LEVELS, SUN_LEVELS
+from .task_series import UNITS
 
 ROLES = ["viewer", "editor", "owner"]
 
@@ -265,6 +266,9 @@ class TaskSchema(Schema):
     feature_id = fields.Integer(allow_none=True)
     tray_id = fields.Integer(allow_none=True)
     planting_id = fields.Integer(allow_none=True)
+    series_id = fields.Integer(
+        allow_none=True, metadata={"description": "The schedule it is part of"}
+    )
     location = fields.Dict(allow_none=True)
     completed_at = fields.DateTime(allow_none=True)
     completed_by = fields.Integer(allow_none=True)
@@ -272,6 +276,54 @@ class TaskSchema(Schema):
     spawned_task_id = fields.Integer(
         allow_none=True, metadata={"description": "Set when completing a recurring task"}
     )
+
+
+class TaskSeriesInSchema(Schema):
+    """A job that repeats: every N days, weeks or months from a start until an end."""
+
+    title = fields.String(required=True, validate=validate.Length(min=1, max=200))
+    description = fields.String(load_default="")
+    priority = fields.String(load_default="normal", validate=validate.OneOf(TASK_PRIORITIES))
+    assignee_id = fields.Integer(load_default=None, allow_none=True)
+    feature_id = fields.Integer(load_default=None, allow_none=True)
+    every_n = fields.Integer(
+        load_default=1,
+        validate=validate.Range(min=1, max=365),
+        metadata={"description": "Every N units"},
+    )
+    unit = fields.String(required=True, validate=validate.OneOf(UNITS))
+    starts_on = fields.Date(required=True)
+    until_on = fields.Date(required=True)
+
+
+class TaskSeriesPatchSchema(Schema):
+    title = fields.String(validate=validate.Length(min=1, max=200))
+    description = fields.String()
+    priority = fields.String(validate=validate.OneOf(TASK_PRIORITIES))
+    assignee_id = fields.Integer(allow_none=True)
+    feature_id = fields.Integer(allow_none=True)
+    every_n = fields.Integer(validate=validate.Range(min=1, max=365))
+    unit = fields.String(validate=validate.OneOf(UNITS))
+    starts_on = fields.Date()
+    until_on = fields.Date()
+
+
+class TaskSeriesSchema(Schema):
+    id = fields.Integer()
+    title = fields.String()
+    description = fields.String()
+    priority = fields.String()
+    assignee_id = fields.Integer(allow_none=True)
+    feature_id = fields.Integer(allow_none=True)
+    every_n = fields.Integer()
+    unit = fields.String(validate=validate.OneOf(UNITS))
+    starts_on = fields.Date()
+    until_on = fields.Date()
+    rule = fields.String(metadata={"description": 'e.g. "every 2 weeks"'})
+    open_tasks = fields.Integer(metadata={"description": "Occurrences not yet done"})
+    done_tasks = fields.Integer()
+    next_due = fields.Date(allow_none=True, metadata={"description": "The next open occurrence"})
+    created_at = fields.DateTime()
 
 
 class TodoQuerySchema(Schema):

@@ -234,6 +234,41 @@ class TaskStatus(enum.StrEnum):
     DONE = "done"
 
 
+class TaskSeries(db.Model):
+    """A recurring job on a schedule: every N days, weeks or months until a date.
+
+    Its occurrences are ordinary tasks created ahead of time (see allotment.task_series).
+    """
+
+    __tablename__ = "task_series"
+    __table_args__ = (
+        CheckConstraint("every_n >= 1", name="ck_task_series_every"),
+        CheckConstraint("until_on >= starts_on", name="ck_task_series_dates"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    priority: Mapped[str] = mapped_column(String(10), default="normal")
+    assignee_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    feature_id: Mapped[int | None] = mapped_column(
+        ForeignKey("map_features.id", ondelete="SET NULL"), nullable=True
+    )
+    every_n: Mapped[int] = mapped_column(default=1)
+    unit: Mapped[str] = mapped_column(String(5))  # day | week | month
+    starts_on: Mapped[date] = mapped_column(Date)
+    until_on: Mapped[date] = mapped_column(Date)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class Task(db.Model):
     """A job to do. Optionally pinned to a map feature and/or a point on the map."""
 
@@ -264,6 +299,9 @@ class Task(db.Model):
     planting_id: Mapped[int | None] = mapped_column(
         ForeignKey("plantings.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    series_id: Mapped[int | None] = mapped_column(
+        ForeignKey("task_series.id", ondelete="SET NULL"), nullable=True, index=True
+    )  # the schedule this occurrence came from
     # Set on tasks made from a suggestion ("tray:12:germination"), so adding them twice is a no-op.
     suggestion_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
     location = mapped_column(Geometry("POINT", srid=4326), nullable=True)

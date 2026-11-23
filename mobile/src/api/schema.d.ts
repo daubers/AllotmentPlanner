@@ -4832,6 +4832,167 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/allotments/{allotment_id}/task-series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskSeries"][];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        /** Repeat a job. Occurrences from today to the end date become tasks straight away. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TaskSeriesIn"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskSeries"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/task-series/{series_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    series_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskSeries"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Stop the series. Occurrences still to do are removed; finished and started ones stay. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    series_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Change the rule or details. Occurrences still to come are remade; done ones are kept. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    series_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TaskSeriesPatch"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskSeries"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/allotments/{allotment_id}/map-jobs": {
         parameters: {
             query?: never;
@@ -5518,6 +5679,8 @@ export interface components {
             feature_id?: number | null;
             tray_id?: number | null;
             planting_id?: number | null;
+            /** @description The schedule it is part of */
+            series_id?: number | null;
             location?: {
                 [key: string]: unknown;
             } | null;
@@ -6524,6 +6687,73 @@ export interface components {
         TaskCommentPatch: {
             body?: string;
             progress?: string | null;
+        };
+        TaskSeries: {
+            id?: number;
+            title?: string;
+            description?: string;
+            priority?: string;
+            assignee_id?: number | null;
+            feature_id?: number | null;
+            every_n?: number;
+            /** @enum {string} */
+            unit?: "day" | "week" | "month";
+            /** Format: date */
+            starts_on?: string;
+            /** Format: date */
+            until_on?: string;
+            /** @description e.g. "every 2 weeks" */
+            rule?: string;
+            /** @description Occurrences not yet done */
+            open_tasks?: number;
+            done_tasks?: number;
+            /**
+             * Format: date
+             * @description The next open occurrence
+             */
+            next_due?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+        };
+        TaskSeriesIn: {
+            title: string;
+            /** @default  */
+            description?: string;
+            /**
+             * @default normal
+             * @enum {string}
+             */
+            priority?: "low" | "normal" | "high";
+            /** @default null */
+            assignee_id?: number | null;
+            /** @default null */
+            feature_id?: number | null;
+            /**
+             * @description Every N units
+             * @default 1
+             */
+            every_n?: number;
+            /** @enum {string} */
+            unit: "day" | "week" | "month";
+            /** Format: date */
+            starts_on: string;
+            /** Format: date */
+            until_on: string;
+        };
+        TaskSeriesPatch: {
+            title?: string;
+            description?: string;
+            /** @enum {string} */
+            priority?: "low" | "normal" | "high";
+            assignee_id?: number | null;
+            feature_id?: number | null;
+            every_n?: number;
+            /** @enum {string} */
+            unit?: "day" | "week" | "month";
+            /** Format: date */
+            starts_on?: string;
+            /** Format: date */
+            until_on?: string;
         };
         MapJob: {
             id?: number;

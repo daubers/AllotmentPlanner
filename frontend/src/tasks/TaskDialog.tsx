@@ -3,14 +3,15 @@ import Modal from "../components/Modal";
 import PlaceOptions from "./PlaceOptions";
 import { usePlantings } from "../plantings/hooks";
 import { useTrays } from "../trays/hooks";
-import type { Task } from "./group";
+import { localDate, type Task } from "./group";
 import { useDayListActions, useDayLists } from "./dayLists";
-import { useFeatureOptions, useMembers, useTaskActions, type NewTask } from "./hooks";
+import { useFeatureOptions, useMembers, useSeriesActions, useTaskActions, useTaskSeries, type NewTask } from "./hooks";
 import ListAdd from "./ListAdd";
 import TaskComments from "./TaskComments";
 
 const PRIORITIES = ["low", "normal", "high"] as const;
 const RECURRENCES = ["daily", "weekly", "monthly"] as const;
+const UNITS = ["day", "week", "month"] as const;
 
 export type Place = { feature_id?: number | null; tray_id?: number | null; planting_id?: number | null };
 
@@ -49,13 +50,21 @@ export default function TaskDialog({ allotmentId, canEdit, task, place, meId, is
   const dayLists = useDayLists(allotmentId);
   const listActions = useDayListActions(allotmentId);
   const onLists = (dayLists.data ?? []).filter((l) => task?.id != null && l.task_ids?.includes(task.id));
+  const allSeries = useTaskSeries(allotmentId);
+  const seriesActions = useSeriesActions(allotmentId);
+  const series = task?.series_id != null ? allSeries.data?.find((x) => x.id === task.series_id) : undefined;
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmStop, setConfirmStop] = useState(false);
+  // "Repeats" is either nothing, a rule that remakes the task when it is finished, or a schedule made ahead.
+  const [repeat, setRepeat] = useState<string>(task?.recurrence ?? "");
   // A select only takes its default when it is created, so those fed by a query are re-made once it arrives.
   const editing = task !== undefined;
   const done = task?.status === "done";
   const readOnly = !canEdit;
-  const busy = actions.create.isPending || actions.update.isPending || actions.remove.isPending;
+  const busy =
+    actions.create.isPending || actions.update.isPending || actions.remove.isPending || seriesActions.create.isPending || seriesActions.update.isPending;
+  const scheduling = !editing && repeat === "schedule";
 
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -66,16 +75,53 @@ export default function TaskDialog({ allotmentId, canEdit, task, place, meId, is
       description: text("description"),
       due_date: text("due_date") || null,
       priority: text("priority") as (typeof PRIORITIES)[number],
-      recurrence: (text("recurrence") || null) as (typeof RECURRENCES)[number] | null,
+      recurrence: (RECURRENCES as readonly string[]).includes(text("recurrence")) ? (text("recurrence") as (typeof RECURRENCES)[number]) : null,
       assignee_id: text("assignee_id") ? Number(text("assignee_id")) : null,
       ...placeFromValue(text("place")),
     };
     try {
-      if (editing) {
+      if (scheduling) {
+        if (body.tray_id || body.planting_id) {
+          setError("A schedule can be pinned to a bed, or nowhere in particular, but not to a tray or planting.");
+          return;
+        }
+        if (!text("until_on")) {
+          setError("Say when the schedule ends.");
+          return;
+        }
+        await seriesActions.create.mutateAsync({
+          title: body.title,
+          description: body.description,
+          priority: body.priority,
+          assignee_id: body.assignee_id,
+          feature_id: body.feature_id,
+          every_n: Number(text("every_n")) || 1,
+          unit: text("unit") as (typeof UNITS)[number],
+          starts_on: body.due_date ?? localDate(),
+          until_on: text("until_on"),
+        });
+      } else if (editing) {
+        if (series) {
+          const every_n = Number(text("every_n")) || 1;
+          const unit = text("unit") as (typeof UNITS)[number];
+          const until_on = text("until_on");
+          if (every_n !== series.every_n || unit !== series.unit || (until_on && until_on !== series.until_on)) {
+            await seriesActions.update.mutateAsync({ id: series.id!, body: { every_n, unit, until_on: until_on || series.until_on } });
+          }
+        }
         await actions.update.mutateAsync({ id: task.id!, body: done ? body : { ...body, status: text("status") as "todo" | "doing" } });
       } else {
         await actions.create.mutateAsync({ ...body, status: text("status") as "todo" | "doing" } as NewTask);
       }
+      onClose();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  async function stopSeries() {
+    try {
+      await seriesActions.remove.mutateAsync(series!.id!);
       onClose();
     } catch (err) {
       setError((err as Error).message);
@@ -144,12 +190,81 @@ export default function TaskDialog({ allotmentId, canEdit, task, place, meId, is
           </label>
           <label>
             Repeats
-            <select name="recurrence" defaultValue={task?.recurrence ?? ""} disabled={readOnly}>
+            <select
+              name="recurrence"
+              value={series ? "" : repeat}
+              onChange={(e) => setRepeat(e.target.value)}
+              disabled={readOnly || !!series}
+            >
               <option value="">Doesn't repeat</option>
               {RECURRENCES.map((r) => <option key={r}>{r}</option>)}
+              {!editing && <option value="schedule">On a schedule…</option>}
             </select>
           </label>
         </div>
+        {scheduling && (
+          <fieldset className="task-schedule">
+            <legend>Schedule</legend>
+            <div className="pair">
+              <label>
+                Every
+                <input name="every_n" type="number" min={1} max={365} defaultValue={1} />
+              </label>
+              <label>
+                Unit
+                <select name="unit" defaultValue="week">
+                  {UNITS.map((u) => <option key={u} value={u}>{u}s</option>)}
+                </select>
+              </label>
+            </div>
+            <label>
+              Until
+              <input name="until_on" type="date" required />
+            </label>
+            <p className="hint">
+              A task is made for each date from the due date (today if blank) to the end date. Finish them one at a time; changing the
+              schedule later remakes the ones still to come.
+            </p>
+          </fieldset>
+        )}
+        {series && (
+          <fieldset className="task-schedule">
+            <legend>Schedule</legend>
+            <p className="hint">
+              Repeats {series.rule}, until {series.until_on}. {series.open_tasks} still to do, {series.done_tasks} done.
+            </p>
+            {canEdit && (
+              <>
+                <div className="pair">
+                  <label>
+                    Every
+                    <input name="every_n" type="number" min={1} max={365} defaultValue={series.every_n} />
+                  </label>
+                  <label>
+                    Unit
+                    <select name="unit" defaultValue={series.unit}>
+                      {UNITS.map((u) => <option key={u} value={u}>{u}s</option>)}
+                    </select>
+                  </label>
+                </div>
+                <label>
+                  Until
+                  <input name="until_on" type="date" defaultValue={series.until_on} />
+                </label>
+                <p className="hint">Changing the schedule remakes the tasks still to come; finished and started ones stay.</p>
+                {confirmStop ? (
+                  <p>
+                    <span className="muted">Stop repeating and remove the ones still to do? </span>
+                    <button type="button" className="danger" disabled={busy} onClick={stopSeries}>Yes, stop</button>{" "}
+                    <button type="button" className="secondary" onClick={() => setConfirmStop(false)}>No</button>
+                  </p>
+                ) : (
+                  <button type="button" className="secondary" onClick={() => setConfirmStop(true)}>Stop repeating</button>
+                )}
+              </>
+            )}
+          </fieldset>
+        )}
         {editing && task?.id != null && (onLists.length > 0 || canEdit) && (
           <div className="task-lists">
             <span>Day lists</span>
