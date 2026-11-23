@@ -187,6 +187,13 @@ function Equipment() {
         first couple of suggestions once the visit is saved. Add anything extra, or take off what you already have there. The list appears in
         the calendar entry (<em>Bring: …</em>), the Today sheet (<em>Take with you</em>) and on the phone.
       </p>
+      <h2>Maintenance</h2>
+      <p>
+        On an item's page, <em>Maintenance</em> lets you schedule routine jobs: sharpen the secateurs every three months, oil the hinges once.
+        Each date becomes a task about that item, so it appears on the Tasks and Today pages and can be pegged to a visit. Finishing one
+        records the item as serviced that day, and the item shows <em>Overdue</em> when a job is past its date. Stop a schedule from the same
+        place; deleting an item ends its maintenance (jobs already done stay as history).
+      </p>
       <h2>Used for</h2>
       <p>
         Under <em>Used for</em>, list the words that should make an item suggested for a job (for example <em>dig, trench</em> on a border

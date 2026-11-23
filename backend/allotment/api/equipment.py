@@ -1,12 +1,14 @@
+from datetime import date
+
 from flask.views import MethodView
 from flask_jwt_extended import jwt_required
 from flask_smorest import Blueprint, abort
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 
 from .. import events
 from ..equipment_kinds import KINDS, kind_label, parse_keywords
 from ..extensions import db
-from ..models import Equipment, MapFeature, Role
+from ..models import Equipment, MapFeature, Role, Task, TaskSeries, TaskStatus
 from ..schemas import (
     EquipmentInSchema,
     EquipmentKindSchema,
@@ -15,10 +17,14 @@ from ..schemas import (
     EquipmentSchema,
     EquipmentSuggestInSchema,
     EquipmentSuggestionSchema,
+    MaintenanceInSchema,
+    MaintenanceSchema,
+    TaskSeriesSchema,
 )
 from ..security import require_role
 from ..task_equipment import feature_kinds, load_equipment, suggest_equipment
 from ..visit_bring import touch_visits_for_equipment
+from .task_series import create_series, drop_future_todo, series_to_dict
 
 blp = Blueprint(
     "equipment",
@@ -41,12 +47,32 @@ FIELDS = (
     "used_for",
     "status",
     "location_feature_id",
+    "last_serviced_on",
 )
 
 
-def equipment_to_dict(item: Equipment, locations: dict[int, str] | None = None) -> dict:
+def maintenance_summary(ids: list[int]) -> dict[int, tuple[date | None, int]]:
+    """For each item with maintenance still to do: (earliest due date, job count), one query."""
+    if not ids:
+        return {}
+    rows = (
+        db.session.query(Task.equipment_id, func.min(Task.due_date), func.count(Task.id))
+        .filter(Task.equipment_id.in_(ids), Task.status != TaskStatus.DONE)
+        .group_by(Task.equipment_id)
+    )
+    return {eid: (due, n) for eid, due, n in rows}
+
+
+def equipment_to_dict(
+    item: Equipment,
+    locations: dict[int, str] | None = None,
+    summary: dict[int, tuple[date | None, int]] | None = None,
+) -> dict:
     if locations is None:
         locations = _locations([item])
+    if summary is None:
+        summary = maintenance_summary([item.id])
+    next_due, open_tasks = summary.get(item.id, (None, 0))
     return {
         "id": item.id,
         "name": item.name,
@@ -60,6 +86,9 @@ def equipment_to_dict(item: Equipment, locations: dict[int, str] | None = None) 
         "location_feature_id": item.location_feature_id,
         "location_name": locations.get(item.location_feature_id),
         "last_serviced_on": item.last_serviced_on,
+        "next_due": next_due,
+        "overdue": next_due is not None and next_due < date.today(),
+        "maintenance_tasks": open_tasks,
         "created_at": item.created_at,
         "updated_at": item.updated_at,
     }
@@ -129,7 +158,8 @@ class EquipmentList(MethodView):
             )
         items = rows.order_by(db.func.lower(Equipment.name), Equipment.id).all()
         locations = _locations(items)
-        return [equipment_to_dict(i, locations) for i in items]
+        summary = maintenance_summary([i.id for i in items])
+        return [equipment_to_dict(i, locations, summary) for i in items]
 
     @require_role(Role.EDITOR)
     @blp.arguments(EquipmentInSchema)
@@ -165,6 +195,40 @@ class EquipmentSuggest(MethodView):
         )
 
 
+@blp.route("/<int:equipment_id>/maintenance")
+class EquipmentMaintenance(MethodView):
+    @require_role(Role.VIEWER)
+    @blp.response(200, MaintenanceSchema)
+    def get(self, allotment, membership, equipment_id):
+        """The maintenance schedules on this item, when it is next due and when it was last done."""
+        item = _get(allotment, equipment_id)
+        schedules = (
+            db.session.query(TaskSeries)
+            .filter_by(equipment_id=item.id)
+            .order_by(TaskSeries.starts_on, TaskSeries.id)
+        )
+        next_due, open_tasks = maintenance_summary([item.id]).get(item.id, (None, 0))
+        return {
+            "schedules": [series_to_dict(s) for s in schedules],
+            "next_due": next_due,
+            "overdue": next_due is not None and next_due < date.today(),
+            "open_tasks": open_tasks,
+            "last_serviced_on": item.last_serviced_on,
+        }
+
+    @require_role(Role.EDITOR)
+    @blp.arguments(MaintenanceInSchema)
+    @blp.response(201, TaskSeriesSchema)
+    def post(self, data, allotment, membership, equipment_id):
+        """Schedule maintenance: every so often until a date, or once (starts_on = until_on).
+
+        Each occurrence becomes an ordinary task about this item, from today on.
+        """
+        item = _get(allotment, equipment_id)
+        data = {**data, "title": data["title"].strip() or f"Service {item.name}"}
+        return create_series(allotment, membership, data, equipment_id=item.id)
+
+
 @blp.route("/<int:equipment_id>")
 class EquipmentDetail(MethodView):
     @require_role(Role.VIEWER)
@@ -193,6 +257,11 @@ class EquipmentDetail(MethodView):
         item = _get(allotment, equipment_id)
         name = item.name
         touch_visits_for_equipment(item.id)  # before the links go with it
+        # Its maintenance schedules end with it: jobs still to do go, finished ones stay as history.
+        for series in db.session.query(TaskSeries).filter_by(equipment_id=item.id).all():
+            drop_future_todo(series, date.today())
+            db.session.delete(series)
+        db.session.flush()
         db.session.delete(item)
         db.session.commit()
         events.emit(

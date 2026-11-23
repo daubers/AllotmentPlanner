@@ -4161,6 +4161,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/allotments/{allotment_id}/equipment/{equipment_id}/maintenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                equipment_id: number;
+            };
+            cookie?: never;
+        };
+        /** The maintenance schedules on this item, when it is next due and when it was last done. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    equipment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Maintenance"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        /**
+         * Schedule maintenance: every so often until a date, or once (starts_on = until_on).
+         * @description Each occurrence becomes an ordinary task about this item, from today on.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    equipment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MaintenanceIn"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskSeries"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/allotments/{allotment_id}/equipment/{equipment_id}": {
         parameters: {
             query?: never;
@@ -6139,6 +6214,8 @@ export interface components {
             /** @description The crop plan item it is about */
             plan_item_id?: number | null;
             equipment?: components["schemas"]["TaskEquipment"][];
+            /** @description Set when the job is maintenance of that equipment */
+            equipment_id?: number | null;
             location?: {
                 [key: string]: unknown;
             } | null;
@@ -7072,6 +7149,15 @@ export interface components {
             location_name?: string | null;
             /** Format: date */
             last_serviced_on?: string | null;
+            /**
+             * Format: date
+             * @description Its next maintenance job
+             */
+            next_due?: string | null;
+            /** @description A maintenance job is past its date */
+            overdue?: boolean;
+            /** @description Maintenance jobs still to do */
+            maintenance_tasks?: number;
             /** Format: date-time */
             created_at?: string;
             /** Format: date-time */
@@ -7097,6 +7183,11 @@ export interface components {
             status?: "in_service" | "out_of_action";
             /** @default null */
             location_feature_id?: number | null;
+            /**
+             * Format: date
+             * @default null
+             */
+            last_serviced_on?: string | null;
         };
         EquipmentSuggestIn: {
             /** @default  */
@@ -7108,6 +7199,74 @@ export interface components {
             /** @default null */
             feature_id?: number | null;
             exclude_ids?: number[];
+        };
+        TaskSeries: {
+            id?: number;
+            title?: string;
+            description?: string;
+            priority?: string;
+            assignee_id?: number | null;
+            feature_id?: number | null;
+            /** @description The equipment this is maintenance of */
+            equipment_id?: number | null;
+            every_n?: number;
+            /** @enum {string} */
+            unit?: "day" | "week" | "month";
+            /** Format: date */
+            starts_on?: string;
+            /** Format: date */
+            until_on?: string;
+            /** @description e.g. "every 2 weeks" */
+            rule?: string;
+            /** @description Occurrences not yet done */
+            open_tasks?: number;
+            done_tasks?: number;
+            /**
+             * Format: date
+             * @description The next open occurrence
+             */
+            next_due?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+        };
+        Maintenance: {
+            schedules?: components["schemas"]["TaskSeries"][];
+            /** Format: date */
+            next_due?: string | null;
+            overdue?: boolean;
+            open_tasks?: number;
+            /** Format: date */
+            last_serviced_on?: string | null;
+        };
+        MaintenanceIn: {
+            /**
+             * @description Default: Service <name>
+             * @default
+             */
+            title?: string;
+            /** @default  */
+            description?: string;
+            /**
+             * @default normal
+             * @enum {string}
+             */
+            priority?: "low" | "normal" | "high";
+            /** @default null */
+            assignee_id?: number | null;
+            /** @default 1 */
+            every_n?: number;
+            /**
+             * @default month
+             * @enum {string}
+             */
+            unit?: "day" | "week" | "month";
+            /** Format: date */
+            starts_on: string;
+            /**
+             * Format: date
+             * @description The same as starts_on makes a single job
+             */
+            until_on: string;
         };
         EquipmentPatch: {
             name?: string;
@@ -7121,6 +7280,8 @@ export interface components {
             status?: "in_service" | "out_of_action";
             /** @description Where it lives */
             location_feature_id?: number | null;
+            /** Format: date */
+            last_serviced_on?: string | null;
         };
         EquipmentKind: {
             key?: string;
@@ -7328,33 +7489,6 @@ export interface components {
         TaskCommentPatch: {
             body?: string;
             progress?: string | null;
-        };
-        TaskSeries: {
-            id?: number;
-            title?: string;
-            description?: string;
-            priority?: string;
-            assignee_id?: number | null;
-            feature_id?: number | null;
-            every_n?: number;
-            /** @enum {string} */
-            unit?: "day" | "week" | "month";
-            /** Format: date */
-            starts_on?: string;
-            /** Format: date */
-            until_on?: string;
-            /** @description e.g. "every 2 weeks" */
-            rule?: string;
-            /** @description Occurrences not yet done */
-            open_tasks?: number;
-            done_tasks?: number;
-            /**
-             * Format: date
-             * @description The next open occurrence
-             */
-            next_due?: string | null;
-            /** Format: date-time */
-            created_at?: string;
         };
         TaskSeriesIn: {
             title: string;

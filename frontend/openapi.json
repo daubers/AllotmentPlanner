@@ -4545,6 +4545,84 @@
         }
       ]
     },
+    "/api/v1/allotments/{allotment_id}/equipment/{equipment_id}/maintenance": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Maintenance"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "The maintenance schedules on this item, when it is next due and when it was last done.",
+        "tags": [
+          "equipment"
+        ]
+      },
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskSeries"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MaintenanceIn"
+              }
+            }
+          }
+        },
+        "summary": "Schedule maintenance: every so often until a date, or once (starts_on = until_on).",
+        "description": "Each occurrence becomes an ordinary task about this item, from today on.",
+        "tags": [
+          "equipment"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "equipment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
     "/api/v1/allotments/{allotment_id}/equipment/{equipment_id}": {
       "get": {
         "responses": {
@@ -7237,6 +7315,11 @@
             "items": {
               "$ref": "#/components/schemas/TaskEquipment"
             }
+          },
+          "equipment_id": {
+            "type": "integer",
+            "description": "Set when the job is maintenance of that equipment",
+            "nullable": true
           },
           "location": {
             "type": "object",
@@ -10065,6 +10148,20 @@
             "format": "date",
             "nullable": true
           },
+          "next_due": {
+            "type": "string",
+            "format": "date",
+            "description": "Its next maintenance job",
+            "nullable": true
+          },
+          "overdue": {
+            "type": "boolean",
+            "description": "A maintenance job is past its date"
+          },
+          "maintenance_tasks": {
+            "type": "integer",
+            "description": "Maintenance jobs still to do"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -10149,6 +10246,12 @@
             "type": "integer",
             "default": null,
             "nullable": true
+          },
+          "last_serviced_on": {
+            "type": "string",
+            "format": "date",
+            "default": null,
+            "nullable": true
           }
         },
         "required": [
@@ -10185,6 +10288,163 @@
             }
           }
         },
+        "additionalProperties": false
+      },
+      "TaskSeries": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "assignee_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "feature_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "equipment_id": {
+            "type": "integer",
+            "description": "The equipment this is maintenance of",
+            "nullable": true
+          },
+          "every_n": {
+            "type": "integer"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ]
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "until_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "rule": {
+            "type": "string",
+            "description": "e.g. \"every 2 weeks\""
+          },
+          "open_tasks": {
+            "type": "integer",
+            "description": "Occurrences not yet done"
+          },
+          "done_tasks": {
+            "type": "integer"
+          },
+          "next_due": {
+            "type": "string",
+            "format": "date",
+            "description": "The next open occurrence",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Maintenance": {
+        "type": "object",
+        "properties": {
+          "schedules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskSeries"
+            }
+          },
+          "next_due": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "overdue": {
+            "type": "boolean"
+          },
+          "open_tasks": {
+            "type": "integer"
+          },
+          "last_serviced_on": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "MaintenanceIn": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "default": "",
+            "maxLength": 200,
+            "description": "Default: Service <name>"
+          },
+          "description": {
+            "type": "string",
+            "default": ""
+          },
+          "priority": {
+            "type": "string",
+            "default": "normal",
+            "enum": [
+              "low",
+              "normal",
+              "high"
+            ]
+          },
+          "assignee_id": {
+            "type": "integer",
+            "default": null,
+            "nullable": true
+          },
+          "every_n": {
+            "type": "integer",
+            "default": 1,
+            "minimum": 1,
+            "maximum": 365
+          },
+          "unit": {
+            "type": "string",
+            "default": "month",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ]
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "until_on": {
+            "type": "string",
+            "format": "date",
+            "description": "The same as starts_on makes a single job"
+          }
+        },
+        "required": [
+          "starts_on",
+          "until_on"
+        ],
         "additionalProperties": false
       },
       "EquipmentPatch": {
@@ -10255,6 +10515,11 @@
           "location_feature_id": {
             "type": "integer",
             "description": "Where it lives",
+            "nullable": true
+          },
+          "last_serviced_on": {
+            "type": "string",
+            "format": "date",
             "nullable": true
           }
         },
@@ -10870,72 +11135,6 @@
             "type": "string",
             "maxLength": 80,
             "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "TaskSeries": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "title": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "priority": {
-            "type": "string"
-          },
-          "assignee_id": {
-            "type": "integer",
-            "nullable": true
-          },
-          "feature_id": {
-            "type": "integer",
-            "nullable": true
-          },
-          "every_n": {
-            "type": "integer"
-          },
-          "unit": {
-            "type": "string",
-            "enum": [
-              "day",
-              "week",
-              "month"
-            ]
-          },
-          "starts_on": {
-            "type": "string",
-            "format": "date"
-          },
-          "until_on": {
-            "type": "string",
-            "format": "date"
-          },
-          "rule": {
-            "type": "string",
-            "description": "e.g. \"every 2 weeks\""
-          },
-          "open_tasks": {
-            "type": "integer",
-            "description": "Occurrences not yet done"
-          },
-          "done_tasks": {
-            "type": "integer"
-          },
-          "next_due": {
-            "type": "string",
-            "format": "date",
-            "description": "The next open occurrence",
-            "nullable": true
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
           }
         },
         "additionalProperties": false

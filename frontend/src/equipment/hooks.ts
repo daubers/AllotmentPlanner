@@ -7,6 +7,8 @@ export type EquipmentInput = components["schemas"]["EquipmentIn"];
 export type EquipmentPatch = components["schemas"]["EquipmentPatch"];
 export type EquipmentKind = components["schemas"]["EquipmentKind"];
 export type EquipmentSuggestion = components["schemas"]["EquipmentSuggestion"];
+export type Maintenance = components["schemas"]["Maintenance"];
+export type MaintenanceInput = components["schemas"]["MaintenanceIn"];
 /** A piece of equipment as a task shows it. */
 export type TaskEquipment = components["schemas"]["TaskEquipment"];
 export type EquipmentStatus = NonNullable<Equipment["status"]>;
@@ -107,4 +109,44 @@ export function useEquipmentSuggestions(allotmentId: number, input: SuggestInput
         })
       ).data ?? [],
   });
+}
+
+/** An item's maintenance: its schedules, when it is next due and when it was last serviced. */
+export function useMaintenance(allotmentId: number, id: number) {
+  return useQuery({
+    queryKey: ["equipment-maintenance", allotmentId, id],
+    queryFn: async (): Promise<Maintenance | undefined> =>
+      (await api.GET("/api/v1/allotments/{allotment_id}/equipment/{equipment_id}/maintenance", { params: one(allotmentId, id) })).data,
+  });
+}
+
+export function useMaintenanceActions(allotmentId: number, id: number) {
+  const qc = useQueryClient();
+  const refresh = () => {
+    for (const key of ["equipment-maintenance", "equipment", "equipment-item", "tasks", "todo", "task-series"]) {
+      void qc.invalidateQueries({ queryKey: [key, allotmentId] });
+    }
+  };
+  return {
+    schedule: useMutation({
+      mutationFn: async (body: MaintenanceInput) => {
+        const { data, error } = await api.POST("/api/v1/allotments/{allotment_id}/equipment/{equipment_id}/maintenance", {
+          params: one(allotmentId, id),
+          body,
+        });
+        if (!data) throw new Error(message(error, "Couldn't schedule that"));
+        return data;
+      },
+      onSuccess: refresh,
+    }),
+    stop: useMutation({
+      mutationFn: async (seriesId: number) => {
+        const { error } = await api.DELETE("/api/v1/allotments/{allotment_id}/task-series/{series_id}", {
+          params: { path: { allotment_id: allotmentId, series_id: seriesId } },
+        });
+        if (error) throw new Error(message(error, "Couldn't stop it"));
+      },
+      onSuccess: refresh,
+    }),
+  };
 }

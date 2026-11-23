@@ -41,6 +41,7 @@ def series_to_dict(series: TaskSeries) -> dict:
         "priority": series.priority,
         "assignee_id": series.assignee_id,
         "feature_id": series.feature_id,
+        "equipment_id": series.equipment_id,
         "every_n": series.every_n,
         "unit": series.unit,
         "starts_on": series.starts_on,
@@ -109,6 +110,7 @@ def _fill(series: TaskSeries, dates: list[date], created_by: int) -> None:
             priority=series.priority,
             assignee_id=series.assignee_id,
             feature_id=series.feature_id,
+            equipment_id=series.equipment_id,
             due_date=d,
             series_id=series.id,
             suggestion_key=occurrence_key(series.id, d),
@@ -118,11 +120,38 @@ def _fill(series: TaskSeries, dates: list[date], created_by: int) -> None:
     )
 
 
-def _drop_future_todo(series: TaskSeries, today: date) -> None:
+def drop_future_todo(series: TaskSeries, today: date) -> None:
     """Remove occurrences not yet started and still due; done and started ones stay."""
     db.session.query(Task).filter(
         Task.series_id == series.id, Task.status == TaskStatus.TODO, Task.due_date >= today
     ).delete(synchronize_session=False)
+
+
+def create_series(allotment, membership, data: dict, equipment_id: int | None = None) -> dict:
+    """Make a series and its occurrences from now on (committed); returns it for the API.
+
+    ``equipment_id`` marks it as maintenance of that equipment (the caller has checked it).
+    """
+    _check_refs(allotment, data.get("assignee_id"), data.get("feature_id"))
+    series = TaskSeries(
+        allotment_id=allotment.id,
+        created_by=membership.user_id,
+        equipment_id=equipment_id,
+        **{k: v for k, v in data.items() if k in EDITABLE},
+    )
+    dates = _dates(series, date.today())
+    db.session.add(series)
+    db.session.flush()
+    _fill(series, dates, membership.user_id)
+    db.session.commit()
+    events.emit(
+        "task_series.created",
+        actor_id=membership.user_id,
+        allotment_id=allotment.id,
+        subject={"series_id": series.id, "feature_id": series.feature_id},
+        payload={"title": series.title, "occurrences": len(dates), "equipment_id": equipment_id},
+    )
+    return series_to_dict(series)
 
 
 @blp.route("")
@@ -142,21 +171,7 @@ class SeriesList(MethodView):
     @blp.response(201, TaskSeriesSchema)
     def post(self, data, allotment, membership):
         """Repeat a job. Occurrences from today to the end date become tasks straight away."""
-        _check_refs(allotment, data["assignee_id"], data["feature_id"])
-        series = TaskSeries(allotment_id=allotment.id, created_by=membership.user_id, **data)
-        dates = _dates(series, date.today())
-        db.session.add(series)
-        db.session.flush()
-        _fill(series, dates, membership.user_id)
-        db.session.commit()
-        events.emit(
-            "task_series.created",
-            actor_id=membership.user_id,
-            allotment_id=allotment.id,
-            subject={"series_id": series.id, "feature_id": series.feature_id},
-            payload={"title": series.title, "occurrences": len(dates)},
-        )
-        return series_to_dict(series)
+        return create_series(allotment, membership, data)
 
 
 @blp.route("/<int:series_id>")
@@ -182,7 +197,7 @@ class SeriesDetail(MethodView):
                 setattr(series, key, data[key])
         today = date.today()
         dates = _dates(series, today)  # refuses a bad rule before anything is deleted
-        _drop_future_todo(series, today)
+        drop_future_todo(series, today)
         _fill(series, dates, membership.user_id)
         db.session.commit()
         events.emit(
@@ -199,7 +214,7 @@ class SeriesDetail(MethodView):
     def delete(self, allotment, membership, series_id):
         """Stop the series. Occurrences still to do are removed; finished and started ones stay."""
         series = _get(allotment, series_id)
-        _drop_future_todo(series, date.today())
+        drop_future_todo(series, date.today())
         db.session.delete(series)
         db.session.commit()
         events.emit(

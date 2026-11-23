@@ -99,6 +99,7 @@ export default function EquipmentPage() {
                   <span className="muted">{[e.kind ? e.kind_label : null, e.location_name].filter(Boolean).join(" · ")}</span>
                 </span>
                 {(e.quantity ?? 1) > 1 && <span className="badge">× {e.quantity}</span>}
+                {e.overdue && <span className="badge out-of-action">Overdue</span>}
                 {e.status === "out_of_action" && <span className="badge out-of-action">Out of action</span>}
               </Link>
             </li>

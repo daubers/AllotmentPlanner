@@ -23,19 +23,31 @@ def equipment_brief(item: Equipment) -> dict:
 
 
 def equipment_for_tasks(task_ids: list[int]) -> dict[int, list[dict]]:
-    """The equipment on each task, in one query. Tasks with none are left out."""
+    """The equipment on each task, in two queries. Tasks with none are left out.
+
+    That is the equipment ticked on the task, plus the item a maintenance job is about.
+    """
     if not task_ids:
         return {}
-    rows = (
+    ticked = (
         db.session.query(TaskEquipment.task_id, Equipment)
         .join(Equipment, Equipment.id == TaskEquipment.equipment_id)
         .filter(TaskEquipment.task_id.in_(task_ids))
-        .order_by(db.func.lower(Equipment.name), Equipment.id)
     )
-    out: dict[int, list[dict]] = {}
-    for task_id, item in rows:
-        out.setdefault(task_id, []).append(equipment_brief(item))
-    return out
+    maintained = (
+        db.session.query(Task.id, Equipment)
+        .join(Equipment, Equipment.id == Task.equipment_id)
+        .filter(Task.id.in_(task_ids))
+    )
+    found: dict[int, dict[int, Equipment]] = {}
+    for task_id, item in [*ticked, *maintained]:
+        found.setdefault(task_id, {})[item.id] = item
+    return {
+        task_id: [
+            equipment_brief(i) for i in sorted(items.values(), key=lambda e: (e.name.lower(), e.id))
+        ]
+        for task_id, items in found.items()
+    }
 
 
 def set_task_equipment(

@@ -327,6 +327,10 @@ class TaskSchema(Schema):
         allow_none=True, metadata={"description": "The crop plan item it is about"}
     )
     equipment = fields.List(fields.Nested(TaskEquipmentSchema))
+    equipment_id = fields.Integer(
+        allow_none=True,
+        metadata={"description": "Set when the job is maintenance of that equipment"},
+    )
     location = fields.Dict(allow_none=True)
     completed_at = fields.DateTime(allow_none=True)
     completed_by = fields.Integer(allow_none=True)
@@ -373,6 +377,9 @@ class TaskSeriesSchema(Schema):
     priority = fields.String()
     assignee_id = fields.Integer(allow_none=True)
     feature_id = fields.Integer(allow_none=True)
+    equipment_id = fields.Integer(
+        allow_none=True, metadata={"description": "The equipment this is maintenance of"}
+    )
     every_n = fields.Integer()
     unit = fields.String(validate=validate.OneOf(UNITS))
     starts_on = fields.Date()
@@ -399,6 +406,7 @@ class EquipmentPatchSchema(Schema):
     location_feature_id = fields.Integer(
         allow_none=True, metadata={"description": "Where it lives"}
     )
+    last_serviced_on = fields.Date(allow_none=True)
 
 
 class EquipmentInSchema(EquipmentPatchSchema):
@@ -409,6 +417,7 @@ class EquipmentInSchema(EquipmentPatchSchema):
     used_for = fields.String(load_default="", validate=validate.Length(max=1000))
     status = fields.String(load_default="in_service", validate=validate.OneOf(EQUIPMENT_STATUSES))
     location_feature_id = fields.Integer(load_default=None, allow_none=True)
+    last_serviced_on = fields.Date(load_default=None, allow_none=True)
 
 
 class EquipmentQuerySchema(Schema):
@@ -430,8 +439,38 @@ class EquipmentSchema(Schema):
     location_feature_id = fields.Integer(allow_none=True)
     location_name = fields.String(allow_none=True)
     last_serviced_on = fields.Date(allow_none=True)
+    next_due = fields.Date(allow_none=True, metadata={"description": "Its next maintenance job"})
+    overdue = fields.Boolean(metadata={"description": "A maintenance job is past its date"})
+    maintenance_tasks = fields.Integer(metadata={"description": "Maintenance jobs still to do"})
     created_at = fields.DateTime()
     updated_at = fields.DateTime()
+
+
+class MaintenanceInSchema(Schema):
+    """A maintenance job on a piece of equipment, once or on a schedule."""
+
+    title = fields.String(
+        load_default="",
+        validate=validate.Length(max=200),
+        metadata={"description": "Default: Service <name>"},
+    )
+    description = fields.String(load_default="")
+    priority = fields.String(load_default="normal", validate=validate.OneOf(TASK_PRIORITIES))
+    assignee_id = fields.Integer(load_default=None, allow_none=True)
+    every_n = fields.Integer(load_default=1, validate=validate.Range(min=1, max=365))
+    unit = fields.String(load_default="month", validate=validate.OneOf(UNITS))
+    starts_on = fields.Date(required=True)
+    until_on = fields.Date(
+        required=True, metadata={"description": "The same as starts_on makes a single job"}
+    )
+
+
+class MaintenanceSchema(Schema):
+    schedules = fields.List(fields.Nested(TaskSeriesSchema))
+    next_due = fields.Date(allow_none=True)
+    overdue = fields.Boolean()
+    open_tasks = fields.Integer()
+    last_serviced_on = fields.Date(allow_none=True)
 
 
 class EquipmentKindSchema(Schema):

@@ -259,6 +259,9 @@ class TaskSeries(db.Model):
     feature_id: Mapped[int | None] = mapped_column(
         ForeignKey("map_features.id", ondelete="SET NULL"), nullable=True
     )
+    equipment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True, index=True
+    )  # set when this is routine maintenance of a piece of equipment
     every_n: Mapped[int] = mapped_column(default=1)
     unit: Mapped[str] = mapped_column(String(5))  # day | week | month
     starts_on: Mapped[date] = mapped_column(Date)
@@ -305,6 +308,9 @@ class Task(db.Model):
     plan_item_id: Mapped[int | None] = mapped_column(
         ForeignKey("plan_items.id", ondelete="SET NULL"), nullable=True, index=True
     )  # the crop plan item this job is about
+    equipment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True, index=True
+    )  # the equipment this job is maintenance of
     # Set on tasks made from a suggestion ("tray:12:germination"), so adding them twice is a no-op.
     suggestion_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
     location = mapped_column(Geometry("POINT", srid=4326), nullable=True)

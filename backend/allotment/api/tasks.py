@@ -9,7 +9,7 @@ from shapely.geometry import mapping
 from .. import events
 from ..extensions import db
 from ..geojson import parse_geometry
-from ..models import MapFeature, Membership, Planting, Role, Task, TaskStatus, Tray
+from ..models import Equipment, MapFeature, Membership, Planting, Role, Task, TaskStatus, Tray
 from ..schemas import (
     TaskBulkResultSchema,
     TaskBulkSchema,
@@ -61,6 +61,7 @@ def task_to_dict(
         "series_id": task.series_id,
         "plan_item_id": task.plan_item_id,
         "equipment": equipment,
+        "equipment_id": task.equipment_id,
         "location": mapping(to_shape(task.location)) if task.location is not None else None,
         "completed_at": task.completed_at,
         "completed_by": task.completed_by,
@@ -136,6 +137,12 @@ def _finish(task: Task, allotment, membership) -> Task | None:
     task.status = TaskStatus.DONE
     task.completed_at = datetime.now(UTC)
     task.completed_by = membership.user_id
+    if task.equipment_id is not None:  # maintenance done: the equipment was serviced today
+        item = db.session.get(Equipment, task.equipment_id)
+        if item is not None and (
+            item.last_serviced_on is None or item.last_serviced_on < date.today()
+        ):
+            item.last_serviced_on = date.today()
     if not task.recurrence:
         return None
     today = date.today()
