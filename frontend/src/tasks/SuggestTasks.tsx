@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Modal from "../components/Modal";
+import ToolTicks from "../equipment/ToolTicks";
 import { useSuggestedTasks, type SuggestFor } from "./hooks";
 
 /** A "Suggest tasks" button: lists the jobs the seed packets' dates suggest and adds them all at once. */
@@ -7,6 +8,7 @@ export default function SuggestTasks({ allotmentId, target }: { allotmentId: num
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [added, setAdded] = useState<number | null>(null);
+  const [unticked, setUnticked] = useState<Set<string>>(new Set()); // "key:equipmentId" the user switched off
   const { suggestions, add } = useSuggestedTasks(allotmentId, target, open);
   const list = suggestions.data ?? [];
   const fresh = list.filter((s) => !s.added);
@@ -16,9 +18,25 @@ export default function SuggestTasks({ allotmentId, target }: { allotmentId: num
     setError(null);
     setAdded(null);
   };
+  const flip = (key: string, id: number) =>
+    setUnticked((prev) => {
+      const next = new Set(prev);
+      const k = `${key}:${id}`;
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+  /** Each new task gets the equipment still ticked on its row. */
+  const chosen = () =>
+    Object.fromEntries(
+      fresh
+        .map((s) => [s.key!, (s.equipment ?? []).filter((e) => !unticked.has(`${s.key}:${e.id}`)).map((e) => e.id!)] as const)
+        .filter(([, ids]) => ids.length > 0),
+    );
   async function addAll() {
     try {
-      setAdded((await add.mutateAsync()).length);
+      const equipment = chosen();
+      setAdded((await add.mutateAsync(Object.keys(equipment).length ? equipment : undefined)).length);
       setError(null);
     } catch (err) {
       setError((err as Error).message);
@@ -43,6 +61,13 @@ export default function SuggestTasks({ allotmentId, target }: { allotmentId: num
                   <strong>{s.title}</strong>
                   <span className="muted"> · {s.due_date}{s.added ? " · already added" : ""}</span>
                   <span className="muted block">{s.description}</span>
+                  {!s.added && (
+                    <ToolTicks
+                      items={s.equipment ?? []}
+                      unticked={new Set((s.equipment ?? []).filter((e) => unticked.has(`${s.key}:${e.id}`)).map((e) => e.id!))}
+                      onToggle={(id) => flip(s.key!, id)}
+                    />
+                  )}
                 </li>
               ))}
             </ul>

@@ -1242,6 +1242,62 @@
         }
       ]
     },
+    "/api/v1/allotments/{allotment_id}/tasks/{task_id}/equipment": {
+      "put": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskEquipmentSet"
+              }
+            }
+          }
+        },
+        "summary": "Say exactly which equipment the task needs (replaces what was there).",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "task_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
     "/api/v1/allotments/{allotment_id}/tasks/{task_id}/complete": {
       "post": {
         "responses": {
@@ -3021,6 +3077,9 @@
       },
       "post": {
         "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
           "201": {
             "description": "Created",
             "content": {
@@ -3036,6 +3095,16 @@
           },
           "default": {
             "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestedTasksAdd"
+              }
+            }
           }
         },
         "summary": "Add every suggestion not yet added as a task pinned to this planting.",
@@ -3891,6 +3960,9 @@
       },
       "post": {
         "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
           "201": {
             "description": "Created",
             "content": {
@@ -3906,6 +3978,16 @@
           },
           "default": {
             "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestedTasksAdd"
+              }
+            }
           }
         },
         "summary": "Add every suggestion not yet added as a task pinned to this tray.",
@@ -4397,6 +4479,56 @@
             }
           }
         },
+        "tags": [
+          "equipment"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/equipment/suggest": {
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EquipmentSuggestion"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EquipmentSuggestIn"
+              }
+            }
+          }
+        },
+        "summary": "Which of your equipment a job probably needs, from its wording and where it is.",
         "tags": [
           "equipment"
         ]
@@ -7018,6 +7150,35 @@
         },
         "additionalProperties": false
       },
+      "TaskEquipment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind_label": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_service",
+              "out_of_action"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "Task": {
         "type": "object",
         "properties": {
@@ -7070,6 +7231,12 @@
             "type": "integer",
             "description": "The crop plan item it is about",
             "nullable": true
+          },
+          "equipment": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskEquipment"
+            }
           },
           "location": {
             "type": "object",
@@ -7168,6 +7335,14 @@
             "default": null,
             "additionalProperties": {},
             "nullable": true
+          },
+          "equipment_ids": {
+            "type": "array",
+            "maxItems": 50,
+            "description": "Equipment the task needs",
+            "items": {
+              "type": "integer"
+            }
           }
         },
         "required": [
@@ -7287,8 +7462,32 @@
             "type": "object",
             "additionalProperties": {},
             "nullable": true
+          },
+          "equipment_ids": {
+            "type": "array",
+            "maxItems": 50,
+            "description": "Replaces the equipment the task needs",
+            "items": {
+              "type": "integer"
+            }
           }
         },
+        "additionalProperties": false
+      },
+      "TaskEquipmentSet": {
+        "type": "object",
+        "properties": {
+          "equipment_ids": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "equipment_ids"
+        ],
         "additionalProperties": false
       },
       "TodoAllotment": {
@@ -8477,6 +8676,39 @@
         },
         "additionalProperties": false
       },
+      "EquipmentSuggestion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind_label": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_service",
+              "out_of_action"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why it is suggested, e.g. \"digging\""
+          }
+        },
+        "additionalProperties": false
+      },
       "TaskSuggestion": {
         "type": "object",
         "properties": {
@@ -8497,6 +8729,32 @@
           "added": {
             "type": "boolean",
             "description": "A task for this suggestion already exists"
+          },
+          "equipment": {
+            "type": "array",
+            "description": "Equipment you own that it probably needs",
+            "items": {
+              "$ref": "#/components/schemas/EquipmentSuggestion"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "SuggestedTasksAdd": {
+        "type": "object",
+        "properties": {
+          "equipment": {
+            "type": "object",
+            "default": null,
+            "description": "Equipment ids to put on each task, by suggestion key",
+            "additionalProperties": {
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "integer"
+              }
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -8839,6 +9097,13 @@
           "added": {
             "type": "boolean",
             "description": "A task for this already exists"
+          },
+          "equipment": {
+            "type": "array",
+            "description": "Equipment you own that it probably needs",
+            "items": {
+              "$ref": "#/components/schemas/EquipmentSuggestion"
+            }
           }
         },
         "additionalProperties": false
@@ -8873,6 +9138,19 @@
             "description": "Only these suggestions; leave out for every one not yet added",
             "items": {
               "type": "string"
+            },
+            "nullable": true
+          },
+          "equipment": {
+            "type": "object",
+            "default": null,
+            "description": "Equipment ids to put on each task, by suggestion key",
+            "additionalProperties": {
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "integer"
+              }
             },
             "nullable": true
           }
@@ -9771,6 +10049,37 @@
         "required": [
           "name"
         ],
+        "additionalProperties": false
+      },
+      "EquipmentSuggestIn": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "default": "",
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "default": ""
+          },
+          "suggestion_key": {
+            "type": "string",
+            "default": null,
+            "nullable": true
+          },
+          "feature_id": {
+            "type": "integer",
+            "default": null,
+            "nullable": true
+          },
+          "exclude_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
         "additionalProperties": false
       },
       "EquipmentPatch": {

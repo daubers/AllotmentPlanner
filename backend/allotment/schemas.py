@@ -190,6 +190,33 @@ TASK_PRIORITIES = ["low", "normal", "high"]
 RECURRENCES = ["daily", "weekly", "monthly"]
 
 
+class TaskEquipmentSchema(Schema):
+    """A piece of equipment, as shown on a task."""
+
+    id = fields.Integer()
+    name = fields.String()
+    kind = fields.String(allow_none=True)
+    kind_label = fields.String()
+    quantity = fields.Integer()
+    status = fields.String(validate=validate.OneOf(EQUIPMENT_STATUSES))
+
+
+class EquipmentSuggestionSchema(TaskEquipmentSchema):
+    reason = fields.String(metadata={"description": 'Why it is suggested, e.g. "digging"'})
+
+
+class EquipmentSuggestInSchema(Schema):
+    title = fields.String(load_default="", validate=validate.Length(max=200))
+    description = fields.String(load_default="")
+    suggestion_key = fields.String(load_default=None, allow_none=True)
+    feature_id = fields.Integer(load_default=None, allow_none=True)
+    exclude_ids = fields.List(fields.Integer(), load_default=list)
+
+
+class TaskEquipmentSetSchema(Schema):
+    equipment_ids = fields.List(fields.Integer(), required=True, validate=validate.Length(max=50))
+
+
 class TaskInSchema(Schema):
     title = fields.String(required=True, validate=validate.Length(min=1, max=200))
     description = fields.String(load_default="")
@@ -204,6 +231,12 @@ class TaskInSchema(Schema):
     tray_id = fields.Integer(load_default=None, allow_none=True)
     planting_id = fields.Integer(load_default=None, allow_none=True)
     location = fields.Dict(load_default=None, allow_none=True)
+    equipment_ids = fields.List(
+        fields.Integer(),
+        load_default=list,
+        validate=validate.Length(max=50),
+        metadata={"description": "Equipment the task needs"},
+    )
 
 
 class TaskPatchSchema(Schema):
@@ -218,6 +251,11 @@ class TaskPatchSchema(Schema):
     tray_id = fields.Integer(allow_none=True)
     planting_id = fields.Integer(allow_none=True)
     location = fields.Dict(allow_none=True)
+    equipment_ids = fields.List(
+        fields.Integer(),
+        validate=validate.Length(max=50),
+        metadata={"description": "Replaces the equipment the task needs"},
+    )
 
 
 class TaskQuerySchema(Schema):
@@ -239,6 +277,20 @@ class TaskSuggestionSchema(Schema):
     description = fields.String()
     due_date = fields.Date()
     added = fields.Boolean(metadata={"description": "A task for this suggestion already exists"})
+    equipment = fields.List(
+        fields.Nested(EquipmentSuggestionSchema),
+        metadata={"description": "Equipment you own that it probably needs"},
+    )
+
+
+class SuggestedTasksAddSchema(Schema):
+    equipment = fields.Dict(
+        keys=fields.String(),
+        values=fields.List(fields.Integer(), validate=validate.Length(max=50)),
+        load_default=None,
+        allow_none=True,
+        metadata={"description": "Equipment ids to put on each task, by suggestion key"},
+    )
 
 
 class TaskBulkSchema(Schema):
@@ -274,6 +326,7 @@ class TaskSchema(Schema):
     plan_item_id = fields.Integer(
         allow_none=True, metadata={"description": "The crop plan item it is about"}
     )
+    equipment = fields.List(fields.Nested(TaskEquipmentSchema))
     location = fields.Dict(allow_none=True)
     completed_at = fields.DateTime(allow_none=True)
     completed_by = fields.Integer(allow_none=True)
@@ -1240,6 +1293,10 @@ class PlanTaskSuggestionSchema(Schema):
     feature_id = fields.Integer(metadata={"description": "The bed"})
     plan_item_id = fields.Integer()
     added = fields.Boolean(metadata={"description": "A task for this already exists"})
+    equipment = fields.List(
+        fields.Nested(EquipmentSuggestionSchema),
+        metadata={"description": "Equipment you own that it probably needs"},
+    )
 
 
 class PlanTasksSchema(Schema):
@@ -1260,6 +1317,13 @@ class PlanTasksAddSchema(Schema):
         load_default=None,
         allow_none=True,
         metadata={"description": "Only these suggestions; leave out for every one not yet added"},
+    )
+    equipment = fields.Dict(
+        keys=fields.String(),
+        values=fields.List(fields.Integer(), validate=validate.Length(max=50)),
+        load_default=None,
+        allow_none=True,
+        metadata={"description": "Equipment ids to put on each task, by suggestion key"},
     )
 
 

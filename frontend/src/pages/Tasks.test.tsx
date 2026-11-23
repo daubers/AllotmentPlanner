@@ -131,4 +131,21 @@ describe("Tasks page", () => {
     expect(screen.queryByLabelText("Reschedule Prune the apple")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Search tasks")).toBeInTheDocument();
   });
+
+  it("shows the equipment a task needs", async () => {
+    get.mockImplementation(async (p: string) => {
+      if (p.endsWith("/tasks")) {
+        return {
+          data: [
+            task(1, { title: "Dig the bed", equipment: [{ id: 1, name: "Border spade", kind: "spade", kind_label: "Spade", quantity: 1, status: "in_service" }, { id: 2, name: "Fork", kind: "fork", kind_label: "Fork", quantity: 1, status: "in_service" }] }),
+            task(2, { title: "Plain job" }),
+          ],
+        };
+      }
+      return { data: p.endsWith("/features") ? { features: [] } : [] };
+    });
+    setup();
+    expect(await screen.findByText("🔧 Border spade, Fork")).toBeInTheDocument();
+    expect(screen.getAllByText(/🔧/)).toHaveLength(1); // only the task that needs some
+  });
 });

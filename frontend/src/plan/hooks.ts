@@ -115,10 +115,10 @@ export function usePlanTaskActions(allotmentId: number) {
   };
   return {
     add: useMutation({
-      mutationFn: async ({ keys, featureId }: { keys?: string[]; featureId?: number | null }) => {
+      mutationFn: async ({ keys, featureId, equipment }: { keys?: string[]; featureId?: number | null; equipment?: Record<string, number[]> }) => {
         const { data, error } = await api.POST("/api/v1/allotments/{allotment_id}/plan/tasks", {
           params: path(allotmentId),
-          body: { keys: keys ?? null, feature_id: featureId ?? null },
+          body: { keys: keys ?? null, feature_id: featureId ?? null, equipment: equipment ?? null },
         });
         if (!data) throw new Error(failure(error, "Could not add those tasks"));
         return data;

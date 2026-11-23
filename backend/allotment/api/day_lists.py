@@ -15,7 +15,7 @@ from ..schemas import (
     TodoSchema,
 )
 from ..security import require_role
-from .tasks import PRIORITY_ORDER, task_to_dict
+from .tasks import PRIORITY_ORDER, task_dicts
 
 blp = Blueprint(
     "day_lists",
@@ -181,7 +181,7 @@ class DayListSheet(MethodView):
         return {
             "date": day_list.for_date or date.today(),
             "allotment": {"id": allotment.id, "name": allotment.name},
-            "tasks": [task_to_dict(t) for t in tasks],
+            "tasks": task_dicts(tasks),
             "features": [feature_to_geojson(f) for f in features],
             "members": [
                 {"user_id": m.user_id, "display_name": m.user.display_name}

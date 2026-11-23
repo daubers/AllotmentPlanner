@@ -18,6 +18,12 @@ vi.mock("../api/client", () => ({
   sessionRejected: vi.fn(),
 }));
 
+// These tests are about other things; the suggestions have their own tests (equipment/Chips.test.tsx).
+vi.mock("../equipment/hooks", async (original) => ({
+  ...(await original<typeof import("../equipment/hooks")>()),
+  useEquipmentSuggestions: () => ({ data: [] }),
+}));
+
 import TaskDialog, { placeFromValue, placeValue } from "./TaskDialog";
 import type { Task } from "./group";
 

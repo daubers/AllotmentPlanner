@@ -6,6 +6,9 @@ export type Equipment = components["schemas"]["Equipment"];
 export type EquipmentInput = components["schemas"]["EquipmentIn"];
 export type EquipmentPatch = components["schemas"]["EquipmentPatch"];
 export type EquipmentKind = components["schemas"]["EquipmentKind"];
+export type EquipmentSuggestion = components["schemas"]["EquipmentSuggestion"];
+/** A piece of equipment as a task shows it. */
+export type TaskEquipment = components["schemas"]["TaskEquipment"];
 export type EquipmentStatus = NonNullable<Equipment["status"]>;
 /** One of the known kinds, e.g. "spade". */
 export type KindKey = NonNullable<EquipmentInput["kind"]>;
@@ -83,4 +86,25 @@ export function useEquipmentActions(allotmentId: number) {
       onSuccess: refresh,
     }),
   };
+}
+
+export type SuggestInput = { title: string; description: string; key?: string | null; featureId?: number | null; exclude: number[] };
+
+/** Which of your equipment a job probably needs, from its wording (and, for generated tasks, its key). */
+export function useEquipmentSuggestions(allotmentId: number, input: SuggestInput, enabled: boolean) {
+  const title = input.title.trim();
+  const exclude = [...input.exclude].sort((a, b) => a - b);
+  return useQuery({
+    queryKey: ["equipment-suggest", allotmentId, title, input.description, input.key ?? null, input.featureId ?? null, exclude],
+    enabled: enabled && title.length >= 3,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<EquipmentSuggestion[]> =>
+      (
+        await api.POST("/api/v1/allotments/{allotment_id}/equipment/suggest", {
+          params: path(allotmentId),
+          body: { title, description: input.description, suggestion_key: input.key ?? null, feature_id: input.featureId ?? null, exclude_ids: exclude },
+        })
+      ).data ?? [],
+  });
 }

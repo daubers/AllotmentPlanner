@@ -73,4 +73,40 @@ describe("SuggestTasks", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Add all 2 tasks" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Tray not found");
   });
+
+  describe("with equipment", () => {
+    const tool = (id: number, name: string) => ({ id, name, kind: "dibber", kind_label: "Dibber", quantity: 1, status: "in_service", reason: "pricking out" });
+
+    it("ticks the suggested equipment and attaches what stays ticked", async () => {
+      get.mockResolvedValue({
+        data: [
+          s("a", "Check germination: Tomato", { equipment: [tool(4, "Module tray")] }),
+          s("b", "Prick out Tomato", { equipment: [tool(5, "Dibber"), tool(6, "Spare tray")] }),
+        ],
+      });
+      setup();
+      await userEvent.click(screen.getByRole("button", { name: "Suggest tasks" }));
+      expect(await screen.findByRole("checkbox", { name: "Dibber" })).toBeChecked();
+      await userEvent.click(screen.getByRole("checkbox", { name: "Spare tray" })); // switch one off
+      await userEvent.click(screen.getByRole("button", { name: "Add all 2 tasks" }));
+      await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+      expect(post.mock.calls[0][1].body).toEqual({ equipment: { a: [4], b: [5] } });
+    });
+
+    it("attaches nothing when no equipment is suggested", async () => {
+      setup();
+      await userEvent.click(screen.getByRole("button", { name: "Suggest tasks" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Add all 2 tasks" }));
+      await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+      expect(post.mock.calls[0][1].body).toEqual({ equipment: null });
+    });
+
+    it("does not offer equipment for a task that is already added", async () => {
+      get.mockResolvedValue({ data: [s("a", "Prick out Tomato", { added: true, equipment: [tool(5, "Dibber")] }), s("b", "Plant out Tomato")] });
+      setup();
+      await userEvent.click(screen.getByRole("button", { name: "Suggest tasks" }));
+      await screen.findByText(/already added/);
+      expect(screen.queryByRole("checkbox", { name: "Dibber" })).not.toBeInTheDocument();
+    });
+  });
 });

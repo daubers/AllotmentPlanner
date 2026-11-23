@@ -628,6 +628,26 @@ class Equipment(db.Model):
     )
 
 
+class TaskEquipment(db.Model):
+    """A piece of equipment a task needs. It records who added it, so an export includes it."""
+
+    __tablename__ = "task_equipment"
+    __table_args__ = (UniqueConstraint("task_id", "equipment_id", name="uq_task_equipment"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    equipment_id: Mapped[int] = mapped_column(
+        ForeignKey("equipment.id", ondelete="CASCADE"), index=True
+    )
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class ActivityLog(db.Model):
     """A domain event worth remembering; feeds the progress overview and later Mastodon."""
 

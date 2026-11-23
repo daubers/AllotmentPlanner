@@ -12,6 +12,12 @@ vi.mock("../api/client", () => ({
   authHeader: async () => null,
   sessionRejected: vi.fn(),
 }));
+
+// These tests are about other things; the suggestions have their own tests (equipment/Chips.test.tsx).
+vi.mock("../equipment/hooks", async (original) => ({
+  ...(await original<typeof import("../equipment/hooks")>()),
+  useEquipmentSuggestions: () => ({ data: [] }),
+}));
 vi.mock("../auth", () => ({ useAuth: () => ({ user: { id: 1, display_name: "Ann" } }) }));
 
 import { useSelectedList } from "../tasks/dayLists";

@@ -1,4 +1,7 @@
 import { useState } from "react";
+import EquipmentChips from "../equipment/EquipmentChips";
+import { useEquipmentSuggestions } from "../equipment/hooks";
+import { useDebounced } from "../equipment/useDebounced";
 import Modal from "../components/Modal";
 import PlaceOptions from "./PlaceOptions";
 import { usePlantings } from "../plantings/hooks";
@@ -58,6 +61,11 @@ export default function TaskDialog({ allotmentId, canEdit, task, place, meId, is
   const [confirmStop, setConfirmStop] = useState(false);
   // "Repeats" is either nothing, a rule that remakes the task when it is finished, or a schedule made ahead.
   const [repeat, setRepeat] = useState<string>(task?.recurrence ?? "");
+  // The equipment the job needs. What is typed is used (a moment after you stop) to suggest more.
+  const [equipmentIds, setEquipmentIds] = useState<number[]>((task?.equipment ?? []).map((e) => e.id!));
+  const [titleText, setTitleText] = useState(task?.title ?? "");
+  const [notesText, setNotesText] = useState(task?.description ?? "");
+  const wording = useDebounced({ title: titleText, description: notesText });
   // A select only takes its default when it is created, so those fed by a query are re-made once it arrives.
   const editing = task !== undefined;
   const done = task?.status === "done";
@@ -65,6 +73,11 @@ export default function TaskDialog({ allotmentId, canEdit, task, place, meId, is
   const busy =
     actions.create.isPending || actions.update.isPending || actions.remove.isPending || seriesActions.create.isPending || seriesActions.update.isPending;
   const scheduling = !editing && repeat === "schedule";
+  const suggested = useEquipmentSuggestions(
+    allotmentId,
+    { ...wording, featureId: task?.feature_id ?? place?.feature_id ?? null, exclude: equipmentIds },
+    canEdit && !done,
+  );
 
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -78,6 +91,7 @@ export default function TaskDialog({ allotmentId, canEdit, task, place, meId, is
       recurrence: (RECURRENCES as readonly string[]).includes(text("recurrence")) ? (text("recurrence") as (typeof RECURRENCES)[number]) : null,
       assignee_id: text("assignee_id") ? Number(text("assignee_id")) : null,
       ...placeFromValue(text("place")),
+      equipment_ids: equipmentIds,
     };
     try {
       if (scheduling) {
@@ -145,11 +159,11 @@ export default function TaskDialog({ allotmentId, canEdit, task, place, meId, is
       <form className="task-dialog" onSubmit={save}>
         <label>
           Title
-          <input name="title" defaultValue={task?.title ?? ""} required maxLength={200} disabled={readOnly} autoFocus={!editing} />
+          <input name="title" defaultValue={task?.title ?? ""} required maxLength={200} disabled={readOnly} autoFocus={!editing} onChange={(e) => setTitleText(e.target.value)} />
         </label>
         <label>
           Notes
-          <textarea name="description" rows={3} defaultValue={task?.description ?? ""} disabled={readOnly} />
+          <textarea name="description" rows={3} defaultValue={task?.description ?? ""} disabled={readOnly} onChange={(e) => setNotesText(e.target.value)} />
         </label>
         <div className="pair">
           <label>
@@ -202,6 +216,19 @@ export default function TaskDialog({ allotmentId, canEdit, task, place, meId, is
             </select>
           </label>
         </div>
+        {!scheduling && (
+          <div className="task-equipment">
+            <span>Equipment</span>
+            <EquipmentChips
+              allotmentId={allotmentId}
+              value={equipmentIds}
+              onChange={setEquipmentIds}
+              suggestions={suggested.data ?? []}
+              known={task?.equipment ?? []}
+              disabled={readOnly || done}
+            />
+          </div>
+        )}
         {scheduling && (
           <fieldset className="task-schedule">
             <legend>Schedule</legend>

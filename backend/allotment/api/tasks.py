@@ -13,12 +13,14 @@ from ..models import MapFeature, Membership, Planting, Role, Task, TaskStatus, T
 from ..schemas import (
     TaskBulkResultSchema,
     TaskBulkSchema,
+    TaskEquipmentSetSchema,
     TaskInSchema,
     TaskPatchSchema,
     TaskQuerySchema,
     TaskSchema,
 )
 from ..security import require_role
+from ..task_equipment import add_equipment_suggestions, equipment_for_tasks, set_task_equipment
 from ..task_series import step
 
 blp = Blueprint(
@@ -38,7 +40,12 @@ def next_due(current: date, recurrence: str) -> date:
     return step(current, 1, RECURRENCE_UNITS[recurrence])
 
 
-def task_to_dict(task: Task, spawned: Task | None = None) -> dict:
+def task_to_dict(
+    task: Task, spawned: Task | None = None, equipment: list[dict] | None = None
+) -> dict:
+    """A task for the API. Pass ``equipment`` (see task_dicts) to avoid a query per task."""
+    if equipment is None:
+        equipment = equipment_for_tasks([task.id]).get(task.id, [])
     return {
         "id": task.id,
         "title": task.title,
@@ -53,12 +60,19 @@ def task_to_dict(task: Task, spawned: Task | None = None) -> dict:
         "planting_id": task.planting_id,
         "series_id": task.series_id,
         "plan_item_id": task.plan_item_id,
+        "equipment": equipment,
         "location": mapping(to_shape(task.location)) if task.location is not None else None,
         "completed_at": task.completed_at,
         "completed_by": task.completed_by,
         "created_at": task.created_at,
         "spawned_task_id": spawned.id if spawned else None,
     }
+
+
+def task_dicts(tasks: list[Task]) -> list[dict]:
+    """Several tasks for the API, with their equipment fetched in one query."""
+    equipment = equipment_for_tasks([t.id for t in tasks])
+    return [task_to_dict(t, equipment=equipment.get(t.id, [])) for t in tasks]
 
 
 def _reject(message: str):
@@ -152,7 +166,7 @@ def suggestions_with_state(allotment, suggestions) -> list[dict]:
             Task.allotment_id == allotment.id, Task.suggestion_key.in_(keys)
         )
         have = {k for (k,) in rows}
-    return [
+    rows = [
         {
             "key": s.key,
             "title": s.title,
@@ -162,10 +176,17 @@ def suggestions_with_state(allotment, suggestions) -> list[dict]:
         }
         for s in suggestions
     ]
+    return add_equipment_suggestions(allotment.id, rows)
 
 
-def add_suggested(allotment, membership, suggestions, **place) -> list[Task]:
-    """Create a task for every suggestion not already added, all or nothing. ``place`` pins them."""
+def add_suggested(
+    allotment, membership, suggestions, equipment: dict[str, list[int]] | None = None, **place
+) -> list[Task]:
+    """Create a task for every suggestion not already added, all or nothing. ``place`` pins them.
+
+    ``equipment`` maps a suggestion's key to the equipment ids to put on its task. Nothing is
+    attached unless it is named here.
+    """
     fresh = [s for s in suggestions_with_state(allotment, suggestions) if not s["added"]]
     tasks = [
         Task(
@@ -180,6 +201,13 @@ def add_suggested(allotment, membership, suggestions, **place) -> list[Task]:
         for s in fresh
     ]
     db.session.add_all(tasks)
+    if equipment:
+        db.session.flush()  # for the tasks' ids
+        for task in tasks:
+            if equipment.get(task.suggestion_key):
+                set_task_equipment(
+                    task, equipment[task.suggestion_key], allotment, membership.user_id
+                )
     db.session.commit()
     for task in tasks:
         events.emit(
@@ -226,7 +254,7 @@ class TaskList(MethodView):
         tasks.sort(
             key=lambda t: PRIORITY_ORDER[t.priority]
         )  # stable: keeps date order per priority
-        return [task_to_dict(t) for t in tasks]
+        return task_dicts(tasks)
 
     @require_role(Role.EDITOR)
     @blp.arguments(TaskInSchema)
@@ -235,6 +263,8 @@ class TaskList(MethodView):
         task = Task(allotment_id=allotment.id, created_by=membership.user_id)
         _apply(task, data, allotment)
         db.session.add(task)
+        db.session.flush()  # for the task's id
+        set_task_equipment(task, data["equipment_ids"], allotment, membership.user_id)
         db.session.commit()
         events.emit(
             "task.created",
@@ -291,7 +321,7 @@ class TaskBulk(MethodView):
                 subject=subject,
                 payload=payload,
             )
-        return {"tasks": [task_to_dict(t) for t in done], "deleted": deleted}
+        return {"tasks": task_dicts(done), "deleted": deleted}
 
 
 @blp.route("/<int:task_id>")
@@ -309,6 +339,8 @@ class TaskDetail(MethodView):
         if task.status == TaskStatus.DONE and "status" in data:
             abort(409, message="Use /reopen to reopen a completed task")
         _apply(task, data, allotment)
+        if "equipment_ids" in data:
+            set_task_equipment(task, data["equipment_ids"], allotment, membership.user_id)
         db.session.commit()
         events.emit(
             "task.updated",
@@ -331,6 +363,26 @@ class TaskDetail(MethodView):
             allotment_id=allotment.id,
             subject={"task_id": task_id},
         )
+
+
+@blp.route("/<int:task_id>/equipment")
+class TaskEquipmentView(MethodView):
+    @require_role(Role.EDITOR)
+    @blp.arguments(TaskEquipmentSetSchema)
+    @blp.response(200, TaskSchema)
+    def put(self, data, allotment, membership, task_id):
+        """Say exactly which equipment the task needs (replaces what was there)."""
+        task = _get(allotment, task_id)
+        set_task_equipment(task, data["equipment_ids"], allotment, membership.user_id)
+        db.session.commit()
+        events.emit(
+            "task.updated",
+            actor_id=membership.user_id,
+            allotment_id=allotment.id,
+            subject={"task_id": task.id, "feature_id": task.feature_id},
+            payload={"fields": ["equipment_ids"]},
+        )
+        return task_to_dict(task)
 
 
 @blp.route("/<int:task_id>/complete")

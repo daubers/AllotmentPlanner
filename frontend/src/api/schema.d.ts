@@ -1248,6 +1248,54 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/allotments/{allotment_id}/tasks/{task_id}/equipment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Say exactly which equipment the task needs (replaces what was there). */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    task_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TaskEquipmentSet"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Task"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/allotments/{allotment_id}/tasks/{task_id}/complete": {
         parameters: {
             query?: never;
@@ -2815,7 +2863,11 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SuggestedTasksAdd"];
+                };
+            };
             responses: {
                 /** @description Created */
                 201: {
@@ -2826,6 +2878,7 @@ export interface paths {
                         "application/json": components["schemas"]["Task"][];
                     };
                 };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
                 default: components["responses"]["DEFAULT_ERROR"];
             };
         };
@@ -3617,7 +3670,11 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SuggestedTasksAdd"];
+                };
+            };
             responses: {
                 /** @description Created */
                 201: {
@@ -3628,6 +3685,7 @@ export interface paths {
                         "application/json": components["schemas"]["Task"][];
                     };
                 };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
                 default: components["responses"]["DEFAULT_ERROR"];
             };
         };
@@ -4045,6 +4103,52 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Equipment"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/equipment/suggest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Which of your equipment a job probably needs, from its wording and where it is. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EquipmentSuggestIn"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EquipmentSuggestion"][];
                     };
                 };
                 422: components["responses"]["UNPROCESSABLE_CONTENT"];
@@ -6008,6 +6112,15 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        TaskEquipment: {
+            id?: number;
+            name?: string;
+            kind?: string | null;
+            kind_label?: string;
+            quantity?: number;
+            /** @enum {string} */
+            status?: "in_service" | "out_of_action";
+        };
         Task: {
             id?: number;
             title?: string;
@@ -6025,6 +6138,7 @@ export interface components {
             series_id?: number | null;
             /** @description The crop plan item it is about */
             plan_item_id?: number | null;
+            equipment?: components["schemas"]["TaskEquipment"][];
             location?: {
                 [key: string]: unknown;
             } | null;
@@ -6072,6 +6186,8 @@ export interface components {
             location?: {
                 [key: string]: unknown;
             } | null;
+            /** @description Equipment the task needs */
+            equipment_ids?: number[];
         };
         TaskBulk: {
             ids: number[];
@@ -6105,6 +6221,11 @@ export interface components {
             location?: {
                 [key: string]: unknown;
             } | null;
+            /** @description Replaces the equipment the task needs */
+            equipment_ids?: number[];
+        };
+        TaskEquipmentSet: {
+            equipment_ids: number[];
         };
         TodoAllotment: {
             id?: number;
@@ -6486,6 +6607,17 @@ export interface components {
             harvested_on?: string | null;
             notes?: string;
         };
+        EquipmentSuggestion: {
+            id?: number;
+            name?: string;
+            kind?: string | null;
+            kind_label?: string;
+            quantity?: number;
+            /** @enum {string} */
+            status?: "in_service" | "out_of_action";
+            /** @description Why it is suggested, e.g. "digging" */
+            reason?: string;
+        };
         TaskSuggestion: {
             /** @description Stable id, so a suggestion is added only once */
             key?: string;
@@ -6495,6 +6627,17 @@ export interface components {
             due_date?: string;
             /** @description A task for this suggestion already exists */
             added?: boolean;
+            /** @description Equipment you own that it probably needs */
+            equipment?: components["schemas"]["EquipmentSuggestion"][];
+        };
+        SuggestedTasksAdd: {
+            /**
+             * @description Equipment ids to put on each task, by suggestion key
+             * @default null
+             */
+            equipment?: {
+                [key: string]: number[];
+            } | null;
         };
         PlanItem: {
             id?: number;
@@ -6617,6 +6760,8 @@ export interface components {
             plan_item_id?: number;
             /** @description A task for this already exists */
             added?: boolean;
+            /** @description Equipment you own that it probably needs */
+            equipment?: components["schemas"]["EquipmentSuggestion"][];
         };
         PlanTasks: {
             suggestions?: components["schemas"]["PlanTaskSuggestion"][];
@@ -6631,6 +6776,13 @@ export interface components {
              * @default null
              */
             keys?: string[] | null;
+            /**
+             * @description Equipment ids to put on each task, by suggestion key
+             * @default null
+             */
+            equipment?: {
+                [key: string]: number[];
+            } | null;
         };
         PlanTasksQuery: {
             /**
@@ -6914,6 +7066,17 @@ export interface components {
             status?: "in_service" | "out_of_action";
             /** @default null */
             location_feature_id?: number | null;
+        };
+        EquipmentSuggestIn: {
+            /** @default  */
+            title?: string;
+            /** @default  */
+            description?: string;
+            /** @default null */
+            suggestion_key?: string | null;
+            /** @default null */
+            feature_id?: number | null;
+            exclude_ids?: number[];
         };
         EquipmentPatch: {
             name?: string;

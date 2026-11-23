@@ -158,12 +158,14 @@ export function useSuggestedTasks(allotmentId: number, target: SuggestFor, enabl
     },
   });
   const add = useMutation({
-    mutationFn: async () => {
+    /** `equipment` maps a suggestion's key to the equipment ids to put on its task; nothing is attached unless named. */
+    mutationFn: async (equipment?: Record<string, number[]>) => {
       const path = { allotment_id: allotmentId };
+      const body = { equipment: equipment ?? null };
       const { data, error } =
         target.kind === "tray"
-          ? await api.POST("/api/v1/allotments/{allotment_id}/trays/{tray_id}/suggested-tasks", { params: { path: { ...path, tray_id: target.id } } })
-          : await api.POST("/api/v1/allotments/{allotment_id}/plantings/{planting_id}/suggested-tasks", { params: { path: { ...path, planting_id: target.id } } });
+          ? await api.POST("/api/v1/allotments/{allotment_id}/trays/{tray_id}/suggested-tasks", { params: { path: { ...path, tray_id: target.id } }, body })
+          : await api.POST("/api/v1/allotments/{allotment_id}/plantings/{planting_id}/suggested-tasks", { params: { path: { ...path, planting_id: target.id } }, body });
       if (!data) throw new Error(failure(error, "Could not add the tasks"));
       return data;
     },

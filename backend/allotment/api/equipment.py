@@ -13,8 +13,11 @@ from ..schemas import (
     EquipmentPatchSchema,
     EquipmentQuerySchema,
     EquipmentSchema,
+    EquipmentSuggestInSchema,
+    EquipmentSuggestionSchema,
 )
 from ..security import require_role
+from ..task_equipment import feature_kinds, load_equipment, suggest_equipment
 
 blp = Blueprint(
     "equipment",
@@ -137,6 +140,28 @@ class EquipmentList(MethodView):
         db.session.commit()
         _emit("created", allotment, membership, item, kind=item.kind)
         return equipment_to_dict(item)
+
+
+@blp.route("/suggest")
+class EquipmentSuggest(MethodView):
+    @require_role(Role.VIEWER)
+    @blp.arguments(EquipmentSuggestInSchema)
+    @blp.response(200, EquipmentSuggestionSchema(many=True))
+    def post(self, data, allotment, membership):
+        """Which of your equipment a job probably needs, from its wording and where it is."""
+        items, by_id = load_equipment(allotment.id)
+        feature_kind = None
+        if data["feature_id"] is not None:
+            feature_kind = feature_kinds({data["feature_id"]}).get(data["feature_id"])
+        return suggest_equipment(
+            items,
+            by_id,
+            title=data["title"],
+            description=data["description"],
+            key=data["suggestion_key"],
+            feature_kind=feature_kind,
+            exclude=set(data["exclude_ids"]),
+        )
 
 
 @blp.route("/<int:equipment_id>")

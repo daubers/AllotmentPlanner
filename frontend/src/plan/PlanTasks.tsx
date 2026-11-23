@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ToolTicks from "../equipment/ToolTicks";
 import { dayLabel } from "./window";
 import { usePlanTaskActions, usePlanTasks, type PlanBed } from "./hooks";
 
@@ -19,6 +20,7 @@ export default function PlanTasks({
   const tasks = usePlanTasks(allotmentId, featureId);
   const actions = usePlanTaskActions(allotmentId);
   const [skip, setSkip] = useState<Set<string>>(new Set()); // unticked
+  const [noTool, setNoTool] = useState<Set<string>>(new Set()); // "key:equipmentId" switched off
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,10 +39,24 @@ export default function PlanTasks({
       return next;
     });
 
+  const flipTool = (key: string, id: number) =>
+    setNoTool((prev) => {
+      const next = new Set(prev);
+      const k = `${key}:${id}`;
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+
   async function add() {
     setError(null);
     try {
-      const made = await actions.add.mutateAsync({ keys: chosen.map((s) => s.key!), featureId });
+      const equipment = Object.fromEntries(
+        chosen
+          .map((s) => [s.key!, (s.equipment ?? []).filter((e) => !noTool.has(`${s.key}:${e.id}`)).map((e) => e.id!)] as const)
+          .filter(([, ids]) => ids.length > 0),
+      );
+      const made = await actions.add.mutateAsync({ keys: chosen.map((s) => s.key!), featureId, equipment: Object.keys(equipment).length ? equipment : undefined });
       setMessage(`Added ${made.length} task${made.length === 1 ? "" : "s"}. You will find them on the Tasks and Today pages.`);
       setSkip(new Set());
     } catch (err) {
@@ -101,6 +117,14 @@ export default function PlanTasks({
                         <span className="muted"> · {dayLabel(s.due_date!)}</span>
                       </span>
                     </label>
+                    {!skip.has(s.key!) && (
+                      <ToolTicks
+                        items={s.equipment ?? []}
+                        unticked={new Set((s.equipment ?? []).filter((e) => noTool.has(`${s.key}:${e.id}`)).map((e) => e.id!))}
+                        onToggle={(id) => flipTool(s.key!, id)}
+                        disabled={!canEdit}
+                      />
+                    )}
                   </li>
                 ))}
             </ul>

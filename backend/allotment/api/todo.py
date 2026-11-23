@@ -8,7 +8,7 @@ from ..geojson import feature_to_geojson
 from ..models import MapFeature, Role, Task, TaskStatus
 from ..schemas import TodoQuerySchema, TodoSchema
 from ..security import require_role
-from .tasks import PRIORITY_ORDER, task_to_dict
+from .tasks import PRIORITY_ORDER, task_dicts
 
 blp = Blueprint(
     "todo",
@@ -44,7 +44,7 @@ class Todo(MethodView):
         return {
             "date": day,
             "allotment": {"id": allotment.id, "name": allotment.name},
-            "tasks": [task_to_dict(t) for t in tasks],
+            "tasks": task_dicts(tasks),
             "features": [feature_to_geojson(f) for f in features],
             "members": [
                 {"user_id": m.user_id, "display_name": m.user.display_name}

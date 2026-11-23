@@ -63,7 +63,7 @@ describe("Tasks from the plan", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add 2 tasks" }));
     await waitFor(() => expect(post).toHaveBeenCalled());
     expect(post.mock.calls[0][0]).toMatch(/\/plan\/tasks$/);
-    expect(post.mock.calls[0][1].body).toEqual({ keys: ["plan:sow:1", "plan:sow:2"], feature_id: null });
+    expect(post.mock.calls[0][1].body).toEqual({ keys: ["plan:sow:1", "plan:sow:2"], feature_id: null, equipment: null });
     expect(await screen.findByRole("status")).toHaveTextContent("Added 3 tasks");
   });
 
@@ -133,6 +133,36 @@ describe("Tasks from the plan", () => {
     panel({ onMaintenance });
     await userEvent.click(await screen.findByRole("button", { name: "Add a repeating job" }));
     expect(onMaintenance).toHaveBeenCalled();
+  });
+});
+
+describe("Tasks from the plan with equipment", () => {
+  const tool = (id: number, name: string) => ({ id, name, kind: "dibber", kind_label: "Dibber", quantity: 1, status: "in_service", reason: "sowing" });
+
+  it("ticks suggested equipment and sends what stays ticked with the jobs", async () => {
+    payload.suggestions = [
+      { ...s("plan:sow:1", "Sow Lettuce in Bed 1", "2027-03-15", 5), equipment: [tool(7, "Dibber"), tool(8, "Labels")] } as never,
+      { ...s("plan:change:1:end", "Clear Lettuce in Bed 1", "2027-05-20", 5), equipment: [] } as never,
+    ];
+    panel();
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Labels" })); // switch one off
+    await userEvent.click(screen.getByRole("button", { name: "Add 2 tasks" }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(post.mock.calls[0][1].body).toEqual({ keys: ["plan:sow:1", "plan:change:1:end"], feature_id: null, equipment: { "plan:sow:1": [7] } });
+  });
+
+  it("does not show equipment for a job that has been unticked", async () => {
+    payload.suggestions = [{ ...s("plan:sow:1", "Sow Lettuce in Bed 1", "2027-03-15", 5), equipment: [tool(7, "Dibber")] } as never];
+    panel();
+    await screen.findByRole("checkbox", { name: "Dibber" });
+    await userEvent.click(screen.getByRole("checkbox", { name: /Sow Lettuce in Bed 1/ }));
+    expect(screen.queryByRole("checkbox", { name: "Dibber" })).not.toBeInTheDocument();
+  });
+
+  it("is look-only for a viewer", async () => {
+    payload.suggestions = [{ ...s("plan:sow:1", "Sow Lettuce in Bed 1", "2027-03-15", 5), equipment: [tool(7, "Dibber")] } as never];
+    panel({ canEdit: false });
+    expect(await screen.findByRole("checkbox", { name: "Dibber" })).toBeDisabled();
   });
 });
 

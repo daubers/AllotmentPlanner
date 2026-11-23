@@ -98,6 +98,7 @@ export default function TasksPage() {
           {featureName(t.feature_id) && <span>📍 {featureName(t.feature_id)}</span>}
           {trayName(t.tray_id) && <span>🌱 {trayName(t.tray_id)}</span>}
           {t.planting_id && <span>🌿 planting</span>}
+          {!!t.equipment?.length && <span title="Equipment needed">🔧 {t.equipment.map((e) => e.name).join(", ")}</span>}
           {t.location && !t.feature_id && <span>📍 pinned</span>}
           {t.due_date && <span>📅 {t.due_date}</span>}
           {t.recurrence && <span>🔁 {t.recurrence}</span>}

@@ -12,6 +12,7 @@ from ..schemas import (
     CellsUpdateSchema,
     PlantOutResultSchema,
     PlantOutSchema,
+    SuggestedTasksAddSchema,
     TaskSchema,
     TaskSuggestionSchema,
     TrayInSchema,
@@ -32,7 +33,7 @@ from ..seeds import (
 )
 from ..task_suggestions import Sowing, suggest_for_tray
 from .media import media_to_dict
-from .tasks import add_suggested, suggestions_with_state, task_to_dict
+from .tasks import add_suggested, suggestions_with_state, task_dicts
 
 blp = Blueprint(
     "trays",
@@ -311,12 +312,19 @@ class TraySuggestedTasks(MethodView):
         return suggestions_with_state(allotment, _tray_suggestions(_get(allotment, tray_id)))
 
     @require_role(Role.EDITOR)
+    @blp.arguments(SuggestedTasksAddSchema)
     @blp.response(201, TaskSchema(many=True))
-    def post(self, allotment, membership, tray_id):
+    def post(self, data, allotment, membership, tray_id):
         """Add every suggestion not yet added as a task pinned to this tray."""
         tray = _get(allotment, tray_id)
-        tasks = add_suggested(allotment, membership, _tray_suggestions(tray), tray_id=tray.id)
-        return [task_to_dict(t) for t in tasks]
+        tasks = add_suggested(
+            allotment,
+            membership,
+            _tray_suggestions(tray),
+            equipment=data["equipment"],
+            tray_id=tray.id,
+        )
+        return task_dicts(tasks)
 
 
 @blp.route("/<int:tray_id>/plant-out")

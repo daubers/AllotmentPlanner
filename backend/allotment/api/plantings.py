@@ -15,6 +15,7 @@ from ..schemas import (
     PlantingPatchSchema,
     PlantingQuerySchema,
     PlantingSchema,
+    SuggestedTasksAddSchema,
     TaskSchema,
     TaskSuggestionSchema,
 )
@@ -22,7 +23,7 @@ from ..security import require_role
 from ..seeds import normalise_calendar
 from ..task_suggestions import Sowing, suggest_for_planting
 from .media import media_to_dict
-from .tasks import add_suggested, suggestions_with_state, task_to_dict
+from .tasks import add_suggested, suggestions_with_state, task_dicts
 
 blp = Blueprint(
     "plantings",
@@ -302,11 +303,16 @@ class PlantingSuggestedTasks(MethodView):
         )
 
     @require_role(Role.EDITOR)
+    @blp.arguments(SuggestedTasksAddSchema)
     @blp.response(201, TaskSchema(many=True))
-    def post(self, allotment, membership, planting_id):
+    def post(self, data, allotment, membership, planting_id):
         """Add every suggestion not yet added as a task pinned to this planting."""
         planting = _get(allotment, planting_id)
         tasks = add_suggested(
-            allotment, membership, _planting_suggestions(planting), planting_id=planting.id
+            allotment,
+            membership,
+            _planting_suggestions(planting),
+            equipment=data["equipment"],
+            planting_id=planting.id,
         )
-        return [task_to_dict(t) for t in tasks]
+        return task_dicts(tasks)

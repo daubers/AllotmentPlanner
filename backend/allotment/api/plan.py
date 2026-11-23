@@ -26,8 +26,9 @@ from ..schemas import (
     TaskSchema,
 )
 from ..security import require_role
+from ..task_equipment import add_equipment_suggestions, set_task_equipment
 from .plantings import check_packet, get_bed
-from .tasks import task_to_dict
+from .tasks import task_dicts
 
 blp = Blueprint(
     "plan",
@@ -326,22 +327,20 @@ class PlanTaskSuggestions(MethodView):
             if t.status == TaskStatus.TODO
             and (t.suggestion_key not in by_key or _differs(t, by_key[t.suggestion_key]))
         )
-        return {
-            "stale": stale,
-            "suggestions": [
-                {
-                    "key": t.key,
-                    "title": t.title,
-                    "description": t.description,
-                    "due_date": t.due_date,
-                    "feature_id": t.feature_id,
-                    "plan_item_id": t.plan_item_id,
-                    "added": t.key in have,
-                }
-                for t in current
-                if t.due_date >= today or t.key in have
-            ],
-        }
+        rows = [
+            {
+                "key": t.key,
+                "title": t.title,
+                "description": t.description,
+                "due_date": t.due_date,
+                "feature_id": t.feature_id,
+                "plan_item_id": t.plan_item_id,
+                "added": t.key in have,
+            }
+            for t in current
+            if t.due_date >= today or t.key in have
+        ]
+        return {"stale": stale, "suggestions": add_equipment_suggestions(allotment.id, rows)}
 
 
 @blp.route("/plan/tasks")
@@ -379,6 +378,13 @@ class PlanTasksAdd(MethodView):
             for t in fresh
         ]
         db.session.add_all(tasks)
+        if data["equipment"]:
+            db.session.flush()  # for the tasks' ids
+            for task in tasks:
+                if data["equipment"].get(task.suggestion_key):
+                    set_task_equipment(
+                        task, data["equipment"][task.suggestion_key], allotment, membership.user_id
+                    )
         db.session.commit()
         for task in tasks:
             events.emit(
@@ -388,7 +394,7 @@ class PlanTasksAdd(MethodView):
                 subject={"task_id": task.id, "feature_id": task.feature_id},
                 payload={"title": task.title, "suggested": True},
             )
-        return [task_to_dict(t) for t in tasks]
+        return task_dicts(tasks)
 
 
 @blp.route("/plan/tasks/sync")
