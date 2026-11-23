@@ -503,4 +503,6 @@ a.button.secondary { background: none; color: var(--accent); border: 1px solid v
 .visit-form { display: grid; gap: .75rem; }
 .visit-form .inline input { flex: 1 1 8rem; }
 .visit-tasks { border: 1px solid var(--border); border-radius: 8px; padding: .6rem .75rem; }
-.visit-tasks ul { list-style: none; padding: 0; margin: .3rem 0 0; display: grid; gap: .3rem; max-height: 14rem; overflow: auto; }
+.visit-tasks ul { list-style: none; padding: 0; margin: .3rem 0 0; display: grid; gap: .3rem; max-height: 14rem; overflow-y: auto; overflow-x: hidden; }
+.visit-tasks .check { display: flex; gap: .5rem; align-items: baseline; color: var(--text); font-size: .95rem; }
+.visit-tasks .check input { width: 1.1rem; height: 1.1rem; flex: none; padding: 0; }

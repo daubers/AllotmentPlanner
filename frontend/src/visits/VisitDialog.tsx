@@ -118,7 +118,7 @@ export default function VisitDialog({
           <ul>
             {open.map((t) => (
               <li key={t.id}>
-                <label>
+                <label className="check">
                   <input type="checkbox" checked={picked.has(t.id!)} onChange={() => toggle(t.id!)} />
                   {t.title}
                 </label>
