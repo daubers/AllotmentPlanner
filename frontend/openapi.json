@@ -4737,6 +4737,237 @@
         ]
       }
     },
+    "/api/v1/allotments/{allotment_id}/equipment-bookings": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "equipment_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "feature_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "planting_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "description": "Only bookings from this day",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "description": "Only bookings up to this day",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Booking"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Bookings, optionally for one item, bed or planting and within a window.",
+        "tags": [
+          "equipment_bookings"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/equipment/{equipment_id}/bookings": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EquipmentBookings"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "summary": "Where this item is in use, and when more is booked than you own.",
+        "tags": [
+          "equipment_bookings"
+        ]
+      },
+      "post": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Booking"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookingIn"
+              }
+            }
+          }
+        },
+        "summary": "Put some of this item to use. Booking more than you own is allowed, with a warning.",
+        "tags": [
+          "equipment_bookings"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "equipment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    "/api/v1/allotments/{allotment_id}/equipment-bookings/{booking_id}": {
+      "patch": {
+        "responses": {
+          "422": {
+            "$ref": "#/components/responses/UNPROCESSABLE_CONTENT"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Booking"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookingPatch"
+              }
+            }
+          }
+        },
+        "tags": [
+          "equipment_bookings"
+        ]
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "$ref": "#/components/responses/DEFAULT_ERROR"
+          }
+        },
+        "tags": [
+          "equipment_bookings"
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "allotment_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "in": "path",
+          "name": "booking_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ]
+    },
     "/api/v1/allotments/{allotment_id}/suggestions": {
       "get": {
         "parameters": [
@@ -6363,6 +6594,10 @@
     {
       "name": "equipment_kinds",
       "description": "The kinds of equipment the app knows about"
+    },
+    {
+      "name": "equipment_bookings",
+      "description": "Equipment in use on beds and plantings, and when it is over-booked"
     },
     {
       "name": "suggestions",
@@ -10533,6 +10768,175 @@
           },
           "label": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BookingConflict": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date",
+            "description": "The first day it is no longer over-booked"
+          },
+          "used": {
+            "type": "integer"
+          },
+          "over": {
+            "type": "integer"
+          },
+          "booking_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "Booking": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "equipment_id": {
+            "type": "integer"
+          },
+          "equipment_name": {
+            "type": "string"
+          },
+          "equipment_quantity": {
+            "type": "integer",
+            "description": "How many you own"
+          },
+          "feature_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "feature_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "planting_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "planting_label": {
+            "type": "string",
+            "nullable": true
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "ends_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
+          },
+          "warnings": {
+            "type": "array",
+            "description": "When this booking is part of an over-booking",
+            "items": {
+              "$ref": "#/components/schemas/BookingConflict"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "EquipmentBookings": {
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "integer",
+            "description": "How many you own"
+          },
+          "bookings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Booking"
+            }
+          },
+          "conflicts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BookingConflict"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "BookingIn": {
+        "type": "object",
+        "properties": {
+          "feature_id": {
+            "type": "integer",
+            "default": null,
+            "description": "A bed",
+            "nullable": true
+          },
+          "planting_id": {
+            "type": "integer",
+            "default": null,
+            "nullable": true
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "ends_on": {
+            "type": "string",
+            "format": "date",
+            "description": "The first day it is free again"
+          },
+          "quantity": {
+            "type": "integer",
+            "default": 1,
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "note": {
+            "type": "string",
+            "default": "",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "ends_on",
+          "starts_on"
+        ],
+        "additionalProperties": false
+      },
+      "BookingPatch": {
+        "type": "object",
+        "properties": {
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "ends_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
           }
         },
         "additionalProperties": false

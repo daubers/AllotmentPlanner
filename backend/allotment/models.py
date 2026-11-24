@@ -678,6 +678,44 @@ class VisitEquipment(db.Model):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class EquipmentBooking(db.Model):
+    """Some of an item put to use on a bed or a planting for a stretch of time (cloches on lettuce).
+
+    ``ends_on`` is the first day it is free again, like a plan item's: back to back is not a clash.
+    """
+
+    __tablename__ = "equipment_bookings"
+    __table_args__ = (
+        CheckConstraint("quantity >= 1", name="ck_equipment_bookings_quantity"),
+        CheckConstraint("ends_on > starts_on", name="ck_equipment_bookings_dates"),
+        CheckConstraint(
+            "(feature_id IS NULL) <> (planting_id IS NULL)", name="ck_equipment_bookings_target"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    allotment_id: Mapped[int] = mapped_column(
+        ForeignKey("allotments.id", ondelete="CASCADE"), index=True
+    )
+    equipment_id: Mapped[int] = mapped_column(
+        ForeignKey("equipment.id", ondelete="CASCADE"), index=True
+    )
+    feature_id: Mapped[int | None] = mapped_column(
+        ForeignKey("map_features.id", ondelete="CASCADE"), nullable=True, index=True
+    )  # a bed...
+    planting_id: Mapped[int | None] = mapped_column(
+        ForeignKey("plantings.id", ondelete="CASCADE"), nullable=True, index=True
+    )  # ...or a planting
+    starts_on: Mapped[date] = mapped_column(Date)
+    ends_on: Mapped[date] = mapped_column(Date)
+    quantity: Mapped[int] = mapped_column(default=1, server_default="1")
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class ActivityLog(db.Model):
     """A domain event worth remembering; feeds the progress overview and later Mastodon."""
 

@@ -10,6 +10,7 @@ from .api import (
     auth,
     day_lists,
     equipment,
+    equipment_bookings,
     features,
     limits,
     mapping,
@@ -77,6 +78,7 @@ def create_app(config: type = Config) -> Flask:
     api.register_blueprint(crops_api.blp)
     api.register_blueprint(equipment.blp)
     api.register_blueprint(equipment.kinds_blp)
+    api.register_blueprint(equipment_bookings.blp)
     api.register_blueprint(suggestions.blp)
     api.register_blueprint(measurements.blp)
     api.register_blueprint(notes.blp)

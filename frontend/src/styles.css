@@ -590,3 +590,7 @@ select.chip-add { width: auto; padding: .15rem .4rem; font-size: .85rem; border-
 .maintenance-list li { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .4rem .6rem; border: 1px solid var(--border); border-radius: 8px; }
 .maintenance-form { display: grid; gap: .6rem; margin-top: .75rem; }
 .maintenance-form .pair { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.plan-bar.equipment { background: transparent; border: 2px solid var(--muted); color: var(--text); top: 4px; bottom: 4px; pointer-events: none; }
+.plan-equipment .plan-bars { min-height: 1.4rem; }
+.in-use { margin-top: 1.5rem; }
+.in-use h2 { margin-bottom: .3rem; }

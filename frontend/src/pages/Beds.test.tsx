@@ -187,4 +187,32 @@ describe("Planting from the plan", () => {
     expect(screen.getByLabelText("Seeds or plants")).toHaveValue(null);
   });
 });
+
+describe("Equipment in use on a bed", () => {
+  const use = { id: 1, equipment_id: 2, equipment_name: "Glass cloches", equipment_quantity: 6, feature_id: 5, feature_name: "Bed 1", planting_id: null, planting_label: null, starts_on: "2026-03-01", ends_on: "2026-05-01", quantity: 6, note: "", warnings: [] };
+
+  it("lists what is in use on the bed and offers to add more", async () => {
+    get.mockImplementation(async (p: string) => {
+      if (p.endsWith("/equipment-bookings")) return { data: [use] };
+      if (p.endsWith("/features")) return { data: { features: [bed, path] } };
+      if (p.endsWith("/plantings")) return { data: [carrots] };
+      if (p.endsWith("/packets")) return { data: [packet] };
+      return { data: [] };
+    });
+    setup("/a/beds/5");
+    const section = await screen.findByRole("region", { name: "Equipment in use" });
+    expect(within(section).getByText("Glass cloches")).toBeInTheDocument();
+    expect(within(section).getByText(/× 6/)).toBeInTheDocument();
+    expect(within(section).getByText("1 Mar to 1 May")).toBeInTheDocument();
+    await userEvent.click(within(section).getByRole("button", { name: "Put equipment to use" }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Put equipment to use on Bed 1");
+    expect(get.mock.calls.some((c) => String(c[0]).endsWith("/equipment-bookings") && c[1].params.query.feature_id === 5)).toBe(true);
+  });
+
+  it("does not offer to change it to a viewer", async () => {
+    setup("/a/beds/5", "viewer");
+    const section = await screen.findByRole("region", { name: "Equipment in use" });
+    expect(within(section).queryByRole("button", { name: "Put equipment to use" })).not.toBeInTheDocument();
+  });
+});
 });

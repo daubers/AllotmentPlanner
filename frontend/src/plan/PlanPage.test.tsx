@@ -232,4 +232,23 @@ describe("Plan page", () => {
     expect(within(dialog).getByRole("link", { name: "See it in Bed 1" })).toHaveAttribute("href", "/allotments/1/beds/5");
     expect(within(dialog).queryByRole("link", { name: /Plant this/ })).not.toBeInTheDocument();
   });
+
+  it("shows equipment in use on a bed as a lane under its crops", async () => {
+    get.mockImplementation(async (p: string) => {
+      if (p.endsWith("/plan")) return { data: planned };
+      if (p.endsWith("/equipment-bookings")) {
+        return { data: [
+          { id: 1, equipment_id: 2, equipment_name: "Glass cloches", equipment_quantity: 6, feature_id: 5, feature_name: "Bed 1", planting_id: null, planting_label: null, starts_on: "2026-04-01", ends_on: "2026-05-01", quantity: 6, note: "", warnings: [] },
+          { id: 2, equipment_id: 3, equipment_name: "Fleece", equipment_quantity: 1, feature_id: 6, feature_name: "Pot", planting_id: null, planting_label: null, starts_on: "2026-04-01", ends_on: "2026-05-01", quantity: 1, note: "", warnings: [] },
+        ] };
+      }
+      return { data: p.endsWith("/crops") ? [lettuce] : [] };
+    });
+    setup();
+    const bed = await screen.findByRole("region", { name: "Bed 1" });
+    expect(await within(bed).findByRole("img", { name: "In use: Glass cloches × 6, 1 Apr to 1 May" })).toBeInTheDocument();
+    expect(within(bed).queryByRole("img", { name: /Fleece/ })).not.toBeInTheDocument(); // that one is on another bed
+    const pot = screen.getByRole("region", { name: "Pot" });
+    expect(within(pot).getByRole("img", { name: "In use: Fleece, 1 Apr to 1 May" })).toBeInTheDocument();
+  });
 });

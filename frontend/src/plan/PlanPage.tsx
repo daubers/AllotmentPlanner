@@ -5,6 +5,7 @@ import MaintenanceDialog from "./MaintenanceDialog";
 import PlanItemDialog from "./PlanItemDialog";
 import PlanTasks from "./PlanTasks";
 import PlanTimeline from "./PlanTimeline";
+import { useBookings } from "../equipment/hooks";
 import { mergeConflicts } from "./conflicts";
 import { usePlan, type PlanBed, type PlanItem } from "./hooks";
 import { currentKey, makeWindow, parseKey, shiftMonth } from "./window";
@@ -19,6 +20,7 @@ export default function PlanPage() {
   const win = makeWindow(key);
   const bedFilter = Number(params.get("bed")) || null;
   const plan = usePlan(id, win.from, win.to);
+  const inUse = useBookings(id, { from: win.from, to: win.to });
   const [editing, setEditing] = useState<Editing | null>(null);
   const [maintenance, setMaintenance] = useState(false);
 
@@ -107,7 +109,7 @@ export default function PlanPage() {
                   ))}
                 </ul>
               )}
-              <PlanTimeline win={win} bed={bed} onEdit={(item) => canEdit && setEditing({ bed, item })} />
+              <PlanTimeline win={win} bed={bed} onEdit={(item) => canEdit && setEditing({ bed, item })} bookings={(inUse.data ?? []).filter((b) => b.feature_id === bed.feature_id)} />
             </section>
           );
         })

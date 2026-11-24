@@ -1,3 +1,4 @@
+import type { Booking } from "../equipment/hooks";
 import { toDay } from "./dates";
 import type { PlanBed, PlanItem } from "./hooks";
 import { barStyle, currentKey, dayLabel, peakUsage, type Win } from "./window";
@@ -5,7 +6,7 @@ import { barStyle, currentKey, dayLabel, peakUsage, type Win } from "./window";
 const widthOf = (m: { start: string; end: string }) => toDay(m.end) - toDay(m.start);
 
 /** One bed's twelve months: how full it is each month, then a bar per crop (a lighter lead-in for tray time). */
-export default function PlanTimeline({ win, bed, onEdit }: { win: Win; bed: PlanBed; onEdit(item: PlanItem): void }) {
+export default function PlanTimeline({ win, bed, onEdit, bookings = [] }: { win: Win; bed: PlanBed; onEdit(item: PlanItem): void; bookings?: Booking[] }) {
   const items = bed.items ?? [];
   const area = bed.area_m2 ?? null;
   const peaks = area ? peakUsage(items, win) : [];
@@ -77,6 +78,21 @@ export default function PlanTimeline({ win, bed, onEdit }: { win: Win; bed: Plan
                   <span>{item.area_m2} m²</span>
                 </button>
               )}
+            </div>
+          </div>
+        );
+      })}
+      {bookings.map((b) => {
+        const bar = barStyle(b.starts_on!, b.ends_on!, win);
+        if (!bar) return null;
+        const label = `${b.equipment_name}${(b.quantity ?? 1) > 1 ? ` × ${b.quantity}` : ""}, ${dayLabel(b.starts_on!)} to ${dayLabel(b.ends_on!)}`;
+        return (
+          <div key={`eq-${b.id}`} className="plan-row plan-equipment">
+            <span className="plan-name muted" title={label}>🔧 {b.equipment_name}</span>
+            <div className="plan-track plan-bars">
+              <span className="plan-bar equipment" style={{ left: `${bar.left}%`, width: `${bar.width}%` }} role="img" aria-label={`In use: ${label}`}>
+                <span>{(b.quantity ?? 1) > 1 ? `× ${b.quantity}` : ""}</span>
+              </span>
             </div>
           </div>
         );

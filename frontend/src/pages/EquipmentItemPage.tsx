@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import InUse from "../equipment/InUse";
 import MaintenanceSection from "../equipment/MaintenanceSection";
-import { STATUS_LABEL, useEquipmentActions, useEquipmentItem, useEquipmentKinds, type EquipmentStatus, type KindKey } from "../equipment/hooks";
+import { STATUS_LABEL, useEquipmentActions, useEquipmentItem, useEquipmentKinds, useItemBookings, type EquipmentStatus, type KindKey } from "../equipment/hooks";
+import { dayLabel } from "../plan/window";
 import { useFeatureOptions } from "../tasks/hooks";
 import { useAllotment } from "./AllotmentLayout";
 
@@ -12,6 +14,7 @@ export default function EquipmentItemPage() {
   const item = useEquipmentItem(id, equipmentId);
   const kinds = useEquipmentKinds();
   const features = useFeatureOptions(id);
+  const inUse = useItemBookings(id, equipmentId);
   const actions = useEquipmentActions(id);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -126,6 +129,13 @@ export default function EquipmentItemPage() {
         )}
         {error && <p role="alert" className="error">{error}</p>}
       </form>
+
+      <InUse allotmentId={id} title="In use" bookings={inUse.data?.bookings ?? []} canEdit={canEdit} show="where" add={{ equipmentId }} />
+      {(inUse.data?.conflicts ?? []).map((c) => (
+        <p key={`${c.from}-${c.to}`} role="status" className="plan-stale">
+          You have {inUse.data?.quantity} but {c.used} are in use from {dayLabel(c.from!)} to {dayLabel(c.to!)}.
+        </p>
+      ))}
 
       <MaintenanceSection allotmentId={id} equipmentId={equipmentId} name={e.name ?? ""} canEdit={canEdit} />
 

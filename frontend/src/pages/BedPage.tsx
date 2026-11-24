@@ -4,6 +4,8 @@ import { uploadMedia, useMedia, useMediaActions } from "../media/hooks";
 import { areaLabel, colourOf, polygonOf, ringOf, type LonLat } from "../plantings/geometry";
 import { STATUSES, STATUS_LABEL, useBeds, usePlantingActions, usePlantings, type Planting } from "../plantings/hooks";
 import RegionEditor, { type Shown } from "../plantings/RegionEditor";
+import InUse from "../equipment/InUse";
+import { useBookings } from "../equipment/hooks";
 import { usePlanItem } from "../plan/hooks";
 import { usePackets } from "../seeds/hooks";
 import SuggestTasks from "../tasks/SuggestTasks";
@@ -23,6 +25,7 @@ export default function BedPage() {
   const plantings = usePlantings(id, { featureId });
   const packets = usePackets(id, { status: "active" });
   const actions = usePlantingActions(id);
+  const inUse = useBookings(id, { featureId });
   const [points, setPoints] = useState<LonLat[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [showDone, setShowDone] = useState(false);
@@ -98,6 +101,15 @@ export default function BedPage() {
           {warnings.length > 0 && <ul className="warnings" role="status">{warnings.map((w) => <li key={w}>{w}</li>)}</ul>}
         </section>
       )}
+
+      <InUse
+        allotmentId={id}
+        title="Equipment in use"
+        bookings={inUse.data ?? []}
+        canEdit={canEdit}
+        show="equipment"
+        add={{ target: { kind: "feature", id: featureId, label: bed.name } }}
+      />
 
       <section aria-label="Plantings">
         <h2>In this bed</h2>

@@ -7,6 +7,9 @@ export type EquipmentInput = components["schemas"]["EquipmentIn"];
 export type EquipmentPatch = components["schemas"]["EquipmentPatch"];
 export type EquipmentKind = components["schemas"]["EquipmentKind"];
 export type EquipmentSuggestion = components["schemas"]["EquipmentSuggestion"];
+export type Booking = components["schemas"]["Booking"];
+export type BookingConflict = components["schemas"]["BookingConflict"];
+export type BookingInput = components["schemas"]["BookingIn"];
 export type Maintenance = components["schemas"]["Maintenance"];
 export type MaintenanceInput = components["schemas"]["MaintenanceIn"];
 /** A piece of equipment as a task shows it. */
@@ -145,6 +148,62 @@ export function useMaintenanceActions(allotmentId: number, id: number) {
           params: { path: { allotment_id: allotmentId, series_id: seriesId } },
         });
         if (error) throw new Error(message(error, "Couldn't stop it"));
+      },
+      onSuccess: refresh,
+    }),
+  };
+}
+
+export type BookingFilters = { equipmentId?: number; featureId?: number; plantingId?: number; from?: string; to?: string };
+
+/** Equipment in use: all of it, or for one item, bed or planting, or within a window. */
+export function useBookings(allotmentId: number, filters: BookingFilters = {}, enabled = true) {
+  return useQuery({
+    queryKey: ["equipment-bookings", allotmentId, filters],
+    enabled,
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<Booking[]> =>
+      (
+        await api.GET("/api/v1/allotments/{allotment_id}/equipment-bookings", {
+          params: {
+            ...path(allotmentId),
+            query: { equipment_id: filters.equipmentId, feature_id: filters.featureId, planting_id: filters.plantingId, from: filters.from, to: filters.to },
+          },
+        })
+      ).data ?? [],
+  });
+}
+
+/** Where one item is in use, and the stretches when more is booked than you own. */
+export function useItemBookings(allotmentId: number, id: number) {
+  return useQuery({
+    queryKey: ["equipment-bookings", allotmentId, "item", id],
+    queryFn: async () =>
+      (await api.GET("/api/v1/allotments/{allotment_id}/equipment/{equipment_id}/bookings", { params: one(allotmentId, id) })).data,
+  });
+}
+
+export function useBookingActions(allotmentId: number) {
+  const qc = useQueryClient();
+  const refresh = () => void qc.invalidateQueries({ queryKey: ["equipment-bookings", allotmentId] });
+  return {
+    create: useMutation({
+      mutationFn: async ({ equipmentId, body }: { equipmentId: number; body: BookingInput }): Promise<Booking> => {
+        const { data, error } = await api.POST("/api/v1/allotments/{allotment_id}/equipment/{equipment_id}/bookings", {
+          params: one(allotmentId, equipmentId),
+          body,
+        });
+        if (!data) throw new Error(message(error, "Couldn't put that to use"));
+        return data;
+      },
+      onSuccess: refresh,
+    }),
+    remove: useMutation({
+      mutationFn: async (id: number) => {
+        const { error } = await api.DELETE("/api/v1/allotments/{allotment_id}/equipment-bookings/{booking_id}", {
+          params: { path: { allotment_id: allotmentId, booking_id: id } },
+        });
+        if (error) throw new Error(message(error, "Couldn't remove that"));
       },
       onSuccess: refresh,
     }),

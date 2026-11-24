@@ -473,6 +473,72 @@ class MaintenanceSchema(Schema):
     last_serviced_on = fields.Date(allow_none=True)
 
 
+class BookingInSchema(Schema):
+    """Put some equipment to use on a bed or a planting (exactly one) for a stretch of time."""
+
+    feature_id = fields.Integer(
+        load_default=None, allow_none=True, metadata={"description": "A bed"}
+    )
+    planting_id = fields.Integer(load_default=None, allow_none=True)
+    starts_on = fields.Date(required=True)
+    ends_on = fields.Date(required=True, metadata={"description": "The first day it is free again"})
+    quantity = fields.Integer(load_default=1, validate=validate.Range(min=1, max=100000))
+    note = fields.String(load_default="", validate=validate.Length(max=500))
+
+    @validates_schema
+    def one_target(self, data, **kwargs):
+        if (data.get("feature_id") is None) == (data.get("planting_id") is None):
+            raise ValidationError("Give a bed (feature_id) or a planting (planting_id), not both")
+
+
+class BookingPatchSchema(Schema):
+    starts_on = fields.Date()
+    ends_on = fields.Date()
+    quantity = fields.Integer(validate=validate.Range(min=1, max=100000))
+    note = fields.String(validate=validate.Length(max=500))
+
+
+class BookingQuerySchema(Schema):
+    equipment_id = fields.Integer()
+    feature_id = fields.Integer()
+    planting_id = fields.Integer()
+    start = fields.Date(data_key="from", metadata={"description": "Only bookings from this day"})
+    to = fields.Date(metadata={"description": "Only bookings up to this day"})
+
+
+class BookingConflictSchema(Schema):
+    start = fields.Date(data_key="from")
+    to = fields.Date(metadata={"description": "The first day it is no longer over-booked"})
+    used = fields.Integer()
+    over = fields.Integer()
+    booking_ids = fields.List(fields.Integer())
+
+
+class BookingSchema(Schema):
+    id = fields.Integer()
+    equipment_id = fields.Integer()
+    equipment_name = fields.String()
+    equipment_quantity = fields.Integer(metadata={"description": "How many you own"})
+    feature_id = fields.Integer(allow_none=True)
+    feature_name = fields.String(allow_none=True)
+    planting_id = fields.Integer(allow_none=True)
+    planting_label = fields.String(allow_none=True)
+    starts_on = fields.Date()
+    ends_on = fields.Date()
+    quantity = fields.Integer()
+    note = fields.String()
+    warnings = fields.List(
+        fields.Nested(BookingConflictSchema),
+        metadata={"description": "When this booking is part of an over-booking"},
+    )
+
+
+class EquipmentBookingsSchema(Schema):
+    quantity = fields.Integer(metadata={"description": "How many you own"})
+    bookings = fields.List(fields.Nested(BookingSchema))
+    conflicts = fields.List(fields.Nested(BookingConflictSchema))
+
+
 class EquipmentKindSchema(Schema):
     key = fields.String()
     label = fields.String()

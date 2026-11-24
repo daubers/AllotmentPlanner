@@ -29,6 +29,7 @@ const item = (extra = {}) => ({
 const cloches = item({ id: 5, name: "Glass cloches", kind: "cloche", kind_label: "Cloche", quantity: 6, location_name: null, location_feature_id: null });
 const old = item({ id: 6, name: "Old fork", kind: null, kind_label: "Other", status: "out_of_action", location_name: null });
 
+let itemBookings: Record<string, unknown> = { quantity: 6, bookings: [], conflicts: [] };
 let maintenance: Record<string, unknown> = { schedules: [], next_due: null, overdue: false, open_tasks: 0, last_serviced_on: null };
 
 function setup(url: string, role: "owner" | "viewer" = "owner") {
@@ -50,8 +51,11 @@ function setup(url: string, role: "owner" | "viewer" = "owner") {
 beforeEach(() => {
   for (const m of [get, post, patch, del]) m.mockReset();
   maintenance = { schedules: [], next_due: null, overdue: false, open_tasks: 0, last_serviced_on: null };
+  itemBookings = { quantity: 6, bookings: [], conflicts: [] };
   get.mockImplementation(async (p: string) => {
     if (p.endsWith("/equipment-kinds")) return { data: kinds };
+    if (p.endsWith("/equipment/{equipment_id}/bookings")) return { data: itemBookings };
+    if (p.endsWith("/equipment-bookings")) return { data: [] };
     if (p.endsWith("/equipment/{equipment_id}/maintenance")) return { data: maintenance };
     if (p.endsWith("/equipment/{equipment_id}")) return { data: item() };
     if (p.endsWith("/equipment")) return { data: [item(), cloches, old] };
@@ -306,5 +310,54 @@ describe("Maintenance", () => {
     setup("/a/equipment");
     expect(await screen.findByRole("link", { name: /Border spade/ })).toHaveTextContent("Overdue");
     expect(screen.getByRole("link", { name: /Glass cloches/ })).not.toHaveTextContent("Overdue");
+  });
+});
+
+describe("In use", () => {
+  const use = (id: number, quantity: number, where: string, starts_on = "2026-03-01", ends_on = "2026-05-01") => ({
+    id, equipment_id: 4, equipment_name: "Border spade", equipment_quantity: 6, feature_id: 5, feature_name: where, planting_id: null, planting_label: null, starts_on, ends_on, quantity, note: "", warnings: [],
+  });
+  const section = () => within(screen.getByRole("region", { name: "In use" }));
+
+  it("lists where an item is in use, and when", async () => {
+    itemBookings = { quantity: 6, bookings: [use(1, 4, "Bed 1"), use(2, 1, "Bed 2", "2026-06-01", "2026-07-01")], conflicts: [] };
+    setup("/a/equipment/4");
+    expect(await screen.findByText("Bed 1")).toBeInTheDocument();
+    expect(section().getByText(/× 4/)).toBeInTheDocument();
+    expect(section().getByText("1 Mar to 1 May")).toBeInTheDocument();
+    expect(section().getByText("Bed 2")).toBeInTheDocument();
+  });
+
+  it("says when nothing is in use", async () => {
+    setup("/a/equipment/4");
+    expect(await screen.findByText("Nothing in use.")).toBeInTheDocument();
+  });
+
+  it("warns when more is in use than you own", async () => {
+    itemBookings = { quantity: 6, bookings: [use(1, 5, "Bed 1"), use(2, 3, "Bed 2")], conflicts: [{ from: "2026-03-01", to: "2026-05-01", used: 8, over: 2, booking_ids: [1, 2] }] };
+    setup("/a/equipment/4");
+    expect(await screen.findByText(/You have 6 but 8 are in use from 1 Mar to 1 May\./)).toBeInTheDocument();
+  });
+
+  it("stops using it somewhere", async () => {
+    itemBookings = { quantity: 6, bookings: [use(1, 1, "Bed 1")], conflicts: [] };
+    setup("/a/equipment/4");
+    await userEvent.click(await screen.findByRole("button", { name: /Stop using Bed 1/ }));
+    await waitFor(() => expect(del).toHaveBeenCalled());
+    expect(del.mock.calls[0][1]).toMatchObject({ params: { path: { allotment_id: 1, booking_id: 1 } } });
+  });
+
+  it("opens the dialog to put it to use, for a viewer not at all", async () => {
+    setup("/a/equipment/4");
+    await userEvent.click(await screen.findByRole("button", { name: "Put equipment to use" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("is look-only for a viewer", async () => {
+    itemBookings = { quantity: 6, bookings: [use(1, 1, "Bed 1")], conflicts: [] };
+    setup("/a/equipment/4", "viewer");
+    expect(await screen.findByText("Bed 1")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Put equipment to use" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Stop using/ })).not.toBeInTheDocument();
   });
 });

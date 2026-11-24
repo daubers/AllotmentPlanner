@@ -4364,6 +4364,196 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/allotments/{allotment_id}/equipment-bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+            };
+            cookie?: never;
+        };
+        /** Bookings, optionally for one item, bed or planting and within a window. */
+        get: {
+            parameters: {
+                query?: {
+                    equipment_id?: number;
+                    feature_id?: number;
+                    planting_id?: number;
+                    /** @description Only bookings from this day */
+                    from?: string;
+                    /** @description Only bookings up to this day */
+                    to?: string;
+                };
+                header?: never;
+                path: {
+                    allotment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Booking"][];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/equipment/{equipment_id}/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                equipment_id: number;
+            };
+            cookie?: never;
+        };
+        /** Where this item is in use, and when more is booked than you own. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    equipment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EquipmentBookings"];
+                    };
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        put?: never;
+        /** Put some of this item to use. Booking more than you own is allowed, with a warning. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    equipment_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["BookingIn"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Booking"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/allotments/{allotment_id}/equipment-bookings/{booking_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                allotment_id: number;
+                booking_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    booking_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    allotment_id: number;
+                    booking_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["BookingPatch"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Booking"];
+                    };
+                };
+                422: components["responses"]["UNPROCESSABLE_CONTENT"];
+                default: components["responses"]["DEFAULT_ERROR"];
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/allotments/{allotment_id}/suggestions": {
         parameters: {
             query?: never;
@@ -7286,6 +7476,71 @@ export interface components {
         EquipmentKind: {
             key?: string;
             label?: string;
+        };
+        BookingConflict: {
+            /** Format: date */
+            from?: string;
+            /**
+             * Format: date
+             * @description The first day it is no longer over-booked
+             */
+            to?: string;
+            used?: number;
+            over?: number;
+            booking_ids?: number[];
+        };
+        Booking: {
+            id?: number;
+            equipment_id?: number;
+            equipment_name?: string;
+            /** @description How many you own */
+            equipment_quantity?: number;
+            feature_id?: number | null;
+            feature_name?: string | null;
+            planting_id?: number | null;
+            planting_label?: string | null;
+            /** Format: date */
+            starts_on?: string;
+            /** Format: date */
+            ends_on?: string;
+            quantity?: number;
+            note?: string;
+            /** @description When this booking is part of an over-booking */
+            warnings?: components["schemas"]["BookingConflict"][];
+        };
+        EquipmentBookings: {
+            /** @description How many you own */
+            quantity?: number;
+            bookings?: components["schemas"]["Booking"][];
+            conflicts?: components["schemas"]["BookingConflict"][];
+        };
+        BookingIn: {
+            /**
+             * @description A bed
+             * @default null
+             */
+            feature_id?: number | null;
+            /** @default null */
+            planting_id?: number | null;
+            /** Format: date */
+            starts_on: string;
+            /**
+             * Format: date
+             * @description The first day it is free again
+             */
+            ends_on: string;
+            /** @default 1 */
+            quantity?: number;
+            /** @default  */
+            note?: string;
+        };
+        BookingPatch: {
+            /** Format: date */
+            starts_on?: string;
+            /** Format: date */
+            ends_on?: string;
+            quantity?: number;
+            note?: string;
         };
         Sighting: {
             media_id?: number;

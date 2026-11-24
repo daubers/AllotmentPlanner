@@ -194,6 +194,13 @@ function Equipment() {
         records the item as serviced that day, and the item shows <em>Overdue</em> when a job is past its date. Stop a schedule from the same
         place; deleting an item ends its maintenance (jobs already done stay as history).
       </p>
+      <h2>Equipment in use</h2>
+      <p>
+        Equipment you own several of, like cloches, can be put to use on a bed for a stretch of time: press <em>Put equipment to use</em> on a
+        bed's page or on the item's own page, say how many and from when until the day they are free again. In-use equipment shows under the
+        bed's crops on the Plan page. Booking more than you own, over the same dates, is allowed but flagged. One use ending the day the next
+        begins is not a clash.
+      </p>
       <h2>Used for</h2>
       <p>
         Under <em>Used for</em>, list the words that should make an item suggested for a job (for example <em>dig, trench</em> on a border
