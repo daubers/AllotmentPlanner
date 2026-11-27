@@ -2,6 +2,8 @@ import * as WebBrowser from "expo-web-browser";
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { APP_VERSION } from "../src/auth/appVersion";
+import { checkCompat, type Compat } from "../src/auth/compat";
 import { LoginError, normaliseServerUrl, parseSignInResult, signInUrl, ssoMessage, SSO_REDIRECT, type Provider } from "../src/auth/session";
 import { useApp } from "../src/state/AppProvider";
 import { Banner, Button, Card, Field, T } from "../src/ui/kit";
@@ -18,13 +20,23 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [compat, setCompat] = useState<Compat | null>(null);
 
   // Ask the server which single sign-on providers it has, once the address looks complete.
   useEffect(() => {
     let current = true;
     setProviders([]);
+    setCompat(null);
     if (!server.trim()) return;
-    const wait = setTimeout(() => void session.providers(server).then((list) => current && setProviders(list)), 600);
+    const wait = setTimeout(
+      () =>
+        void session.serverInfo(server).then((info) => {
+          if (!current) return;
+          setProviders(info?.providers ?? []);
+          setCompat(checkCompat(info, APP_VERSION));
+        }),
+      600,
+    );
     return () => {
       current = false;
       clearTimeout(wait);
@@ -95,6 +107,7 @@ export default function Login() {
                   </T>
                 </Pressable>
               </View>
+              {compat ? <Banner tone="warn" text={compat.message} /> : null}
               {error ? <Banner tone="danger" text={error} /> : null}
               <Button label="Sign in" onPress={submit} busy={busy} disabled={!server || !email || !password} />
               {providers.map((p2) => (

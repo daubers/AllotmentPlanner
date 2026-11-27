@@ -115,6 +115,13 @@ class AuthConfigSchema(Schema):
     oidc = fields.List(
         fields.Nested(OidcProviderSchema), metadata={"description": "Single sign-on providers"}
     )
+    server_version = fields.String(metadata={"description": "The release this server is running"})
+    api_level = fields.Integer(
+        metadata={"description": "Raised when the API changes in a way older servers can't serve"}
+    )
+    min_app_version = fields.String(
+        metadata={"description": "The oldest phone app version this server works with"}
+    )
 
 
 class OidcIdentitySchema(Schema):

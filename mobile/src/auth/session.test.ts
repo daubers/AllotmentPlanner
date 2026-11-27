@@ -1,4 +1,4 @@
-import { Session, normaliseServerUrl, parseSignInResult, secondsLeft, signInUrl, ssoMessage, type KeyValueStore } from "./session";
+import { Session, isLocalHost, normaliseServerUrl, parseSignInResult, secondsLeft, signInUrl, ssoMessage, type KeyValueStore } from "./session";
 
 function memory(): KeyValueStore & { data: Map<string, string> } {
   const data = new Map<string, string>();
@@ -22,6 +22,26 @@ test("server addresses are tidied", () => {
   expect(normaliseServerUrl(" 192.168.1.5:8000/ ")).toBe("http://192.168.1.5:8000");
   expect(normaliseServerUrl("https://plot.example.com//")).toBe("https://plot.example.com");
   expect(normaliseServerUrl("  ")).toBe("");
+});
+
+test("an address with no scheme gets http only on the local network, https otherwise", () => {
+  expect(normaliseServerUrl("192.168.1.5:8000")).toBe("http://192.168.1.5:8000");
+  expect(normaliseServerUrl("10.0.0.2")).toBe("http://10.0.0.2");
+  expect(normaliseServerUrl("plot.local:8080")).toBe("http://plot.local:8080");
+  expect(normaliseServerUrl("localhost:8000")).toBe("http://localhost:8000");
+  expect(normaliseServerUrl("nas:8000")).toBe("http://nas:8000");
+  expect(normaliseServerUrl("plot.example.com")).toBe("https://plot.example.com");
+  expect(normaliseServerUrl("8.8.8.8:8000")).toBe("https://8.8.8.8:8000");
+  expect(normaliseServerUrl("http://plot.example.com")).toBe("http://plot.example.com"); // said so explicitly
+  expect(isLocalHost("172.15.0.1")).toBe(false);
+  expect(isLocalHost("172.16.0.1")).toBe(true);
+});
+
+test("the server's versions come from its config", async () => {
+  const fetchImpl = jest.fn(async () => json(200, { oidc: [], server_version: "0.16.0", api_level: 1, min_app_version: "1.0.0" }));
+  const info = await new Session(memory(), fetchImpl as unknown as typeof fetch).serverInfo("plot.example.com");
+  expect(info).toEqual({ providers: [], serverVersion: "0.16.0", apiLevel: 1, minAppVersion: "1.0.0" });
+  expect(await new Session(memory(), jest.fn(async () => json(500, {})) as unknown as typeof fetch).serverInfo("x.example.com")).toBeNull();
 });
 
 test("secondsLeft reads a token's expiry and treats rubbish as expired", () => {
@@ -118,10 +138,10 @@ test("a one-time code is swapped for a login that is saved like a password login
   const fetchImpl = jest.fn().mockResolvedValue(json(200, { access_token: jwt(900), refresh_token: "r" }));
   const session = new Session(store, fetchImpl);
   await session.loginWithCode("plot.example.com", "one-time");
-  expect(fetchImpl.mock.calls[0][0]).toBe("http://plot.example.com/api/v1/auth/oidc/exchange");
+  expect(fetchImpl.mock.calls[0][0]).toBe("https://plot.example.com/api/v1/auth/oidc/exchange");
   expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({ code: "one-time" });
   expect(session.signedIn).toBe(true);
-  expect(store.data.get("allotment.server")).toBe("http://plot.example.com");
+  expect(store.data.get("allotment.server")).toBe("https://plot.example.com");
 });
 
 test("an expired code asks the person to try again", async () => {

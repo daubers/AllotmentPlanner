@@ -17,7 +17,8 @@
             "$ref": "#/components/responses/DEFAULT_ERROR"
           }
         },
-        "summary": "How accounts can be created here, so the sign-in page can ask for an invite code.",
+        "summary": "How accounts can be created here, and which versions this server is and works with.",
+        "description": "Needs no sign-in: the phone app reads it before login to tell the person whether the app\nor the server needs updating.",
         "tags": [
           "auth"
         ]
@@ -6719,6 +6720,18 @@
             "items": {
               "$ref": "#/components/schemas/OidcProvider"
             }
+          },
+          "server_version": {
+            "type": "string",
+            "description": "The release this server is running"
+          },
+          "api_level": {
+            "type": "integer",
+            "description": "Raised when the API changes in a way older servers can't serve"
+          },
+          "min_app_version": {
+            "type": "string",
+            "description": "The oldest phone app version this server works with"
           }
         },
         "additionalProperties": false

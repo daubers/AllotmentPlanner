@@ -11,8 +11,7 @@
       "bundleIdentifier": "dev.daubney.allotment",
       "infoPlist": {
         "NSAppTransportSecurity": {
-          "NSAllowsLocalNetworking": true,
-          "NSAllowsArbitraryLoads": true
+          "NSAllowsLocalNetworking": true
         },
         "NSMotionUsageDescription": "Allotment checks how level the camera is held."
       }
@@ -31,15 +30,7 @@
       "expo-router",
       "expo-secure-store",
       "expo-sqlite",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "usesCleartextTraffic": true
-          },
-          "ios": {}
-        }
-      ],
+      "./plugins/network-security",
       [
         "expo-camera",
         {
@@ -76,6 +67,12 @@
       "bundler": "metro",
       "output": "single",
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d8ad0e50-f5cb-4812-bfc2-63b29d9355cc"
+      }
+    },
+    "owner": "daubney-dev"
   }
 }
